@@ -1,0 +1,40 @@
+{
+	"id": "L17-entry-host-source",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"S6"
+	],
+	"kind": "entry",
+	"description": "A host_source target carries the SourceKey (a JSON string) as its id",
+	"input": {
+		"seq": 1,
+		"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+		"principal": "local:owner",
+		"targets": [
+			{
+				"type": "host_source",
+				"id": "[\"conversation\",\"message\",\"m1\",\"text\"]",
+				"scopeKey": "conversation:c1"
+			}
+		]
+	},
+	"expect": {
+		"entry": {
+			"journalFormat": 1,
+			"seq": 1,
+			"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+			"forgetId": "forget:567eeea3acf389b0c6b77334e1ddf41a927db1c4600dd50ed0c4a061cc9f4302",
+			"principal": "local:owner",
+			"targets": [
+				{
+					"type": "host_source",
+					"id": "[\"conversation\",\"message\",\"m1\",\"text\"]",
+					"scopeKey": "conversation:c1"
+				}
+			],
+			"hash": "05f21b1de29700fd503b38de3a5cacbfcc03e7f7e5beb50bd8b9b42b5c1d2397"
+		},
+		"hashInput": "{\"forgetId\":\"forget:567eeea3acf389b0c6b77334e1ddf41a927db1c4600dd50ed0c4a061cc9f4302\",\"journalFormat\":1,\"prevHash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"principal\":\"local:owner\",\"seq\":1,\"targets\":[{\"id\":\"[\\\"conversation\\\",\\\"message\\\",\\\"m1\\\",\\\"text\\\"]\",\"scopeKey\":\"conversation:c1\",\"type\":\"host_source\"}]}"
+	}
+}

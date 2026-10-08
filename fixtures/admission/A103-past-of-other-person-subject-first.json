@@ -1,0 +1,46 @@
+{
+  "fixtureFormat": 1,
+  "id": "A103-past-of-other-person-subject-first",
+  "covers": [
+    "past",
+    "order",
+    "SUBJECT_OTHER"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表",
+    "本設計 §6.4(a) 日本語の決定的 fixture"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "母は昔、毎日走っていた。"
+    }
+  ],
+  "candidate": {
+    "kind": "habit",
+    "subject": "other:mother",
+    "semanticKey": "run",
+    "value": {
+      "text": "毎日走っていた",
+      "polarity": "affirmed"
+    },
+    "modality": "asserted",
+    "temporal": "past",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "毎日走っていた"
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit"
+  },
+  "expect": {
+    "decision": "pending_user",
+    "reasonCode": "SUBJECT_OTHER",
+    "effectiveKind": "other_person_note"
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "fixtureFormat": 1,
+  "id": "X14-subject-other-is-a-note",
+  "covers": [
+    "SUBJECT_OTHER",
+    "other-person"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.6 Extraction",
+    "本設計 §6.4(a) 日本語の決定的 fixture（モデルは使わない。canned output）"
+  ],
+  "description": "別人の情報は auto_admit でも self の state にならない（other_person_note の候補として確認に回る）",
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 4,
+      "content": "兄はラーメンが好きらしい。"
+    }
+  ],
+  "steps": [
+    {
+      "op": "prepare",
+      "run": "j1",
+      "expect": {
+        "status": "ready"
+      }
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": false,
+        "candidates": [
+          {
+            "kind": "preference",
+            "subject": "other:brother",
+            "semanticKey": "food",
+            "value": {
+              "text": "ラーメン",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m1",
+                "quote": "ラーメンが好き"
+              }
+            ]
+          }
+        ]
+      },
+      "policy": {
+        "all": "auto_admit"
+      },
+      "expect": {
+        "status": "applied",
+        "admitted": 0,
+        "pendingUser": 1,
+        "rejected": 0
+      }
+    },
+    {
+      "op": "list-candidates",
+      "expect": {
+        "count": 1,
+        "items": [
+          {
+            "decision": "pending_user",
+            "reasonCode": "SUBJECT_OTHER",
+            "kind": "other_person_note",
+            "subject": "other:brother"
+          }
+        ]
+      }
+    },
+    {
+      "op": "list-state",
+      "includeInactive": true,
+      "expect": {
+        "items": []
+      }
+    }
+  ]
+}

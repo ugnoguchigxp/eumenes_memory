@@ -1,0 +1,15 @@
+{
+  "fixtureFormat": 1,
+  "id": "U01-ja-emoji",
+  "covers": [
+    "utf8"
+  ],
+  "operation": "utf8",
+  "text": "あ😀",
+  "utf8ByteLength": 7,
+  "boundaries": [
+    0,
+    3,
+    7
+  ]
+}

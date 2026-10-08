@@ -1,0 +1,205 @@
+{
+  "fixtureFormat": 1,
+  "id": "X37-user-removed-state-is-not-revived-by-auto-admit",
+  "covers": [
+    "user-removed",
+    "deactivate",
+    "POLICY_REQUIRES_USER",
+    "keyHistory"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.6 Extraction",
+    "本設計 §6.4(a) 日本語の決定的 fixture（モデルは使わない。canned output）"
+  ],
+  "description": "レビュー B-2: ユーザーが明示的に確認した項目を deactivate した key は、抽出由来を auto_admit でも自動で復活させない（確認待ち）。抽出由来の項目をユーザーが止めた key は対象外（限界）",
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。"
+    },
+    {
+      "name": "m2",
+      "role": "user",
+      "ordinal": 8,
+      "content": "最近は紅茶が好き。"
+    },
+    {
+      "name": "m3",
+      "role": "user",
+      "ordinal": 6,
+      "content": "私はラーメンが好き。"
+    },
+    {
+      "name": "m4",
+      "role": "user",
+      "ordinal": 9,
+      "content": "今日はうどんが好き。"
+    }
+  ],
+  "steps": [
+    {
+      "op": "assert-state",
+      "as": "s1",
+      "semanticKey": "drink",
+      "text": "コーヒー",
+      "source": "m1",
+      "quote": "コーヒーが好き"
+    },
+    {
+      "op": "deactivate-state",
+      "item": "s1"
+    },
+    {
+      "op": "prepare",
+      "run": "j1",
+      "sources": [
+        "m2"
+      ],
+      "expect": {
+        "status": "ready"
+      }
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": false,
+        "candidates": [
+          {
+            "kind": "preference",
+            "subject": "self",
+            "semanticKey": "drink",
+            "value": {
+              "text": "紅茶",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m2",
+                "quote": "紅茶が好き"
+              }
+            ]
+          }
+        ]
+      },
+      "policy": {
+        "all": "auto_admit"
+      },
+      "expect": {
+        "status": "applied",
+        "admitted": 0,
+        "pendingUser": 1,
+        "rejected": 0
+      }
+    },
+    {
+      "op": "list-state",
+      "includeInactive": true,
+      "expect": {
+        "items": [
+          {
+            "semanticKey": "drink",
+            "status": "inactive",
+            "origin": "user_confirmed",
+            "text": "コーヒー",
+            "polarity": "affirmed"
+          }
+        ]
+      }
+    },
+    {
+      "op": "list-state",
+      "includeInactive": false,
+      "expect": {
+        "items": []
+      }
+    },
+    {
+      "op": "confirm",
+      "candidate": "j1#0",
+      "action": "admit",
+      "expect": {
+        "status": "admitted",
+        "origin": "user_confirmed",
+        "text": "紅茶"
+      }
+    },
+    {
+      "op": "list-state",
+      "includeInactive": true,
+      "expect": {
+        "items": [
+          {
+            "semanticKey": "drink",
+            "status": "inactive",
+            "origin": "user_confirmed",
+            "text": "コーヒー",
+            "polarity": "affirmed"
+          },
+          {
+            "semanticKey": "drink",
+            "status": "active",
+            "origin": "user_confirmed",
+            "text": "紅茶",
+            "polarity": "affirmed"
+          }
+        ]
+      }
+    },
+    {
+      "op": "prepare",
+      "run": "j2",
+      "sources": [
+        "m3"
+      ],
+      "expect": {
+        "status": "ready"
+      }
+    },
+    {
+      "op": "settle",
+      "run": "j2",
+      "output": {
+        "noChange": false,
+        "candidates": [
+          {
+            "kind": "preference",
+            "subject": "self",
+            "semanticKey": "meal",
+            "value": {
+              "text": "ラーメン",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m3",
+                "quote": "ラーメンが好き"
+              }
+            ]
+          }
+        ]
+      },
+      "policy": {
+        "all": "auto_admit"
+      },
+      "expect": {
+        "status": "applied",
+        "admitted": 1,
+        "pendingUser": 0,
+        "rejected": 0
+      }
+    },
+    {
+      "op": "check",
+      "counts": {
+        "state_item": 3
+      }
+    }
+  ]
+}

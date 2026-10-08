@@ -1,0 +1,29 @@
+{
+  "fixtureFormat": 1,
+  "id": "V223-item-revision-same-text",
+  "covers": [
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B201-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B201-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/snapshot/items/1/revision",
+        "value": "2"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "invalid",
+      "reasonCode": "ITEM_REVISION_CHANGED"
+    }
+  }
+}

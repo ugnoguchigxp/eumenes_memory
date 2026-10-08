@@ -1,0 +1,29 @@
+{
+  "fixtureFormat": 1,
+  "id": "V35-source-scope",
+  "covers": [
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B01-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B01-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/snapshot/sources/1/scopeKey",
+        "value": "conversation:c2"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 1,
+      "status": "invalid",
+      "reasonCode": "SOURCE_NOT_PERMITTED"
+    }
+  }
+}

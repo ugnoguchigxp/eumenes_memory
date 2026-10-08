@@ -1,0 +1,22 @@
+{
+	"id": "L16-closure-no-edges",
+	"fixtureFormat": 1,
+	"covers": [
+		"closure"
+	],
+	"kind": "closure",
+	"description": "No dependents: empty closure",
+	"input": {
+		"starts": [
+			{
+				"type": "source",
+				"id": "S0"
+			}
+		],
+		"edges": []
+	},
+	"expect": {
+		"nodes": [],
+		"counts": {}
+	}
+}

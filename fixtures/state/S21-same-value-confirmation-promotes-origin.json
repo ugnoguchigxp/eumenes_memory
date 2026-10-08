@@ -1,0 +1,172 @@
+{
+  "fixtureFormat": 1,
+  "id": "S21-same-value-confirmation-promotes-origin",
+  "covers": [
+    "origin",
+    "user_confirmed",
+    "unchanged"
+  ],
+  "provenance": [
+    "本設計 §3.5 State 台帳（レビュー B の修正で追加）"
+  ],
+  "steps": [
+    {
+      "action": "assert",
+      "as": "a",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "admitted_extraction",
+      "evidenceOrdinal": 5,
+      "cause": {
+        "type": "candidate",
+        "id": "cand:run1:0"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "active",
+            "revision": 1,
+            "valueText": "コーヒー",
+            "origin": "admitted_extraction"
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    },
+    {
+      "action": "assert",
+      "as": "b",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "admitted_extraction",
+      "evidenceOrdinal": 9,
+      "cause": {
+        "type": "candidate",
+        "id": "cand:run1:0"
+      },
+      "expect": {
+        "ok": true,
+        "items": [],
+        "events": []
+      }
+    },
+    {
+      "action": "assert",
+      "as": "c",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "active",
+            "revision": 2,
+            "valueText": "コーヒー",
+            "origin": "user_confirmed"
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "edit",
+            "from": 1,
+            "to": 2
+          }
+        ]
+      }
+    },
+    {
+      "action": "assert",
+      "as": "d",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "user_edited",
+      "evidenceOrdinal": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [],
+        "events": []
+      }
+    },
+    {
+      "action": "assert",
+      "as": "e",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "admitted_extraction",
+      "evidenceOrdinal": 99,
+      "cause": {
+        "type": "candidate",
+        "id": "cand:run1:0"
+      },
+      "expect": {
+        "ok": true,
+        "items": [],
+        "events": []
+      }
+    }
+  ],
+  "finalStatuses": {
+    "a": "active"
+  }
+}

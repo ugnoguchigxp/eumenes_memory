@@ -1,0 +1,29 @@
+{
+  "fixtureFormat": 1,
+  "id": "V10-current-incomplete",
+  "covers": [
+    "incomplete"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B01-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B01-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/snapshot/complete",
+        "value": false
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 1,
+      "status": "invalid",
+      "reasonCode": "SNAPSHOT_INCOMPLETE"
+    }
+  }
+}

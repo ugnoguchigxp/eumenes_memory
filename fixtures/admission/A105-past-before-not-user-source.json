@@ -1,0 +1,45 @@
+{
+  "fixtureFormat": 1,
+  "id": "A105-past-before-not-user-source",
+  "covers": [
+    "past",
+    "order",
+    "TEMPORAL_NOT_CURRENT"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表",
+    "本設計 §6.4(a) 日本語の決定的 fixture"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "assistant",
+      "ordinal": 5,
+      "content": "学生のころは毎日ゲームしていた。"
+    }
+  ],
+  "candidate": {
+    "kind": "habit",
+    "subject": "self",
+    "semanticKey": "game",
+    "value": {
+      "text": "毎日ゲームする",
+      "polarity": "affirmed"
+    },
+    "modality": "asserted",
+    "temporal": "past",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "毎日ゲームしていた"
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit"
+  },
+  "expect": {
+    "decision": "pending_user",
+    "reasonCode": "TEMPORAL_NOT_CURRENT"
+  }
+}

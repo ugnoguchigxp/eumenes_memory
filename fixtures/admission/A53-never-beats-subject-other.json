@@ -1,0 +1,46 @@
+{
+  "fixtureFormat": 1,
+  "id": "A53-never-beats-subject-other",
+  "covers": [
+    "order",
+    "POLICY_NEVER",
+    "regression"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表",
+    "本設計 §6.4(a) 日本語の決定的 fixture"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "母は甘いものを控えている"
+    }
+  ],
+  "candidate": {
+    "kind": "personal_fact",
+    "subject": "other:mother",
+    "semanticKey": "diet",
+    "value": {
+      "text": "甘いものを控えている",
+      "polarity": "affirmed"
+    },
+    "modality": "asserted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "甘いものを控えている"
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit",
+    "other_person_note": "never"
+  },
+  "expect": {
+    "decision": "rejected",
+    "reasonCode": "POLICY_NEVER"
+  }
+}

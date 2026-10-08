@@ -1,0 +1,29 @@
+{
+  "fixtureFormat": 1,
+  "id": "V214-purpose",
+  "covers": [
+    "access"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B201-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B201-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/access/purpose",
+        "value": "memory.other"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "invalid",
+      "reasonCode": "PURPOSE_MISMATCH"
+    }
+  }
+}

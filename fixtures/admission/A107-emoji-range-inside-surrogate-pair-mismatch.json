@@ -1,0 +1,49 @@
+{
+  "fixtureFormat": 1,
+  "id": "A107-emoji-range-inside-surrogate-pair-mismatch",
+  "covers": [
+    "emoji",
+    "utf8-boundary",
+    "QUOTE_MISMATCH"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表",
+    "本設計 §6.4(a) 日本語の決定的 fixture"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私は🍣が好き。"
+    }
+  ],
+  "candidate": {
+    "kind": "preference",
+    "subject": "self",
+    "semanticKey": "food.sushi",
+    "value": {
+      "text": "🍣が好き",
+      "polarity": "affirmed"
+    },
+    "modality": "asserted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "🍣が好き",
+        "range": [
+          7,
+          19
+        ]
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit"
+  },
+  "expect": {
+    "decision": "rejected",
+    "reasonCode": "QUOTE_MISMATCH"
+  }
+}

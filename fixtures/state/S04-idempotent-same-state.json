@@ -1,0 +1,162 @@
+{
+  "fixtureFormat": 1,
+  "id": "S04-idempotent-same-state",
+  "covers": [
+    "unchanged",
+    "idempotent"
+  ],
+  "provenance": [
+    "本設計 §3.5 unchanged = 冪等"
+  ],
+  "steps": [
+    {
+      "action": "assert",
+      "as": "a",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "active",
+            "revision": 1,
+            "valueText": "コーヒー"
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    },
+    {
+      "action": "assert",
+      "as": "dup",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 5,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [],
+        "events": []
+      }
+    },
+    {
+      "action": "deactivate",
+      "target": "a",
+      "expectedRevision": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "inactive",
+            "revision": 2
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "deactivate",
+            "from": 1,
+            "to": 2
+          }
+        ]
+      }
+    },
+    {
+      "action": "deactivate",
+      "target": "a",
+      "expectedRevision": 2,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [],
+        "events": []
+      }
+    },
+    {
+      "action": "reactivate",
+      "target": "a",
+      "expectedRevision": 2,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "active",
+            "revision": 3
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "reactivate",
+            "from": 2,
+            "to": 3
+          }
+        ]
+      }
+    },
+    {
+      "action": "reactivate",
+      "target": "a",
+      "expectedRevision": 3,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [],
+        "events": []
+      }
+    }
+  ],
+  "finalStatuses": {
+    "a": "active"
+  }
+}

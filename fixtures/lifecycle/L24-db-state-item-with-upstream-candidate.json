@@ -1,0 +1,137 @@
+{
+	"id": "L24-db-state-item-with-upstream-candidate",
+	"fixtureFormat": 1,
+	"covers": [
+		"closure",
+		"S6"
+	],
+	"kind": "forget-db",
+	"description": "Forgetting an item also forgets the candidate it was derived from (same value) and everything derived from that candidate, plus runs that were shown the item; the producing run and the sources stay",
+	"input": {
+		"graph": {
+			"runs": [
+				{
+					"id": "A",
+					"inputs": [
+						"m:m1"
+					],
+					"provider": "larm"
+				},
+				{
+					"id": "B",
+					"inputs": [
+						"m:m2"
+					],
+					"shown": [
+						"iA"
+					],
+					"provider": "larm"
+				}
+			],
+			"candidates": [
+				{
+					"id": "cA",
+					"run": "A",
+					"evidence": [
+						"m:m1"
+					]
+				},
+				{
+					"id": "cB",
+					"run": "B",
+					"evidence": [
+						"m:m2"
+					]
+				}
+			],
+			"items": [
+				{
+					"id": "iA",
+					"evidence": [
+						"m:m1"
+					],
+					"fromCandidate": "cA"
+				},
+				{
+					"id": "iA2",
+					"evidence": [
+						"m:m1"
+					],
+					"fromCandidate": "cA"
+				},
+				{
+					"id": "iB",
+					"evidence": [
+						"m:m2"
+					],
+					"fromCandidate": "cB"
+				}
+			],
+			"externals": [
+				{
+					"id": "world:nA",
+					"dependsOn": [
+						"i:iA"
+					]
+				}
+			],
+			"progress": [
+				"m:m1",
+				"m:m2"
+			]
+		},
+		"forget": [
+			{
+				"type": "state_item",
+				"id": "iA"
+			}
+		]
+	},
+	"expect": {
+		"forgotten": {
+			"state_item": [
+				"iA",
+				"iA2",
+				"iB"
+			],
+			"candidate": [
+				"cA",
+				"cB"
+			],
+			"extraction_run": [
+				"B"
+			],
+			"external": [
+				"world:nA"
+			]
+		},
+		"kept": {
+			"state_item": [],
+			"candidate": [],
+			"extraction_run": [
+				"A"
+			],
+			"external": []
+		},
+		"tombstonedSources": [],
+		"receipt": {
+			"external": "pending",
+			"completed": false,
+			"deletions": [
+				"larm/-:pending",
+				"world/nA:pending"
+			]
+		},
+		"valuesGone": [
+			"i:iA",
+			"i:iA2",
+			"i:iB",
+			"c:cA",
+			"c:cB"
+		],
+		"valuesPresent": [],
+		"progressRemaining": [
+			"m:m1"
+		]
+	}
+}

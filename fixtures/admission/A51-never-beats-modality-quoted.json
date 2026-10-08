@@ -1,0 +1,47 @@
+{
+  "fixtureFormat": 1,
+  "id": "A51-never-beats-modality-quoted",
+  "covers": [
+    "order",
+    "POLICY_NEVER",
+    "regression"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表",
+    "本設計 §6.4(a) 日本語の決定的 fixture"
+  ],
+  "note": "S3 報告 #2: 方針 never の kind は MODALITY_QUOTED の pending_user より先に rejected",
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    }
+  ],
+  "candidate": {
+    "kind": "preference",
+    "subject": "self",
+    "semanticKey": "drink",
+    "value": {
+      "text": "コーヒーが好き",
+      "polarity": "affirmed"
+    },
+    "modality": "quoted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "コーヒーが好き"
+      }
+    ]
+  },
+  "policy": {
+    "all": "user_confirm",
+    "preference": "never"
+  },
+  "expect": {
+    "decision": "rejected",
+    "reasonCode": "POLICY_NEVER"
+  }
+}

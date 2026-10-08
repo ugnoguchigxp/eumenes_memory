@@ -1,0 +1,30 @@
+{
+  "fixtureFormat": 1,
+  "id": "V274-evidence-content-digest-mismatch",
+  "covers": [
+    "evidence",
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B265-evidence-basic"
+  },
+  "currentFrom": {
+    "fixture": "B265-evidence-basic",
+    "patch": [
+      {
+        "op": "add",
+        "path": "/snapshot/sources/1/content",
+        "value": "different"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "invalid",
+      "reasonCode": "SOURCE_CONTENT_DIGEST_MISMATCH"
+    }
+  }
+}

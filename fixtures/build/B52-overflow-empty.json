@@ -1,0 +1,45 @@
+{
+  "fixtureFormat": 1,
+  "id": "B52-overflow-empty",
+  "covers": [
+    "budget",
+    "disabled-empty"
+  ],
+  "operation": "build",
+  "input": {
+    "schemaVersion": 1,
+    "access": {
+      "principal": "local:owner",
+      "scopeKeys": [
+        "conversation:c1"
+      ],
+      "purpose": "dialogue.generate",
+      "policyRevision": "1"
+    },
+    "snapshot": {
+      "principal": "local:owner",
+      "scopeKey": "conversation:c1",
+      "stateRevision": "7",
+      "policyRevision": "1",
+      "complete": true,
+      "sources": [],
+      "items": []
+    },
+    "maxBytes": 0,
+    "enabled": true
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 1,
+      "status": "overflow",
+      "principal": "local:owner",
+      "scopeKey": "conversation:c1",
+      "purpose": "dialogue.generate",
+      "stateRevision": "7",
+      "policyRevision": "1",
+      "instructionAuthority": "none",
+      "reasonCode": "BUDGET_EXCEEDED"
+    }
+  }
+}

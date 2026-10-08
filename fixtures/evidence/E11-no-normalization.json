@@ -1,0 +1,84 @@
+{
+	"id": "E11-no-normalization",
+	"fixtureFormat": 1,
+	"covers": [
+		"range",
+		"utf8"
+	],
+	"description": "NFC and NFD are different bodies (no normalization); byte lengths differ",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "é",
+			"label": "nfc"
+		},
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "é",
+			"label": "nfd",
+			"expect": {
+				"created": true
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 3,
+			"expect": {
+				"status": "available",
+				"text": "é",
+				"digest": "bf12767b0f2a56b2190075bae8169f656e3ce8d6357d4aff184bc6c7ea48f9f6"
+			},
+			"revision": "@nfd"
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 2,
+			"expect": {
+				"status": "available",
+				"text": "é",
+				"digest": "4a99557e4033c3539de2eb65472017cad5f9557f7a0625a09f1c3f6e2ba69c4c"
+			},
+			"revision": "@nfc"
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 1,
+			"expect": {
+				"status": "available",
+				"text": "e",
+				"digest": "3f79bb7b435b05321651daefd374cdc681dc06faa65e374e38337b88ca046dea"
+			},
+			"revision": "@nfd"
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 2,
+			"expect": {
+				"status": "invalid_range",
+				"reasonCode": "SOURCE_RANGE_NOT_CHAR_BOUNDARY"
+			},
+			"revision": "@nfd"
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 3,
+			"expect": {
+				"status": "invalid_range",
+				"reasonCode": "SOURCE_RANGE_OUT_OF_BOUNDS"
+			},
+			"revision": "@nfc"
+		}
+	]
+}

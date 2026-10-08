@@ -1,0 +1,29 @@
+{
+  "fixtureFormat": 1,
+  "id": "V16-state-revision",
+  "covers": [
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B01-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B01-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/snapshot/stateRevision",
+        "value": "8"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 1,
+      "status": "invalid",
+      "reasonCode": "STATE_REVISION_MISMATCH"
+    }
+  }
+}

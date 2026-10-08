@@ -1,0 +1,29 @@
+{
+  "fixtureFormat": 1,
+  "id": "V253-evidence-source-removed",
+  "covers": [
+    "evidence",
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B265-evidence-basic"
+  },
+  "currentFrom": {
+    "fixture": "B265-evidence-basic",
+    "patch": [
+      {
+        "op": "remove",
+        "path": "/snapshot/sources/1"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "invalid",
+      "reasonCode": "SOURCE_NOT_IN_SNAPSHOT"
+    }
+  }
+}

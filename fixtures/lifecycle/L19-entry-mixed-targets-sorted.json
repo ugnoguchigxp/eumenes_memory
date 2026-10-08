@@ -1,0 +1,105 @@
+{
+	"id": "L19-entry-mixed-targets-sorted",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"S6"
+	],
+	"kind": "entry",
+	"description": "All four target types: sorted by (type, scopeKey, id) in UTF-16 code units (the emoji source id sorts before U+FF5E) and deduplicated before hashing",
+	"input": {
+		"seq": 3,
+		"prevHash": "52c4fcaa91f348cd630e6b48052c8da2ae0c073f99f7bb8a727564b8db1ccb18",
+		"principal": "local:owner",
+		"targets": [
+			{
+				"type": "state_item",
+				"id": "state:b",
+				"scopeKey": "scope:a"
+			},
+			{
+				"type": "scope",
+				"id": "scope:b",
+				"scopeKey": "scope:b"
+			},
+			{
+				"type": "record",
+				"id": "rec:2222222222222222222222222222222222222222222222222222222222222222",
+				"scopeKey": "scope:a"
+			},
+			{
+				"type": "host_source",
+				"id": "[\"conversation\",\"message\",\"m～\",\"text\"]",
+				"scopeKey": "scope:a"
+			},
+			{
+				"type": "host_source",
+				"id": "[\"conversation\",\"message\",\"m😀\",\"text\"]",
+				"scopeKey": "scope:a"
+			},
+			{
+				"type": "record",
+				"id": "rec:1111111111111111111111111111111111111111111111111111111111111111",
+				"scopeKey": "scope:a"
+			},
+			{
+				"type": "state_item",
+				"id": "state:b",
+				"scopeKey": "scope:a"
+			},
+			{
+				"type": "state_item",
+				"id": "state:a",
+				"scopeKey": "scope:a"
+			}
+		]
+	},
+	"expect": {
+		"entry": {
+			"journalFormat": 1,
+			"seq": 3,
+			"prevHash": "52c4fcaa91f348cd630e6b48052c8da2ae0c073f99f7bb8a727564b8db1ccb18",
+			"forgetId": "forget:34cf4d4bd589dc9ee61f1b5dfbdf133208fdea57a3ba953ca4035eb07b55b37f",
+			"principal": "local:owner",
+			"targets": [
+				{
+					"type": "host_source",
+					"id": "[\"conversation\",\"message\",\"m😀\",\"text\"]",
+					"scopeKey": "scope:a"
+				},
+				{
+					"type": "host_source",
+					"id": "[\"conversation\",\"message\",\"m～\",\"text\"]",
+					"scopeKey": "scope:a"
+				},
+				{
+					"type": "record",
+					"id": "rec:1111111111111111111111111111111111111111111111111111111111111111",
+					"scopeKey": "scope:a"
+				},
+				{
+					"type": "record",
+					"id": "rec:2222222222222222222222222222222222222222222222222222222222222222",
+					"scopeKey": "scope:a"
+				},
+				{
+					"type": "scope",
+					"id": "scope:b",
+					"scopeKey": "scope:b"
+				},
+				{
+					"type": "state_item",
+					"id": "state:a",
+					"scopeKey": "scope:a"
+				},
+				{
+					"type": "state_item",
+					"id": "state:b",
+					"scopeKey": "scope:a"
+				}
+			],
+			"hash": "a2b9919e5da7cbba0491465aa990ee4062da6cf49a8a63ed772afbd11805aef5"
+		},
+		"hashInput": "{\"forgetId\":\"forget:34cf4d4bd589dc9ee61f1b5dfbdf133208fdea57a3ba953ca4035eb07b55b37f\",\"journalFormat\":1,\"prevHash\":\"52c4fcaa91f348cd630e6b48052c8da2ae0c073f99f7bb8a727564b8db1ccb18\",\"principal\":\"local:owner\",\"seq\":3,\"targets\":[{\"id\":\"[\\\"conversation\\\",\\\"message\\\",\\\"m😀\\\",\\\"text\\\"]\",\"scopeKey\":\"scope:a\",\"type\":\"host_source\"},{\"id\":\"[\\\"conversation\\\",\\\"message\\\",\\\"m～\\\",\\\"text\\\"]\",\"scopeKey\":\"scope:a\",\"type\":\"host_source\"},{\"id\":\"rec:1111111111111111111111111111111111111111111111111111111111111111\",\"scopeKey\":\"scope:a\",\"type\":\"record\"},{\"id\":\"rec:2222222222222222222222222222222222222222222222222222222222222222\",\"scopeKey\":\"scope:a\",\"type\":\"record\"},{\"id\":\"scope:b\",\"scopeKey\":\"scope:b\",\"type\":\"scope\"},{\"id\":\"state:a\",\"scopeKey\":\"scope:a\",\"type\":\"state_item\"},{\"id\":\"state:b\",\"scopeKey\":\"scope:a\",\"type\":\"state_item\"}]}"
+	}
+}

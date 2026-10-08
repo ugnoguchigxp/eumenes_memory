@@ -1,0 +1,63 @@
+{
+	"version": 2,
+	"head": "28616e61ce5fe853383d4af6ec14e5b5d542c076",
+	"status": 0,
+	"durationMs": 13806,
+	"lockWaitMs": 15,
+	"rss": null,
+	"requestedMode": "manual",
+	"mode": "manual",
+	"level": null,
+	"fallback": null,
+	"reason": null,
+	"candidate": [],
+	"executedSteps": ["tests (crates/personal-state-core)"],
+	"executedTestCount": 1,
+	"records": [
+		{
+			"name": "tests (crates/personal-state-core)",
+			"command": [
+				"cargo",
+				"test",
+				"--manifest-path",
+				"crates/personal-state-core/Cargo.toml",
+				"--locked"
+			],
+			"status": "passed",
+			"durationMs": 13587,
+			"lockWaitMs": 15
+		}
+	],
+	"attemptLog": [
+		{
+			"attempt": 1,
+			"durationMs": 13687,
+			"records": [
+				{
+					"name": "tests (crates/personal-state-core)",
+					"command": [
+						"cargo",
+						"test",
+						"--manifest-path",
+						"crates/personal-state-core/Cargo.toml",
+						"--locked"
+					],
+					"status": "passed",
+					"durationMs": 13587,
+					"lockWaitMs": 15
+				}
+			],
+			"mode": "manual",
+			"fallback": null,
+			"executedSteps": ["tests (crates/personal-state-core)"],
+			"watcher": null
+		}
+	],
+	"fingerprintMatched": true,
+	"provesInputUnchanged": false,
+	"fingerprintMeasured": true,
+	"attempts": 1,
+	"watcher": "not attached",
+	"watcherDetail": null,
+	"unmeasured": ["maxRss", "cpuTime", "compileVersusLink", "watcher"]
+}

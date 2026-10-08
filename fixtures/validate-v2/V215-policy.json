@@ -1,0 +1,34 @@
+{
+  "fixtureFormat": 1,
+  "id": "V215-policy",
+  "covers": [
+    "access"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B201-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B201-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/access/policyRevision",
+        "value": "2"
+      },
+      {
+        "op": "replace",
+        "path": "/snapshot/policyRevision",
+        "value": "2"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "invalid",
+      "reasonCode": "POLICY_REVISION_MISMATCH"
+    }
+  }
+}

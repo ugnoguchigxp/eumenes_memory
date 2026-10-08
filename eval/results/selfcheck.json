@@ -1,0 +1,2640 @@
+{
+	"schemaVersion": 1,
+	"name": "selfcheck",
+	"dataset": {
+		"id": "ja-memory-v1",
+		"path": "eval/datasets/ja-memory-v1.jsonl",
+		"sha256": "185b90a555acfdc65d50d162a695fc02b28b746ca870fd96aa2fff054f129c79",
+		"split": "all",
+		"cases": 124,
+		"casesPerCategory": {
+			"negation": 9,
+			"double_negation": 8,
+			"hypothetical": 8,
+			"question": 8,
+			"quote": 8,
+			"hearsay": 8,
+			"other_person": 8,
+			"preference_change": 8,
+			"correction": 8,
+			"past_future": 8,
+			"multi_evidence": 8,
+			"no_change": 9,
+			"ambiguous": 9,
+			"emoji_symbol": 9,
+			"long_partial": 8
+		},
+		"humanReviewed": false
+	},
+	"adapter": {
+		"path": "eval/adapters/oracle.ts",
+		"extractorId": "eval-oracle",
+		"promptVersion": "oracle-1",
+		"providerRef": "none",
+		"modelId": null,
+		"stub": true
+	},
+	"run": {
+		"repeats": 1,
+		"timeoutMs": 120000,
+		"policy": {
+			"preference": "auto_admit",
+			"personal_fact": "auto_admit",
+			"constraint": "auto_admit",
+			"habit": "auto_admit",
+			"other_person_note": "user_confirm"
+		}
+	},
+	"claims": {
+		"eStageEligible": false,
+		"reasons": [
+			"stub adapter: pipeline self-check only, no model was used",
+			"gold is not human reviewed (results are provisional)",
+			"no approved thresholds were recorded with this run",
+			"fewer than 3 repeats (design asks for the worst of 3)",
+			"split is not test (adoption evidence must use the test split)",
+			"dataset below the design target (15 per category per split) in 30 category/split pairs, e.g. negation/dev=4, negation/test=5, double_negation/dev=4"
+		]
+	},
+	"thresholds": null,
+	"overall": {
+		"worst": {
+			"cases": 124,
+			"goldCandidates": 109,
+			"emittedCandidates": 109,
+			"candidatesWithBadEvidence": 0,
+			"matched": 109,
+			"fullMatch": 109,
+			"kindErrors": 0,
+			"subjectErrors": 0,
+			"polarityErrors": 0,
+			"modalityErrors": 0,
+			"temporalErrors": 0,
+			"missed": 0,
+			"overExtracted": 0,
+			"duplicates": 0,
+			"tolerated": 0,
+			"acceptedNoChangeCases": 0,
+			"noChangeCases": 27,
+			"noChangeCorrect": 27,
+			"adapterFailures": 0,
+			"rejectedOutputs": 0,
+			"admitted": 68,
+			"pendingUser": 30,
+			"rejected": 11,
+			"falseAdmissions": 0,
+			"candidateRecall": 1,
+			"fullMatchRate": 1,
+			"overExtractionRate": 0,
+			"quoteMismatchRate": 0,
+			"noChangeAccuracy": 1,
+			"falseAdmissionRate": 0
+		},
+		"perRepeat": [
+			{
+				"cases": 124,
+				"goldCandidates": 109,
+				"emittedCandidates": 109,
+				"candidatesWithBadEvidence": 0,
+				"matched": 109,
+				"fullMatch": 109,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 27,
+				"noChangeCorrect": 27,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 68,
+				"pendingUser": 30,
+				"rejected": 11,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": 1,
+				"falseAdmissionRate": 0
+			}
+		]
+	},
+	"categories": {
+		"negation": {
+			"worst": {
+				"cases": 9,
+				"goldCandidates": 11,
+				"emittedCandidates": 11,
+				"candidatesWithBadEvidence": 0,
+				"matched": 11,
+				"fullMatch": 11,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 0,
+				"noChangeCorrect": 0,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 11,
+				"pendingUser": 0,
+				"rejected": 0,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": null,
+				"falseAdmissionRate": 0
+			},
+			"perRepeat": [
+				{
+					"cases": 9,
+					"goldCandidates": 11,
+					"emittedCandidates": 11,
+					"candidatesWithBadEvidence": 0,
+					"matched": 11,
+					"fullMatch": 11,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 0,
+					"noChangeCorrect": 0,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 11,
+					"pendingUser": 0,
+					"rejected": 0,
+					"falseAdmissions": 0,
+					"candidateRecall": 1,
+					"fullMatchRate": 1,
+					"overExtractionRate": 0,
+					"quoteMismatchRate": 0,
+					"noChangeAccuracy": null,
+					"falseAdmissionRate": 0
+				}
+			]
+		},
+		"double_negation": {
+			"worst": {
+				"cases": 8,
+				"goldCandidates": 6,
+				"emittedCandidates": 6,
+				"candidatesWithBadEvidence": 0,
+				"matched": 6,
+				"fullMatch": 6,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 2,
+				"noChangeCorrect": 2,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 6,
+				"pendingUser": 0,
+				"rejected": 0,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": 1,
+				"falseAdmissionRate": 0
+			},
+			"perRepeat": [
+				{
+					"cases": 8,
+					"goldCandidates": 6,
+					"emittedCandidates": 6,
+					"candidatesWithBadEvidence": 0,
+					"matched": 6,
+					"fullMatch": 6,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 2,
+					"noChangeCorrect": 2,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 6,
+					"pendingUser": 0,
+					"rejected": 0,
+					"falseAdmissions": 0,
+					"candidateRecall": 1,
+					"fullMatchRate": 1,
+					"overExtractionRate": 0,
+					"quoteMismatchRate": 0,
+					"noChangeAccuracy": 1,
+					"falseAdmissionRate": 0
+				}
+			]
+		},
+		"hypothetical": {
+			"worst": {
+				"cases": 8,
+				"goldCandidates": 8,
+				"emittedCandidates": 8,
+				"candidatesWithBadEvidence": 0,
+				"matched": 8,
+				"fullMatch": 8,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 0,
+				"noChangeCorrect": 0,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 0,
+				"pendingUser": 0,
+				"rejected": 8,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": null,
+				"falseAdmissionRate": null
+			},
+			"perRepeat": [
+				{
+					"cases": 8,
+					"goldCandidates": 8,
+					"emittedCandidates": 8,
+					"candidatesWithBadEvidence": 0,
+					"matched": 8,
+					"fullMatch": 8,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 0,
+					"noChangeCorrect": 0,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 0,
+					"pendingUser": 0,
+					"rejected": 8,
+					"falseAdmissions": 0,
+					"candidateRecall": 1,
+					"fullMatchRate": 1,
+					"overExtractionRate": 0,
+					"quoteMismatchRate": 0,
+					"noChangeAccuracy": null,
+					"falseAdmissionRate": null
+				}
+			]
+		},
+		"question": {
+			"worst": {
+				"cases": 8,
+				"goldCandidates": 3,
+				"emittedCandidates": 3,
+				"candidatesWithBadEvidence": 0,
+				"matched": 3,
+				"fullMatch": 3,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 5,
+				"noChangeCorrect": 5,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 1,
+				"pendingUser": 0,
+				"rejected": 2,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": 1,
+				"falseAdmissionRate": 0
+			},
+			"perRepeat": [
+				{
+					"cases": 8,
+					"goldCandidates": 3,
+					"emittedCandidates": 3,
+					"candidatesWithBadEvidence": 0,
+					"matched": 3,
+					"fullMatch": 3,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 5,
+					"noChangeCorrect": 5,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 1,
+					"pendingUser": 0,
+					"rejected": 2,
+					"falseAdmissions": 0,
+					"candidateRecall": 1,
+					"fullMatchRate": 1,
+					"overExtractionRate": 0,
+					"quoteMismatchRate": 0,
+					"noChangeAccuracy": 1,
+					"falseAdmissionRate": 0
+				}
+			]
+		},
+		"quote": {
+			"worst": {
+				"cases": 8,
+				"goldCandidates": 4,
+				"emittedCandidates": 4,
+				"candidatesWithBadEvidence": 0,
+				"matched": 4,
+				"fullMatch": 4,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 4,
+				"noChangeCorrect": 4,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 0,
+				"pendingUser": 4,
+				"rejected": 0,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": 1,
+				"falseAdmissionRate": null
+			},
+			"perRepeat": [
+				{
+					"cases": 8,
+					"goldCandidates": 4,
+					"emittedCandidates": 4,
+					"candidatesWithBadEvidence": 0,
+					"matched": 4,
+					"fullMatch": 4,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 4,
+					"noChangeCorrect": 4,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 0,
+					"pendingUser": 4,
+					"rejected": 0,
+					"falseAdmissions": 0,
+					"candidateRecall": 1,
+					"fullMatchRate": 1,
+					"overExtractionRate": 0,
+					"quoteMismatchRate": 0,
+					"noChangeAccuracy": 1,
+					"falseAdmissionRate": null
+				}
+			]
+		},
+		"hearsay": {
+			"worst": {
+				"cases": 8,
+				"goldCandidates": 6,
+				"emittedCandidates": 6,
+				"candidatesWithBadEvidence": 0,
+				"matched": 6,
+				"fullMatch": 6,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 2,
+				"noChangeCorrect": 2,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 0,
+				"pendingUser": 6,
+				"rejected": 0,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": 1,
+				"falseAdmissionRate": null
+			},
+			"perRepeat": [
+				{
+					"cases": 8,
+					"goldCandidates": 6,
+					"emittedCandidates": 6,
+					"candidatesWithBadEvidence": 0,
+					"matched": 6,
+					"fullMatch": 6,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 2,
+					"noChangeCorrect": 2,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 0,
+					"pendingUser": 6,
+					"rejected": 0,
+					"falseAdmissions": 0,
+					"candidateRecall": 1,
+					"fullMatchRate": 1,
+					"overExtractionRate": 0,
+					"quoteMismatchRate": 0,
+					"noChangeAccuracy": 1,
+					"falseAdmissionRate": null
+				}
+			]
+		},
+		"other_person": {
+			"worst": {
+				"cases": 8,
+				"goldCandidates": 10,
+				"emittedCandidates": 10,
+				"candidatesWithBadEvidence": 0,
+				"matched": 10,
+				"fullMatch": 10,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 0,
+				"noChangeCorrect": 0,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 2,
+				"pendingUser": 8,
+				"rejected": 0,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": null,
+				"falseAdmissionRate": 0
+			},
+			"perRepeat": [
+				{
+					"cases": 8,
+					"goldCandidates": 10,
+					"emittedCandidates": 10,
+					"candidatesWithBadEvidence": 0,
+					"matched": 10,
+					"fullMatch": 10,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 0,
+					"noChangeCorrect": 0,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 2,
+					"pendingUser": 8,
+					"rejected": 0,
+					"falseAdmissions": 0,
+					"candidateRecall": 1,
+					"fullMatchRate": 1,
+					"overExtractionRate": 0,
+					"quoteMismatchRate": 0,
+					"noChangeAccuracy": null,
+					"falseAdmissionRate": 0
+				}
+			]
+		},
+		"preference_change": {
+			"worst": {
+				"cases": 8,
+				"goldCandidates": 11,
+				"emittedCandidates": 11,
+				"candidatesWithBadEvidence": 0,
+				"matched": 11,
+				"fullMatch": 11,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 0,
+				"noChangeCorrect": 0,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 8,
+				"pendingUser": 3,
+				"rejected": 0,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": null,
+				"falseAdmissionRate": 0
+			},
+			"perRepeat": [
+				{
+					"cases": 8,
+					"goldCandidates": 11,
+					"emittedCandidates": 11,
+					"candidatesWithBadEvidence": 0,
+					"matched": 11,
+					"fullMatch": 11,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 0,
+					"noChangeCorrect": 0,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 8,
+					"pendingUser": 3,
+					"rejected": 0,
+					"falseAdmissions": 0,
+					"candidateRecall": 1,
+					"fullMatchRate": 1,
+					"overExtractionRate": 0,
+					"quoteMismatchRate": 0,
+					"noChangeAccuracy": null,
+					"falseAdmissionRate": 0
+				}
+			]
+		},
+		"correction": {
+			"worst": {
+				"cases": 8,
+				"goldCandidates": 8,
+				"emittedCandidates": 8,
+				"candidatesWithBadEvidence": 0,
+				"matched": 8,
+				"fullMatch": 8,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 0,
+				"noChangeCorrect": 0,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 8,
+				"pendingUser": 0,
+				"rejected": 0,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": null,
+				"falseAdmissionRate": 0
+			},
+			"perRepeat": [
+				{
+					"cases": 8,
+					"goldCandidates": 8,
+					"emittedCandidates": 8,
+					"candidatesWithBadEvidence": 0,
+					"matched": 8,
+					"fullMatch": 8,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 0,
+					"noChangeCorrect": 0,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 8,
+					"pendingUser": 0,
+					"rejected": 0,
+					"falseAdmissions": 0,
+					"candidateRecall": 1,
+					"fullMatchRate": 1,
+					"overExtractionRate": 0,
+					"quoteMismatchRate": 0,
+					"noChangeAccuracy": null,
+					"falseAdmissionRate": 0
+				}
+			]
+		},
+		"past_future": {
+			"worst": {
+				"cases": 8,
+				"goldCandidates": 7,
+				"emittedCandidates": 7,
+				"candidatesWithBadEvidence": 0,
+				"matched": 7,
+				"fullMatch": 7,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 1,
+				"noChangeCorrect": 1,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 0,
+				"pendingUser": 7,
+				"rejected": 0,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": 1,
+				"falseAdmissionRate": null
+			},
+			"perRepeat": [
+				{
+					"cases": 8,
+					"goldCandidates": 7,
+					"emittedCandidates": 7,
+					"candidatesWithBadEvidence": 0,
+					"matched": 7,
+					"fullMatch": 7,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 1,
+					"noChangeCorrect": 1,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 0,
+					"pendingUser": 7,
+					"rejected": 0,
+					"falseAdmissions": 0,
+					"candidateRecall": 1,
+					"fullMatchRate": 1,
+					"overExtractionRate": 0,
+					"quoteMismatchRate": 0,
+					"noChangeAccuracy": 1,
+					"falseAdmissionRate": null
+				}
+			]
+		},
+		"multi_evidence": {
+			"worst": {
+				"cases": 8,
+				"goldCandidates": 13,
+				"emittedCandidates": 13,
+				"candidatesWithBadEvidence": 0,
+				"matched": 13,
+				"fullMatch": 13,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 0,
+				"noChangeCorrect": 0,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 13,
+				"pendingUser": 0,
+				"rejected": 0,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": null,
+				"falseAdmissionRate": 0
+			},
+			"perRepeat": [
+				{
+					"cases": 8,
+					"goldCandidates": 13,
+					"emittedCandidates": 13,
+					"candidatesWithBadEvidence": 0,
+					"matched": 13,
+					"fullMatch": 13,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 0,
+					"noChangeCorrect": 0,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 13,
+					"pendingUser": 0,
+					"rejected": 0,
+					"falseAdmissions": 0,
+					"candidateRecall": 1,
+					"fullMatchRate": 1,
+					"overExtractionRate": 0,
+					"quoteMismatchRate": 0,
+					"noChangeAccuracy": null,
+					"falseAdmissionRate": 0
+				}
+			]
+		},
+		"no_change": {
+			"worst": {
+				"cases": 9,
+				"goldCandidates": 0,
+				"emittedCandidates": 0,
+				"candidatesWithBadEvidence": 0,
+				"matched": 0,
+				"fullMatch": 0,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 9,
+				"noChangeCorrect": 9,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 0,
+				"pendingUser": 0,
+				"rejected": 0,
+				"falseAdmissions": 0,
+				"candidateRecall": null,
+				"fullMatchRate": null,
+				"overExtractionRate": null,
+				"quoteMismatchRate": null,
+				"noChangeAccuracy": 1,
+				"falseAdmissionRate": null
+			},
+			"perRepeat": [
+				{
+					"cases": 9,
+					"goldCandidates": 0,
+					"emittedCandidates": 0,
+					"candidatesWithBadEvidence": 0,
+					"matched": 0,
+					"fullMatch": 0,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 9,
+					"noChangeCorrect": 9,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 0,
+					"pendingUser": 0,
+					"rejected": 0,
+					"falseAdmissions": 0,
+					"candidateRecall": null,
+					"fullMatchRate": null,
+					"overExtractionRate": null,
+					"quoteMismatchRate": null,
+					"noChangeAccuracy": 1,
+					"falseAdmissionRate": null
+				}
+			]
+		},
+		"ambiguous": {
+			"worst": {
+				"cases": 9,
+				"goldCandidates": 6,
+				"emittedCandidates": 6,
+				"candidatesWithBadEvidence": 0,
+				"matched": 6,
+				"fullMatch": 6,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 3,
+				"noChangeCorrect": 3,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 4,
+				"pendingUser": 1,
+				"rejected": 1,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": 1,
+				"falseAdmissionRate": 0
+			},
+			"perRepeat": [
+				{
+					"cases": 9,
+					"goldCandidates": 6,
+					"emittedCandidates": 6,
+					"candidatesWithBadEvidence": 0,
+					"matched": 6,
+					"fullMatch": 6,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 3,
+					"noChangeCorrect": 3,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 4,
+					"pendingUser": 1,
+					"rejected": 1,
+					"falseAdmissions": 0,
+					"candidateRecall": 1,
+					"fullMatchRate": 1,
+					"overExtractionRate": 0,
+					"quoteMismatchRate": 0,
+					"noChangeAccuracy": 1,
+					"falseAdmissionRate": 0
+				}
+			]
+		},
+		"emoji_symbol": {
+			"worst": {
+				"cases": 9,
+				"goldCandidates": 9,
+				"emittedCandidates": 9,
+				"candidatesWithBadEvidence": 0,
+				"matched": 9,
+				"fullMatch": 9,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 0,
+				"noChangeCorrect": 0,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 9,
+				"pendingUser": 0,
+				"rejected": 0,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": null,
+				"falseAdmissionRate": 0
+			},
+			"perRepeat": [
+				{
+					"cases": 9,
+					"goldCandidates": 9,
+					"emittedCandidates": 9,
+					"candidatesWithBadEvidence": 0,
+					"matched": 9,
+					"fullMatch": 9,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 0,
+					"noChangeCorrect": 0,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 9,
+					"pendingUser": 0,
+					"rejected": 0,
+					"falseAdmissions": 0,
+					"candidateRecall": 1,
+					"fullMatchRate": 1,
+					"overExtractionRate": 0,
+					"quoteMismatchRate": 0,
+					"noChangeAccuracy": null,
+					"falseAdmissionRate": 0
+				}
+			]
+		},
+		"long_partial": {
+			"worst": {
+				"cases": 8,
+				"goldCandidates": 7,
+				"emittedCandidates": 7,
+				"candidatesWithBadEvidence": 0,
+				"matched": 7,
+				"fullMatch": 7,
+				"kindErrors": 0,
+				"subjectErrors": 0,
+				"polarityErrors": 0,
+				"modalityErrors": 0,
+				"temporalErrors": 0,
+				"missed": 0,
+				"overExtracted": 0,
+				"duplicates": 0,
+				"tolerated": 0,
+				"acceptedNoChangeCases": 0,
+				"noChangeCases": 1,
+				"noChangeCorrect": 1,
+				"adapterFailures": 0,
+				"rejectedOutputs": 0,
+				"admitted": 6,
+				"pendingUser": 1,
+				"rejected": 0,
+				"falseAdmissions": 0,
+				"candidateRecall": 1,
+				"fullMatchRate": 1,
+				"overExtractionRate": 0,
+				"quoteMismatchRate": 0,
+				"noChangeAccuracy": 1,
+				"falseAdmissionRate": 0
+			},
+			"perRepeat": [
+				{
+					"cases": 8,
+					"goldCandidates": 7,
+					"emittedCandidates": 7,
+					"candidatesWithBadEvidence": 0,
+					"matched": 7,
+					"fullMatch": 7,
+					"kindErrors": 0,
+					"subjectErrors": 0,
+					"polarityErrors": 0,
+					"modalityErrors": 0,
+					"temporalErrors": 0,
+					"missed": 0,
+					"overExtracted": 0,
+					"duplicates": 0,
+					"tolerated": 0,
+					"acceptedNoChangeCases": 0,
+					"noChangeCases": 1,
+					"noChangeCorrect": 1,
+					"adapterFailures": 0,
+					"rejectedOutputs": 0,
+					"admitted": 6,
+					"pendingUser": 1,
+					"rejected": 0,
+					"falseAdmissions": 0,
+					"candidateRecall": 1,
+					"fullMatchRate": 1,
+					"overExtractionRate": 0,
+					"quoteMismatchRate": 0,
+					"noChangeAccuracy": 1,
+					"falseAdmissionRate": 0
+				}
+			]
+		}
+	},
+	"cases": [
+		{
+			"id": "neg-01",
+			"category": "negation",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "neg-02",
+			"category": "negation",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "neg-03",
+			"category": "negation",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "neg-04",
+			"category": "negation",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "neg-05",
+			"category": "negation",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "neg-06",
+			"category": "negation",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "neg-07",
+			"category": "negation",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "neg-08",
+			"category": "negation",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 2,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "neg-09",
+			"category": "negation",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 2,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "dneg-01",
+			"category": "double_negation",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "dneg-02",
+			"category": "double_negation",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "dneg-03",
+			"category": "double_negation",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "dneg-04",
+			"category": "double_negation",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "dneg-05",
+			"category": "double_negation",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "dneg-06",
+			"category": "double_negation",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "dneg-07",
+			"category": "double_negation",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "dneg-08",
+			"category": "double_negation",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hyp-01",
+			"category": "hypothetical",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hyp-02",
+			"category": "hypothetical",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hyp-03",
+			"category": "hypothetical",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hyp-04",
+			"category": "hypothetical",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hyp-05",
+			"category": "hypothetical",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hyp-06",
+			"category": "hypothetical",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hyp-07",
+			"category": "hypothetical",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hyp-08",
+			"category": "hypothetical",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "qst-01",
+			"category": "question",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "qst-02",
+			"category": "question",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "qst-03",
+			"category": "question",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "qst-04",
+			"category": "question",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "qst-05",
+			"category": "question",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "qst-06",
+			"category": "question",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "qst-07",
+			"category": "question",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "qst-08",
+			"category": "question",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "quo-01",
+			"category": "quote",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "quo-02",
+			"category": "quote",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "quo-03",
+			"category": "quote",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "quo-04",
+			"category": "quote",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "quo-05",
+			"category": "quote",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "quo-06",
+			"category": "quote",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "quo-07",
+			"category": "quote",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "quo-08",
+			"category": "quote",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hrs-01",
+			"category": "hearsay",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hrs-02",
+			"category": "hearsay",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hrs-03",
+			"category": "hearsay",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hrs-04",
+			"category": "hearsay",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hrs-05",
+			"category": "hearsay",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hrs-06",
+			"category": "hearsay",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hrs-07",
+			"category": "hearsay",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "hrs-08",
+			"category": "hearsay",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "oth-01",
+			"category": "other_person",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "oth-02",
+			"category": "other_person",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "oth-03",
+			"category": "other_person",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "oth-04",
+			"category": "other_person",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "oth-05",
+			"category": "other_person",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 2,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "oth-06",
+			"category": "other_person",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 2,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "oth-07",
+			"category": "other_person",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "oth-08",
+			"category": "other_person",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "chg-01",
+			"category": "preference_change",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 2,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "chg-02",
+			"category": "preference_change",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "chg-03",
+			"category": "preference_change",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 2,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "chg-04",
+			"category": "preference_change",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 2,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "chg-05",
+			"category": "preference_change",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "chg-06",
+			"category": "preference_change",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "chg-07",
+			"category": "preference_change",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "chg-08",
+			"category": "preference_change",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "cor-01",
+			"category": "correction",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "cor-02",
+			"category": "correction",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "cor-03",
+			"category": "correction",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "cor-04",
+			"category": "correction",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "cor-05",
+			"category": "correction",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "cor-06",
+			"category": "correction",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "cor-07",
+			"category": "correction",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "cor-08",
+			"category": "correction",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "tmp-01",
+			"category": "past_future",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "tmp-02",
+			"category": "past_future",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "tmp-03",
+			"category": "past_future",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "tmp-04",
+			"category": "past_future",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "tmp-05",
+			"category": "past_future",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "tmp-06",
+			"category": "past_future",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "tmp-07",
+			"category": "past_future",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "tmp-08",
+			"category": "past_future",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "mul-01",
+			"category": "multi_evidence",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "mul-02",
+			"category": "multi_evidence",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 3,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "mul-03",
+			"category": "multi_evidence",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 2,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "mul-04",
+			"category": "multi_evidence",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "mul-05",
+			"category": "multi_evidence",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "mul-06",
+			"category": "multi_evidence",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 2,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "mul-07",
+			"category": "multi_evidence",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 2,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "mul-08",
+			"category": "multi_evidence",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "non-01",
+			"category": "no_change",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "non-02",
+			"category": "no_change",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "non-03",
+			"category": "no_change",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "non-04",
+			"category": "no_change",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "non-05",
+			"category": "no_change",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "non-06",
+			"category": "no_change",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "non-07",
+			"category": "no_change",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "non-08",
+			"category": "no_change",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "non-09",
+			"category": "no_change",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "amb-01",
+			"category": "ambiguous",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "amb-02",
+			"category": "ambiguous",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "amb-03",
+			"category": "ambiguous",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "amb-04",
+			"category": "ambiguous",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "amb-05",
+			"category": "ambiguous",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "amb-06",
+			"category": "ambiguous",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "amb-07",
+			"category": "ambiguous",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "amb-08",
+			"category": "ambiguous",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "amb-09",
+			"category": "ambiguous",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "emo-01",
+			"category": "emoji_symbol",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "emo-02",
+			"category": "emoji_symbol",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "emo-03",
+			"category": "emoji_symbol",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "emo-04",
+			"category": "emoji_symbol",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "emo-05",
+			"category": "emoji_symbol",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "emo-06",
+			"category": "emoji_symbol",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "emo-07",
+			"category": "emoji_symbol",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "emo-08",
+			"category": "emoji_symbol",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "emo-09",
+			"category": "emoji_symbol",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "lng-01",
+			"category": "long_partial",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "lng-02",
+			"category": "long_partial",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "lng-03",
+			"category": "long_partial",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "lng-04",
+			"category": "long_partial",
+			"split": "dev",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "lng-05",
+			"category": "long_partial",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 0,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "lng-06",
+			"category": "long_partial",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "lng-07",
+			"category": "long_partial",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		},
+		{
+			"id": "lng-08",
+			"category": "long_partial",
+			"split": "test",
+			"runs": [
+				{
+					"outcome": "applied",
+					"emitted": 1,
+					"flags": []
+				}
+			]
+		}
+	]
+}

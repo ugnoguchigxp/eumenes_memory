@@ -1,0 +1,26 @@
+{
+  "fixtureFormat": 1,
+  "id": "V41-view-schema-2",
+  "covers": [
+    "schema"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B01-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/schemaVersion",
+        "value": 2
+      }
+    ]
+  },
+  "currentFrom": {
+    "fixture": "B01-ready-basic"
+  },
+  "expect": {
+    "outcome": "error",
+    "code": "UNSUPPORTED_SCHEMA_VERSION",
+    "path": "$.schemaVersion"
+  }
+}

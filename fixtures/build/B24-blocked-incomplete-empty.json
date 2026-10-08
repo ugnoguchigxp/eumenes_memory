@@ -1,0 +1,45 @@
+{
+  "fixtureFormat": 1,
+  "id": "B24-blocked-incomplete-empty",
+  "covers": [
+    "incomplete",
+    "disabled-empty"
+  ],
+  "operation": "build",
+  "input": {
+    "schemaVersion": 1,
+    "access": {
+      "principal": "local:owner",
+      "scopeKeys": [
+        "conversation:c1"
+      ],
+      "purpose": "dialogue.generate",
+      "policyRevision": "1"
+    },
+    "snapshot": {
+      "principal": "local:owner",
+      "scopeKey": "conversation:c1",
+      "stateRevision": "7",
+      "policyRevision": "1",
+      "complete": false,
+      "sources": [],
+      "items": []
+    },
+    "maxBytes": 1000000,
+    "enabled": true
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 1,
+      "status": "blocked",
+      "principal": "local:owner",
+      "scopeKey": "conversation:c1",
+      "purpose": "dialogue.generate",
+      "stateRevision": "7",
+      "policyRevision": "1",
+      "instructionAuthority": "none",
+      "reasonCode": "SNAPSHOT_INCOMPLETE"
+    }
+  }
+}

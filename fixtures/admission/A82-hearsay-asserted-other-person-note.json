@@ -1,0 +1,46 @@
+{
+  "fixtureFormat": 1,
+  "id": "A82-hearsay-asserted-other-person-note",
+  "covers": [
+    "hearsay",
+    "SUBJECT_OTHER",
+    "subject"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表",
+    "本設計 §6.4(a) 日本語の決定的 fixture"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "兄はラーメンが好きらしい。"
+    }
+  ],
+  "candidate": {
+    "kind": "preference",
+    "subject": "other:brother",
+    "semanticKey": "food",
+    "value": {
+      "text": "ラーメンが好き",
+      "polarity": "affirmed"
+    },
+    "modality": "asserted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "ラーメンが好き"
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit"
+  },
+  "expect": {
+    "decision": "pending_user",
+    "reasonCode": "SUBJECT_OTHER",
+    "effectiveKind": "other_person_note"
+  }
+}

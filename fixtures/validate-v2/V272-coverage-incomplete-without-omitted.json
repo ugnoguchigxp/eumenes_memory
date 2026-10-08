@@ -1,0 +1,30 @@
+{
+  "fixtureFormat": 1,
+  "id": "V272-coverage-incomplete-without-omitted",
+  "covers": [
+    "schema",
+    "coverage"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B265-evidence-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/coverage",
+        "value": {
+          "complete": false,
+          "omitted": []
+        }
+      }
+    ]
+  },
+  "currentFrom": {
+    "fixture": "B265-evidence-basic"
+  },
+  "expect": {
+    "outcome": "error",
+    "code": "INVALID_VALUE",
+    "path": "$.coverage"
+  }
+}

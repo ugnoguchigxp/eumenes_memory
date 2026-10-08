@@ -1,0 +1,66 @@
+{
+	"id": "E09-deactivate",
+	"fixtureFormat": 1,
+	"covers": [
+		"range",
+		"deactivate"
+	],
+	"description": "Deactivate keeps the body readable; it is not forgetting",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "kept body"
+		},
+		{
+			"op": "deactivate",
+			"origin": "o1",
+			"expect": {
+				"status": "changed"
+			}
+		},
+		{
+			"op": "read",
+			"origin": "o1",
+			"expect": {
+				"status": "available",
+				"content": "kept body",
+				"recordStatus": "inactive"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 4,
+			"expect": {
+				"status": "available",
+				"text": "kept",
+				"digest": "79f076abdd19a752db7267bfff2f9022161d120dea919fdaca2ffdfc24ca8c96"
+			}
+		},
+		{
+			"op": "deactivate",
+			"origin": "o1",
+			"expect": {
+				"status": "unchanged"
+			}
+		},
+		{
+			"op": "reactivate",
+			"origin": "o1",
+			"expect": {
+				"status": "changed"
+			}
+		},
+		{
+			"op": "read",
+			"origin": "o1",
+			"expect": {
+				"status": "available",
+				"content": "kept body",
+				"recordStatus": "active"
+			}
+		}
+	]
+}

@@ -1,0 +1,32 @@
+{
+  "fixtureFormat": 1,
+  "id": "V277-scope-not-permitted-with-evidence",
+  "covers": [
+    "access",
+    "evidence"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B265-evidence-basic"
+  },
+  "currentFrom": {
+    "fixture": "B265-evidence-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/access/scopeKeys",
+        "value": [
+          "conversation:c2"
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "invalid",
+      "reasonCode": "SCOPE_NOT_PERMITTED"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "fixtureFormat": 1,
+  "id": "C05-integers",
+  "covers": ["determinism"],
+  "operation": "canonical",
+  "value": {"f": false, "e": true, "d": -5, "c": 9007199254740991, "b": -0, "a": 0},
+  "canonical": "{\"a\":0,\"b\":0,\"c\":9007199254740991,\"d\":-5,\"e\":true,\"f\":false}",
+  "sha256": "4b2a7c0623605b90dc9ce39014b60e89fcde66e65ba082dfd9a620c6423e79ab",
+  "utf8ByteLength": 60
+}

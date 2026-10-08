@@ -1,0 +1,194 @@
+{
+  "fixtureFormat": 1,
+  "id": "X29-confirm-admit-edit-reject",
+  "covers": [
+    "confirm",
+    "user_confirmed",
+    "user_edited",
+    "pending_user"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.6 Extraction",
+    "本設計 §6.4(a) 日本語の決定的 fixture（モデルは使わない。canned output）"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    },
+    {
+      "name": "m2",
+      "role": "user",
+      "ordinal": 8,
+      "content": "最近は紅茶が好きになった🍵。"
+    }
+  ],
+  "steps": [
+    {
+      "op": "prepare",
+      "run": "j1",
+      "expect": {
+        "status": "ready"
+      },
+      "sources": [
+        "m1",
+        "m2"
+      ]
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": false,
+        "candidates": [
+          {
+            "kind": "preference",
+            "subject": "self",
+            "semanticKey": "drink",
+            "value": {
+              "text": "コーヒー",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m1",
+                "quote": "コーヒーが好き"
+              }
+            ]
+          },
+          {
+            "kind": "preference",
+            "subject": "self",
+            "semanticKey": "tea",
+            "value": {
+              "text": "紅茶",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m2",
+                "quote": "紅茶が好き"
+              }
+            ]
+          },
+          {
+            "kind": "habit",
+            "subject": "self",
+            "semanticKey": "habit.morning",
+            "value": {
+              "text": "毎朝コーヒー",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m1",
+                "quote": "毎朝飲みます"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "status": "applied",
+        "admitted": 0,
+        "pendingUser": 3,
+        "rejected": 0
+      }
+    },
+    {
+      "op": "confirm",
+      "candidate": "j1#0",
+      "action": "admit",
+      "expect": {
+        "status": "admitted",
+        "origin": "user_confirmed",
+        "text": "コーヒー",
+        "as": "c0"
+      }
+    },
+    {
+      "op": "confirm",
+      "candidate": "j1#1",
+      "action": "admit",
+      "editedValue": {
+        "text": "ほうじ茶",
+        "polarity": "affirmed"
+      },
+      "expect": {
+        "status": "admitted",
+        "origin": "user_edited",
+        "text": "ほうじ茶"
+      }
+    },
+    {
+      "op": "confirm",
+      "candidate": "j1#2",
+      "action": "reject",
+      "expect": {
+        "status": "rejected"
+      }
+    },
+    {
+      "op": "confirm",
+      "candidate": "j1#0",
+      "action": "admit",
+      "expect": {
+        "status": "not_pending",
+        "decision": "admitted"
+      }
+    },
+    {
+      "op": "confirm",
+      "candidate": "j1#2",
+      "action": "admit",
+      "expect": {
+        "status": "not_pending",
+        "decision": "rejected"
+      }
+    },
+    {
+      "op": "list-candidates",
+      "expect": {
+        "count": 0
+      }
+    },
+    {
+      "op": "list-state",
+      "expect": {
+        "items": [
+          {
+            "semanticKey": "drink",
+            "status": "active",
+            "origin": "user_confirmed",
+            "text": "コーヒー",
+            "polarity": "affirmed"
+          },
+          {
+            "semanticKey": "tea",
+            "status": "active",
+            "origin": "user_edited",
+            "text": "ほうじ茶",
+            "polarity": "affirmed"
+          }
+        ]
+      }
+    },
+    {
+      "op": "check",
+      "edges": {
+        "contains": [
+          "state_item>candidate:derived_from",
+          "state_item>source:primary"
+        ]
+      }
+    }
+  ]
+}

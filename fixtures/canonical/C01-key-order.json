@@ -1,0 +1,25 @@
+{
+  "fixtureFormat": 1,
+  "id": "C01-key-order",
+  "covers": [
+    "determinism"
+  ],
+  "operation": "canonical",
+  "value": {
+    "b": {
+      "z": [
+        1,
+        {
+          "y": true,
+          "x": false
+        }
+      ],
+      "a": {}
+    },
+    "a": [],
+    "B": "x"
+  },
+  "canonical": "{\"B\":\"x\",\"a\":[],\"b\":{\"a\":{},\"z\":[1,{\"x\":false,\"y\":true}]}}",
+  "sha256": "89bfce29e1fa66a37b534d1f7ed8ed6d6f083baa0a6b19686a3c194156e7e716",
+  "utf8ByteLength": 58
+}

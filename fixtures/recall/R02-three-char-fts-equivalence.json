@@ -1,0 +1,101 @@
+{
+	"id": "R02-three-char-fts-equivalence",
+	"fixtureFormat": 1,
+	"covers": [
+		"fts",
+		"like",
+		"ja"
+	],
+	"description": "3+ character queries give the same hits with the LIKE and FTS strategies (the runner executes both)",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "毎朝コーヒー豆を挽いてから出かける"
+		},
+		{
+			"op": "capture",
+			"origin": "o2",
+			"content": "コーヒーより紅茶が好き"
+		},
+		{
+			"op": "capture",
+			"origin": "o3",
+			"content": "豆腐を食べた"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "コーヒー",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o2",
+					"o1"
+				],
+				"natural": "like",
+				"ranges": {
+					"o1": [
+						6,
+						18
+					],
+					"o2": [
+						0,
+						12
+					]
+				}
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "コーヒ",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o2",
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "豆を挽",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like",
+				"ranges": {
+					"o1": [
+						18,
+						27
+					]
+				}
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "豆腐を",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o3"
+				],
+				"natural": "like"
+			}
+		}
+	]
+}

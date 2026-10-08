@@ -1,0 +1,64 @@
+{
+	"id": "E10-media-types-and-newlines",
+	"fixtureFormat": 1,
+	"covers": [
+		"range",
+		"utf8"
+	],
+	"description": "markdown / json bodies and CRLF/tab are stored byte-for-byte",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "line1\r\n\tline2\r\n",
+			"mediaType": "text/markdown"
+		},
+		{
+			"op": "read",
+			"origin": "o1",
+			"expect": {
+				"status": "available",
+				"content": "line1\r\n\tline2\r\n"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 5,
+			"end": 7,
+			"expect": {
+				"status": "available",
+				"text": "\r\n",
+				"digest": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 7,
+			"end": 8,
+			"expect": {
+				"status": "available",
+				"text": "\t",
+				"digest": "2b4c342f5433ebe591a1da77e013d1b72475562d48578dca8b84bac6651c3cb9"
+			}
+		},
+		{
+			"op": "capture",
+			"origin": "o2",
+			"content": "{\"k\":\"値\"}",
+			"mediaType": "application/json"
+		},
+		{
+			"op": "range",
+			"origin": "o2",
+			"start": 6,
+			"end": 9,
+			"expect": {
+				"status": "available",
+				"text": "値",
+				"digest": "19126213b0d126380f5fc7474be08db05389f4dda440a030a522448b7b2ea084"
+			}
+		}
+	]
+}

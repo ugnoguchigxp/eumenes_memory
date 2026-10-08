@@ -1,0 +1,52 @@
+{
+  "fixtureFormat": 1,
+  "id": "A108-not-user-before-user-confirmed-protection",
+  "covers": [
+    "order",
+    "NOT_USER_SOURCE"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表",
+    "本設計 §6.4(a) 日本語の決定的 fixture"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "tool",
+      "ordinal": 8,
+      "content": "前は紅茶派だったけど、今はコーヒー。"
+    }
+  ],
+  "candidate": {
+    "kind": "preference",
+    "subject": "self",
+    "semanticKey": "drink",
+    "value": {
+      "text": "コーヒー",
+      "polarity": "affirmed"
+    },
+    "modality": "asserted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "今はコーヒー"
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit"
+  },
+  "activeForKey": {
+    "value": {
+      "text": "紅茶",
+      "polarity": "affirmed"
+    },
+    "evidenceOrdinal": 3,
+    "origin": "user_confirmed"
+  },
+  "expect": {
+    "decision": "pending_user",
+    "reasonCode": "NOT_USER_SOURCE"
+  }
+}

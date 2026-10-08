@@ -1,0 +1,104 @@
+{
+  "fixtureFormat": 1,
+  "id": "S05-active-exists",
+  "covers": [
+    "ACTIVE_EXISTS",
+    "unique-active"
+  ],
+  "provenance": [
+    "本設計 §3.5 同 key の active は 1 件",
+    "SAAA 28616e61ce5fe853383d4af6ec14e5b5d542c076 crates/personal-state-core/src/reducer.rs:466-474"
+  ],
+  "steps": [
+    {
+      "action": "assert",
+      "as": "a",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "active",
+            "revision": 1,
+            "valueText": "コーヒー"
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    },
+    {
+      "action": "assert",
+      "as": "b",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "紅茶",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 9,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": false,
+        "reasonCode": "ACTIVE_EXISTS"
+      }
+    },
+    {
+      "action": "assert",
+      "as": "c",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "紅茶",
+        "polarity": "affirmed"
+      },
+      "origin": "user_edited",
+      "evidenceOrdinal": 0,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": false,
+        "reasonCode": "ACTIVE_EXISTS"
+      }
+    }
+  ],
+  "finalStatuses": {
+    "a": "active"
+  }
+}

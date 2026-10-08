@@ -1,0 +1,17 @@
+{
+	"id": "L05-chain-empty",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"chain"
+	],
+	"kind": "chain",
+	"description": "An empty journal is a valid chain with no head (reconcile decides whether it is missing)",
+	"input": {
+		"entries": []
+	},
+	"expect": {
+		"status": "ok",
+		"head": null
+	}
+}

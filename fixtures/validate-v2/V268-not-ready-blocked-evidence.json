@@ -1,0 +1,22 @@
+{
+  "fixtureFormat": 1,
+  "id": "V268-not-ready-blocked-evidence",
+  "covers": [
+    "evidence"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B280-evidence-forgotten-blocked"
+  },
+  "currentFrom": {
+    "fixture": "B265-evidence-basic"
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "invalid",
+      "reasonCode": "VIEW_NOT_READY"
+    }
+  }
+}

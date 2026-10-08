@@ -1,0 +1,42 @@
+{
+  "fixtureFormat": 1,
+  "id": "A20-modality-reported",
+  "covers": [
+    "MODALITY_QUOTED"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    }
+  ],
+  "candidate": {
+    "kind": "preference",
+    "subject": "self",
+    "semanticKey": "drink",
+    "value": {
+      "text": "コーヒーが好き",
+      "polarity": "affirmed"
+    },
+    "modality": "reported",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "コーヒーが好き"
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit"
+  },
+  "expect": {
+    "decision": "pending_user",
+    "reasonCode": "MODALITY_QUOTED"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "fixtureFormat": 1,
+  "id": "X24-shown-state-deactivated-before-settle",
+  "covers": [
+    "stale",
+    "STATE_CHANGED",
+    "shownState"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.6 Extraction",
+    "本設計 §6.4(a) 日本語の決定的 fixture（モデルは使わない。canned output）"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    },
+    {
+      "name": "m2",
+      "role": "user",
+      "ordinal": 8,
+      "content": "最近は紅茶が好きになった🍵。"
+    }
+  ],
+  "steps": [
+    {
+      "op": "assert-state",
+      "as": "s1",
+      "semanticKey": "drink",
+      "text": "コーヒー",
+      "source": "m1",
+      "quote": "コーヒーが好き"
+    },
+    {
+      "op": "prepare",
+      "run": "j1",
+      "expect": {
+        "status": "ready",
+        "shown": [
+          "s1"
+        ]
+      },
+      "sources": [
+        "m2"
+      ]
+    },
+    {
+      "op": "deactivate-state",
+      "item": "s1"
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": true,
+        "candidates": []
+      },
+      "expect": {
+        "status": "stale",
+        "reasonCode": "STATE_CHANGED"
+      }
+    },
+    {
+      "op": "check",
+      "counts": {
+        "candidate": 0
+      }
+    }
+  ]
+}

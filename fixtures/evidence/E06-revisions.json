@@ -1,0 +1,103 @@
+{
+	"id": "E06-revisions",
+	"fixtureFormat": 1,
+	"covers": [
+		"range",
+		"revision"
+	],
+	"description": "A changed capture is a new revision of the same record; old revisions stay readable by revision",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "first body",
+			"label": "v1",
+			"expect": {
+				"created": true
+			}
+		},
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "first body",
+			"expect": {
+				"created": false
+			}
+		},
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "second body",
+			"label": "v2",
+			"expect": {
+				"created": true
+			}
+		},
+		{
+			"op": "read",
+			"origin": "o1",
+			"expect": {
+				"status": "available",
+				"content": "second body",
+				"recordStatus": "active"
+			}
+		},
+		{
+			"op": "read",
+			"origin": "o1",
+			"revision": "@v1",
+			"expect": {
+				"status": "available",
+				"content": "first body"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 5,
+			"expect": {
+				"status": "available",
+				"text": "first",
+				"digest": "a7937b64b8caa58f03721bb6bacf5c78cb235febe0e70b1b84cd99541461a08e"
+			},
+			"revision": "@v1"
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 6,
+			"expect": {
+				"status": "available",
+				"text": "second",
+				"digest": "16367aacb67a4a017c8da8ab95682ccb390863780f7114dda0a0e0c55644c7c4"
+			},
+			"revision": "@v2"
+		},
+		{
+			"op": "read",
+			"origin": "o1",
+			"revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+			"expect": {
+				"status": "missing"
+			}
+		},
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "first body",
+			"expect": {
+				"created": true
+			}
+		},
+		{
+			"op": "read",
+			"origin": "o1",
+			"expect": {
+				"status": "available",
+				"content": "first body"
+			}
+		}
+	]
+}

@@ -1,0 +1,108 @@
+{
+  "fixtureFormat": 1,
+  "id": "X01-admitted-auto",
+  "covers": [
+    "admitted",
+    "auto_admit",
+    "dependency"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.6 Extraction",
+    "本設計 §6.4(a) 日本語の決定的 fixture（モデルは使わない。canned output）"
+  ],
+  "description": "auto_admit は policy が明示されたときだけ。採用された item は run・candidate・出典へ依存辺を持つ（S6 の忘却閉包が届く）",
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    }
+  ],
+  "steps": [
+    {
+      "op": "prepare",
+      "run": "j1",
+      "expect": {
+        "status": "ready",
+        "sourceNames": [
+          "m1"
+        ]
+      }
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": false,
+        "candidates": [
+          {
+            "kind": "preference",
+            "subject": "self",
+            "semanticKey": "drink",
+            "value": {
+              "text": "コーヒー",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m1",
+                "quote": "コーヒーが好き"
+              }
+            ]
+          }
+        ]
+      },
+      "policy": {
+        "all": "auto_admit"
+      },
+      "expect": {
+        "status": "applied",
+        "admitted": 1,
+        "pendingUser": 0,
+        "rejected": 0
+      }
+    },
+    {
+      "op": "list-state",
+      "expect": {
+        "items": [
+          {
+            "semanticKey": "drink",
+            "status": "active",
+            "origin": "admitted_extraction",
+            "text": "コーヒー",
+            "polarity": "affirmed"
+          }
+        ]
+      }
+    },
+    {
+      "op": "check",
+      "run": {
+        "id": "j1",
+        "stage": "settled"
+      },
+      "progress": {
+        "m1": "extracted"
+      },
+      "counts": {
+        "candidate": 1,
+        "state_item": 1,
+        "run": 1,
+        "evidence": 1
+      },
+      "edges": {
+        "exact": [
+          "extraction_run>source:input",
+          "candidate>extraction_run:derived_from",
+          "candidate>source:primary",
+          "state_item>candidate:derived_from",
+          "state_item>source:primary"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "fixtureFormat": 1,
+  "id": "V07-digest-over-state",
+  "covers": [
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B01-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/items/0/text",
+        "value": "tampered"
+      }
+    ]
+  },
+  "currentFrom": {
+    "fixture": "B01-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/snapshot/stateRevision",
+        "value": "8"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 1,
+      "status": "invalid",
+      "reasonCode": "VIEW_DIGEST_MISMATCH"
+    }
+  }
+}

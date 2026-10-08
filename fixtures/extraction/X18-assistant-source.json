@@ -1,0 +1,81 @@
+{
+  "fixtureFormat": 1,
+  "id": "X18-assistant-source",
+  "covers": [
+    "NOT_USER_SOURCE"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.6 Extraction",
+    "本設計 §6.4(a) 日本語の決定的 fixture（モデルは使わない。canned output）"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "assistant",
+      "ordinal": 3,
+      "content": "コーヒーがお好きなんですね。"
+    }
+  ],
+  "steps": [
+    {
+      "op": "prepare",
+      "run": "j1",
+      "expect": {
+        "status": "ready"
+      }
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": false,
+        "candidates": [
+          {
+            "kind": "preference",
+            "subject": "self",
+            "semanticKey": "drink",
+            "value": {
+              "text": "コーヒー",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m1",
+                "quote": "コーヒーがお好き"
+              }
+            ]
+          }
+        ]
+      },
+      "policy": {
+        "all": "auto_admit"
+      },
+      "expect": {
+        "status": "applied",
+        "admitted": 0,
+        "pendingUser": 1,
+        "rejected": 0
+      }
+    },
+    {
+      "op": "list-candidates",
+      "expect": {
+        "count": 1,
+        "items": [
+          {
+            "decision": "pending_user",
+            "reasonCode": "NOT_USER_SOURCE"
+          }
+        ]
+      }
+    },
+    {
+      "op": "check",
+      "counts": {
+        "state_item": 0
+      }
+    }
+  ]
+}

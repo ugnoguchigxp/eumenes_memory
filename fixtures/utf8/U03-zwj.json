@@ -1,0 +1,18 @@
+{
+  "fixtureFormat": 1,
+  "id": "U03-zwj",
+  "covers": [
+    "utf8"
+  ],
+  "operation": "utf8",
+  "text": "👨‍👩‍👧",
+  "utf8ByteLength": 18,
+  "boundaries": [
+    0,
+    4,
+    7,
+    11,
+    14,
+    18
+  ]
+}

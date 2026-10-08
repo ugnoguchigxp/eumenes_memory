@@ -1,0 +1,29 @@
+{
+  "fixtureFormat": 1,
+  "id": "V205-digest-tampered-text",
+  "covers": [
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B201-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/items/0/text",
+        "value": "tampered"
+      }
+    ]
+  },
+  "currentFrom": {
+    "fixture": "B201-ready-basic"
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "invalid",
+      "reasonCode": "VIEW_DIGEST_MISMATCH"
+    }
+  }
+}

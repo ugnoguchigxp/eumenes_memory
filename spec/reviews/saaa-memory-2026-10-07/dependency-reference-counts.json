@@ -1,0 +1,59 @@
+{
+	"method": "Textual crate::<name> occurrences in non-test-named Rust paths; includes inline tests; not a call graph.",
+	"areas": {
+		"src-tauri/src/memory": {
+			"memory": 59,
+			"database_error": 42,
+			"new_id": 29,
+			"runtime": 17,
+			"persistence": 9,
+			"PRIMARY_CONVERSATION_ID": 5,
+			"RunCancellation": 3,
+			"validate_identifier": 3,
+			"now_iso": 3,
+			"AppState": 3,
+			"schedule": 2,
+			"credentials": 2,
+			"providers": 2,
+			"StartTurnInput": 2,
+			"ipc_contract": 2,
+			"situation": 2,
+			"tool_selection": 1,
+			"steward": 1,
+			"role_routing": 1,
+			"records": 1,
+			"adaptive_improvement": 1,
+			"voice_behavior": 1,
+			"coding": 1
+		},
+		"crates/personal-state-core": {
+			"world": 23,
+			"SourceKey": 7,
+			"Status": 4,
+			"Kind": 1
+		},
+		"src-tauri/src/records": {
+			"records": 11,
+			"persistence": 10,
+			"schedule": 8,
+			"tool_selection": 4,
+			"generated_capabilities": 4,
+			"util": 2,
+			"RunCancellation": 1
+		},
+		"src-tauri/src/runtime/context": {
+			"database_error": 21,
+			"memory": 21,
+			"runtime": 18,
+			"persistence": 7,
+			"ipc_contract": 6,
+			"AppState": 5,
+			"util": 4,
+			"generated_capabilities": 4,
+			"schedule": 3,
+			"validate_identifier": 3,
+			"PRIMARY_CONVERSATION_ID": 2,
+			"test_state": 1
+		}
+	}
+}

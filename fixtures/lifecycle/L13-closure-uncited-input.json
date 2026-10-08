@@ -1,0 +1,79 @@
+{
+	"id": "L13-closure-uncited-input",
+	"fixtureFormat": 1,
+	"covers": [
+		"closure"
+	],
+	"kind": "closure",
+	"description": "A run's input edge puts the run and all its candidates in the closure, cited or not",
+	"input": {
+		"starts": [
+			{
+				"type": "source",
+				"id": "S0"
+			}
+		],
+		"edges": [
+			{
+				"dependentType": "extraction_run",
+				"dependentId": "run1",
+				"dependencyType": "source",
+				"dependencyId": "S0",
+				"role": "input"
+			},
+			{
+				"dependentType": "extraction_run",
+				"dependentId": "run1",
+				"dependencyType": "source",
+				"dependencyId": "S1",
+				"role": "input"
+			},
+			{
+				"dependentType": "candidate",
+				"dependentId": "c1",
+				"dependencyType": "extraction_run",
+				"dependencyId": "run1",
+				"role": "derived_from"
+			},
+			{
+				"dependentType": "candidate",
+				"dependentId": "c2",
+				"dependencyType": "extraction_run",
+				"dependencyId": "run1",
+				"role": "derived_from"
+			},
+			{
+				"dependentType": "state_item",
+				"dependentId": "i1",
+				"dependencyType": "candidate",
+				"dependencyId": "c1",
+				"role": "primary"
+			}
+		]
+	},
+	"expect": {
+		"nodes": [
+			{
+				"type": "candidate",
+				"id": "c1"
+			},
+			{
+				"type": "candidate",
+				"id": "c2"
+			},
+			{
+				"type": "extraction_run",
+				"id": "run1"
+			},
+			{
+				"type": "state_item",
+				"id": "i1"
+			}
+		],
+		"counts": {
+			"candidate": 2,
+			"extraction_run": 1,
+			"state_item": 1
+		}
+	}
+}

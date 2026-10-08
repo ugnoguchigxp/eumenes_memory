@@ -1,0 +1,56 @@
+{
+	"id": "L14-closure-cycle",
+	"fixtureFormat": 1,
+	"covers": [
+		"closure"
+	],
+	"kind": "closure",
+	"description": "A cycle terminates and the start node is not part of the result",
+	"input": {
+		"starts": [
+			{
+				"type": "source",
+				"id": "S0"
+			}
+		],
+		"edges": [
+			{
+				"dependentType": "candidate",
+				"dependentId": "c1",
+				"dependencyType": "source",
+				"dependencyId": "S0",
+				"role": "support"
+			},
+			{
+				"dependentType": "extraction_run",
+				"dependentId": "r1",
+				"dependencyType": "candidate",
+				"dependencyId": "c1",
+				"role": "support"
+			},
+			{
+				"dependentType": "candidate",
+				"dependentId": "c1",
+				"dependencyType": "extraction_run",
+				"dependencyId": "r1",
+				"role": "support"
+			}
+		]
+	},
+	"expect": {
+		"nodes": [
+			{
+				"type": "candidate",
+				"id": "c1"
+			},
+			{
+				"type": "extraction_run",
+				"id": "r1"
+			}
+		],
+		"counts": {
+			"candidate": 1,
+			"extraction_run": 1
+		}
+	}
+}

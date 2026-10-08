@@ -1,0 +1,145 @@
+{
+  "fixtureFormat": 1,
+  "id": "B207-ready-zwj-split",
+  "covers": [
+    "utf8"
+  ],
+  "operation": "build",
+  "input": {
+    "schemaVersion": 2,
+    "access": {
+      "principal": "local:owner",
+      "scopeKeys": [
+        "conversation:c1"
+      ],
+      "purpose": "dialogue.generate",
+      "policyRevision": "1"
+    },
+    "snapshot": {
+      "principal": "local:owner",
+      "scopeKey": "conversation:c1",
+      "stateRevision": "7",
+      "policyRevision": "1",
+      "complete": true,
+      "sources": [
+        {
+          "namespace": "conversation",
+          "kind": "message",
+          "id": "z1",
+          "representation": "text",
+          "revision": "sha256:cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8",
+          "digest": "cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8",
+          "principal": "local:owner",
+          "scopeKey": "conversation:c1",
+          "status": "available",
+          "content": "👨‍👩‍👧"
+        }
+      ],
+      "items": [
+        {
+          "id": "continuity:s1",
+          "revision": "1",
+          "kind": "goal",
+          "text": "single item",
+          "status": "active",
+          "origin": "user_confirmed",
+          "primarySource": {
+            "namespace": "conversation",
+            "kind": "message",
+            "id": "z1",
+            "representation": "text",
+            "revision": "sha256:cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8",
+            "digest": "cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8",
+            "range": {
+              "startByte": 4,
+              "endByte": 7
+            }
+          },
+          "dependencies": [
+            {
+              "namespace": "conversation",
+              "kind": "message",
+              "id": "z1",
+              "representation": "text",
+              "revision": "sha256:cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8",
+              "digest": "cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8",
+              "range": {
+                "startByte": 4,
+                "endByte": 7
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "maxBytes": 1000000,
+    "enabled": true
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "ready",
+      "principal": "local:owner",
+      "scopeKey": "conversation:c1",
+      "purpose": "dialogue.generate",
+      "stateRevision": "7",
+      "policyRevision": "1",
+      "instructionAuthority": "none",
+      "items": [
+        {
+          "id": "continuity:s1",
+          "revision": "1",
+          "kind": "goal",
+          "text": "single item",
+          "status": "active",
+          "origin": "user_confirmed",
+          "primarySource": {
+            "namespace": "conversation",
+            "kind": "message",
+            "id": "z1",
+            "representation": "text",
+            "revision": "sha256:cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8",
+            "digest": "cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8",
+            "range": {
+              "startByte": 4,
+              "endByte": 7
+            }
+          },
+          "dependencies": [
+            {
+              "namespace": "conversation",
+              "kind": "message",
+              "id": "z1",
+              "representation": "text",
+              "revision": "sha256:cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8",
+              "digest": "cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8",
+              "range": {
+                "startByte": 4,
+                "endByte": 7
+              }
+            }
+          ]
+        }
+      ],
+      "dependencies": [
+        {
+          "namespace": "conversation",
+          "kind": "message",
+          "id": "z1",
+          "representation": "text",
+          "revision": "sha256:cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8",
+          "digest": "cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8"
+        }
+      ],
+      "coverage": {
+        "complete": true,
+        "omitted": []
+      },
+      "viewDigest": "38e631eba0c1aad9140f9df768ddab2dd43afc5f858923367e75f6643c69e71e",
+      "evidence": []
+    },
+    "canonicalWithoutDigest": "{\"coverage\":{\"complete\":true,\"omitted\":[]},\"dependencies\":[{\"digest\":\"cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8\",\"id\":\"z1\",\"kind\":\"message\",\"namespace\":\"conversation\",\"representation\":\"text\",\"revision\":\"sha256:cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8\"}],\"evidence\":[],\"instructionAuthority\":\"none\",\"items\":[{\"dependencies\":[{\"digest\":\"cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8\",\"id\":\"z1\",\"kind\":\"message\",\"namespace\":\"conversation\",\"range\":{\"endByte\":7,\"startByte\":4},\"representation\":\"text\",\"revision\":\"sha256:cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8\"}],\"id\":\"continuity:s1\",\"kind\":\"goal\",\"origin\":\"user_confirmed\",\"primarySource\":{\"digest\":\"cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8\",\"id\":\"z1\",\"kind\":\"message\",\"namespace\":\"conversation\",\"range\":{\"endByte\":7,\"startByte\":4},\"representation\":\"text\",\"revision\":\"sha256:cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8\"},\"revision\":\"1\",\"status\":\"active\",\"text\":\"single item\"}],\"policyRevision\":\"1\",\"principal\":\"local:owner\",\"purpose\":\"dialogue.generate\",\"schemaVersion\":2,\"scopeKey\":\"conversation:c1\",\"stateRevision\":\"7\",\"status\":\"ready\"}",
+    "finalByteLength": 1300
+  }
+}

@@ -1,0 +1,93 @@
+{
+	"id": "R14-new-revision-replaces-index",
+	"fixtureFormat": 1,
+	"covers": [
+		"revision",
+		"fts",
+		"like"
+	],
+	"description": "Only the current revision is searchable",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "古い版の本文です"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "古い版",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "新しい版の本文です"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "古い版",
+			"expect": {
+				"status": "ok",
+				"origins": [],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "新しい版",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "古い版の本文です"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "古い版",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "新しい版",
+			"expect": {
+				"status": "ok",
+				"origins": [],
+				"natural": "like"
+			}
+		}
+	]
+}

@@ -1,0 +1,51 @@
+{
+  "fixtureFormat": 1,
+  "id": "A87-other-person-self-auto-admit-does-not-apply",
+  "covers": [
+    "other-person",
+    "SUBJECT_OTHER",
+    "policy"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表",
+    "本設計 §6.4(a) 日本語の決定的 fixture"
+  ],
+  "note": "別人の情報は self の personal_fact にならない（self の auto_admit は subject other に効かない）",
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "母は甘いものを控えている。"
+    }
+  ],
+  "candidate": {
+    "kind": "personal_fact",
+    "subject": "other:mother",
+    "semanticKey": "diet",
+    "value": {
+      "text": "甘いものを控えている",
+      "polarity": "affirmed"
+    },
+    "modality": "asserted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "甘いものを控えている"
+      }
+    ]
+  },
+  "policy": {
+    "personal_fact": "auto_admit",
+    "preference": "auto_admit",
+    "constraint": "auto_admit",
+    "habit": "auto_admit",
+    "other_person_note": "user_confirm"
+  },
+  "expect": {
+    "decision": "pending_user",
+    "reasonCode": "SUBJECT_OTHER",
+    "effectiveKind": "other_person_note"
+  }
+}

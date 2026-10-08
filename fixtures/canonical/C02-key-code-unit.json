@@ -1,0 +1,16 @@
+{
+  "fixtureFormat": 1,
+  "id": "C02-key-code-unit",
+  "covers": [
+    "determinism",
+    "utf8"
+  ],
+  "operation": "canonical",
+  "value": {
+    "～": 1,
+    "😀": 2
+  },
+  "canonical": "{\"😀\":2,\"～\":1}",
+  "sha256": "c44a324298283d910e4120a2ff3c2d7746b4a5c9f2d9625c67f6abb58748cf31",
+  "utf8ByteLength": 18
+}

@@ -1,0 +1,30 @@
+{
+  "fixtureFormat": 1,
+  "id": "V25-item-origin",
+  "covers": [
+    "stale",
+    "kinds-origin"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B01-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B01-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/snapshot/items/2/origin",
+        "value": "user_confirmed"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 1,
+      "status": "invalid",
+      "reasonCode": "ITEM_CONTENT_CHANGED"
+    }
+  }
+}

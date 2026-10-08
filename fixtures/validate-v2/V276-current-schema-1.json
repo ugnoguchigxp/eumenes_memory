@@ -1,0 +1,26 @@
+{
+  "fixtureFormat": 1,
+  "id": "V276-current-schema-1",
+  "covers": [
+    "schema"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B265-evidence-basic"
+  },
+  "currentFrom": {
+    "fixture": "B265-evidence-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/schemaVersion",
+        "value": 1
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "error",
+    "code": "UNSUPPORTED_SCHEMA_VERSION",
+    "path": "$.schemaVersion"
+  }
+}

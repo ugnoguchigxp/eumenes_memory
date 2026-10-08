@@ -1,0 +1,185 @@
+{
+  "fixtureFormat": 1,
+  "id": "S24-supersede-requires-the-same-key",
+  "covers": [
+    "supersede",
+    "REPLACES_MISMATCH",
+    "guards"
+  ],
+  "provenance": [
+    "本設計 §3.5 State 台帳（レビュー B の修正で追加）"
+  ],
+  "steps": [
+    {
+      "action": "assert",
+      "as": "a",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 3,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "active",
+            "revision": 1
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    },
+    {
+      "action": "supersede",
+      "target": "a",
+      "as": "b",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "snack"
+      },
+      "expectedRevision": 1,
+      "value": {
+        "text": "紅茶",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 9,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": false,
+        "reasonCode": "REPLACES_MISMATCH"
+      }
+    },
+    {
+      "action": "supersede",
+      "target": "a",
+      "as": "c",
+      "identity": {
+        "subject": "self",
+        "kind": "habit",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": 1,
+      "value": {
+        "text": "紅茶",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 9,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": false,
+        "reasonCode": "REPLACES_MISMATCH"
+      }
+    },
+    {
+      "action": "supersede",
+      "target": "a",
+      "as": "d",
+      "identity": {
+        "subject": "other:mother",
+        "kind": "other_person_note",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": 1,
+      "value": {
+        "text": "紅茶",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 9,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": false,
+        "reasonCode": "REPLACES_MISMATCH"
+      }
+    },
+    {
+      "action": "supersede",
+      "target": "a",
+      "as": "e",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": 1,
+      "value": {
+        "text": "紅茶",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 9,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "superseded",
+            "revision": 2
+          },
+          {
+            "as": "e",
+            "status": "active",
+            "revision": 1,
+            "valueText": "紅茶"
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "supersede",
+            "from": 1,
+            "to": 2
+          },
+          {
+            "as": "e",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    }
+  ],
+  "finalStatuses": {
+    "a": "superseded",
+    "b": "(absent)",
+    "c": "(absent)",
+    "d": "(absent)",
+    "e": "active"
+  }
+}

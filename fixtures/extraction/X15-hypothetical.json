@@ -1,0 +1,84 @@
+{
+  "fixtureFormat": 1,
+  "id": "X15-hypothetical",
+  "covers": [
+    "MODALITY_NOT_ASSERTED",
+    "hypothetical"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.6 Extraction",
+    "本設計 §6.4(a) 日本語の決定的 fixture（モデルは使わない。canned output）"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 3,
+      "content": "もし時間があれば毎朝走りたい。"
+    }
+  ],
+  "steps": [
+    {
+      "op": "prepare",
+      "run": "j1",
+      "expect": {
+        "status": "ready"
+      }
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": false,
+        "candidates": [
+          {
+            "kind": "habit",
+            "subject": "self",
+            "semanticKey": "run",
+            "value": {
+              "text": "毎朝走る",
+              "polarity": "affirmed"
+            },
+            "modality": "hypothetical",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m1",
+                "quote": "もし時間があれば毎朝走りたい"
+              }
+            ]
+          }
+        ]
+      },
+      "policy": {
+        "all": "auto_admit"
+      },
+      "expect": {
+        "status": "applied",
+        "admitted": 0,
+        "pendingUser": 0,
+        "rejected": 1
+      }
+    },
+    {
+      "op": "list-candidates",
+      "decision": "rejected",
+      "expect": {
+        "count": 1,
+        "items": [
+          {
+            "reasonCode": "MODALITY_NOT_ASSERTED",
+            "kind": "habit",
+            "modality": "hypothetical"
+          }
+        ]
+      }
+    },
+    {
+      "op": "check",
+      "counts": {
+        "state_item": 0
+      }
+    }
+  ]
+}

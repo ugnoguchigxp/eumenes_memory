@@ -1,0 +1,105 @@
+{
+  "fixtureFormat": 1,
+  "id": "S11-extraction-same-value-unchanged",
+  "covers": [
+    "unchanged",
+    "ordinal"
+  ],
+  "provenance": [
+    "本設計 §3.5 unchanged"
+  ],
+  "steps": [
+    {
+      "action": "assert",
+      "as": "a",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 5,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "active",
+            "revision": 1,
+            "valueText": "コーヒー"
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    },
+    {
+      "action": "assert",
+      "as": "b",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "admitted_extraction",
+      "evidenceOrdinal": 9,
+      "cause": {
+        "type": "candidate",
+        "id": "cand:run1:0"
+      },
+      "expect": {
+        "ok": true,
+        "items": [],
+        "events": []
+      }
+    },
+    {
+      "action": "assert",
+      "as": "c",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "admitted_extraction",
+      "evidenceOrdinal": 1,
+      "cause": {
+        "type": "candidate",
+        "id": "cand:run1:0"
+      },
+      "expect": {
+        "ok": true,
+        "items": [],
+        "events": []
+      }
+    }
+  ],
+  "finalStatuses": {
+    "a": "active"
+  }
+}

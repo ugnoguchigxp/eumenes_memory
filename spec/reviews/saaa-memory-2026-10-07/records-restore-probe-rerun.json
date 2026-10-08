@@ -1,0 +1,8 @@
+{
+	"probe": "Actual records schema and authorization SQL; isolated tombstone-replay component probe",
+	"sqlite_version": "3.53.4",
+	"tombstone_replay_existing_record_visible": true,
+	"insert_same_record_blocked": true,
+	"normal_forget_epoch_update_hidden": true,
+	"scope": "Not a Tauri restore or production exposure test; journal sync omission is source-traced separately."
+}

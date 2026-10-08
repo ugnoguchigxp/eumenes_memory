@@ -1,0 +1,29 @@
+{
+  "fixtureFormat": 1,
+  "id": "V204-not-ready-first",
+  "covers": [
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B220-blocked-principal"
+  },
+  "currentFrom": {
+    "fixture": "B201-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/access/principal",
+        "value": "local:other"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "invalid",
+      "reasonCode": "VIEW_NOT_READY"
+    }
+  }
+}

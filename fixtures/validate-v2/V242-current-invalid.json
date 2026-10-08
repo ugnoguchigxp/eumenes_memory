@@ -1,0 +1,26 @@
+{
+  "fixtureFormat": 1,
+  "id": "V242-current-invalid",
+  "covers": [
+    "schema"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B201-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B201-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/snapshot/items/0/kind",
+        "value": "fact"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "error",
+    "code": "INVALID_ENUM",
+    "path": "$.snapshot.items[0].kind"
+  }
+}

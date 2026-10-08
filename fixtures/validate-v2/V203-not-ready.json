@@ -1,0 +1,22 @@
+{
+  "fixtureFormat": 1,
+  "id": "V203-not-ready",
+  "covers": [
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B220-blocked-principal"
+  },
+  "currentFrom": {
+    "fixture": "B201-ready-basic"
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "invalid",
+      "reasonCode": "VIEW_NOT_READY"
+    }
+  }
+}

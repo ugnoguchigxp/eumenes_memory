@@ -1,0 +1,92 @@
+{
+  "fixtureFormat": 1,
+  "id": "B294-memory-item-content-digest-mismatch",
+  "covers": [
+    "stale"
+  ],
+  "operation": "build",
+  "input": {
+    "schemaVersion": 2,
+    "access": {
+      "principal": "local:owner",
+      "scopeKeys": [
+        "conversation:c1"
+      ],
+      "purpose": "dialogue.generate",
+      "policyRevision": "1"
+    },
+    "snapshot": {
+      "principal": "local:owner",
+      "scopeKey": "conversation:c1",
+      "stateRevision": "c:7|m:3",
+      "policyRevision": "1",
+      "complete": true,
+      "sources": [
+        {
+          "namespace": "memory",
+          "kind": "record",
+          "id": "rec:8123fe5fc705f42592cd6d5eec7228e8147337b517324009679c3368bd3a557e",
+          "representation": "text",
+          "revision": "sha256:529b6e38de7a1f076911e6ed23a02894acea7006c37df9d451dc146b496adf54",
+          "digest": "529b6e38de7a1f076911e6ed23a02894acea7006c37df9d451dc146b496adf54",
+          "principal": "local:owner",
+          "scopeKey": "conversation:c1",
+          "status": "available",
+          "content": "別の本文"
+        }
+      ],
+      "items": [
+        {
+          "id": "state:p1",
+          "revision": "1",
+          "kind": "preference",
+          "text": "x",
+          "status": "active",
+          "origin": "user_confirmed",
+          "primarySource": {
+            "namespace": "memory",
+            "kind": "record",
+            "id": "rec:8123fe5fc705f42592cd6d5eec7228e8147337b517324009679c3368bd3a557e",
+            "representation": "text",
+            "revision": "sha256:529b6e38de7a1f076911e6ed23a02894acea7006c37df9d451dc146b496adf54",
+            "digest": "529b6e38de7a1f076911e6ed23a02894acea7006c37df9d451dc146b496adf54",
+            "range": {
+              "startByte": 6,
+              "endByte": 18
+            }
+          },
+          "dependencies": [
+            {
+              "namespace": "memory",
+              "kind": "record",
+              "id": "rec:8123fe5fc705f42592cd6d5eec7228e8147337b517324009679c3368bd3a557e",
+              "representation": "text",
+              "revision": "sha256:529b6e38de7a1f076911e6ed23a02894acea7006c37df9d451dc146b496adf54",
+              "digest": "529b6e38de7a1f076911e6ed23a02894acea7006c37df9d451dc146b496adf54",
+              "range": {
+                "startByte": 6,
+                "endByte": 18
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "maxBytes": 1000000,
+    "enabled": true
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "principal": "local:owner",
+      "scopeKey": "conversation:c1",
+      "purpose": "dialogue.generate",
+      "stateRevision": "c:7|m:3",
+      "policyRevision": "1",
+      "instructionAuthority": "none",
+      "status": "blocked",
+      "reasonCode": "SOURCE_CONTENT_DIGEST_MISMATCH"
+    }
+  }
+}

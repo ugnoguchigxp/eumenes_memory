@@ -1,0 +1,116 @@
+{
+  "fixtureFormat": 1,
+  "id": "X10-quote-differs-from-range",
+  "covers": [
+    "QUOTE_MISMATCH",
+    "candidate-level"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.6 Extraction",
+    "本設計 §6.4(a) 日本語の決定的 fixture（モデルは使わない。canned output）"
+  ],
+  "description": "quote が range の bytes と違う候補は候補単位で rejected（同じ出力の正しい候補は採用される）。検査を通らなかった evidence は保存しない",
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    }
+  ],
+  "steps": [
+    {
+      "op": "prepare",
+      "run": "j1",
+      "expect": {
+        "status": "ready"
+      }
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": false,
+        "candidates": [
+          {
+            "kind": "preference",
+            "subject": "self",
+            "semanticKey": "tea",
+            "value": {
+              "text": "紅茶",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m1",
+                "quote": "紅茶が好き",
+                "range": [
+                  6,
+                  27
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "preference",
+            "subject": "self",
+            "semanticKey": "drink",
+            "value": {
+              "text": "コーヒー",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m1",
+                "quote": "コーヒーが好き"
+              }
+            ]
+          }
+        ]
+      },
+      "policy": {
+        "all": "auto_admit"
+      },
+      "expect": {
+        "status": "applied",
+        "admitted": 1,
+        "pendingUser": 0,
+        "rejected": 1
+      }
+    },
+    {
+      "op": "list-candidates",
+      "decision": "rejected",
+      "expect": {
+        "count": 1,
+        "items": [
+          {
+            "run": "j1",
+            "idx": 0,
+            "decision": "rejected",
+            "reasonCode": "QUOTE_MISMATCH",
+            "evidence": 0
+          }
+        ]
+      }
+    },
+    {
+      "op": "list-state",
+      "expect": {
+        "items": [
+          {
+            "semanticKey": "drink",
+            "status": "active",
+            "origin": "admitted_extraction",
+            "text": "コーヒー",
+            "polarity": "affirmed"
+          }
+        ]
+      }
+    }
+  ]
+}

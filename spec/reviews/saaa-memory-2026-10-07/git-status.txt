@@ -1,0 +1,25 @@
+ M docs/plans/http-runtime-and-test-profiles.md
+ M docs/plans/http-runtime-inventory/summary.json
+ M scripts/module-size-baseline.json
+ M scripts/verify-plan.ts
+ M src-tauri/Cargo.lock
+ M src-tauri/Cargo.toml
+ M src-tauri/build.rs
+ M src-tauri/src/memory/personal_state/schema_columns.rs
+ M src-tauri/src/persistence/sqlite/mod.rs
+ D src-tauri/src/persistence/sqlite/owner.rs
+ M src-tauri/src/persistence/sqlite/writer.rs
+?? crates/saaa-diagnosis/
+?? crates/saaa-storage/
+?? docs/plans/eumenes-initial-prompt.md
+?? docs/plans/http-runtime-inventory/api-migration.tsv
+?? docs/plans/http-runtime-inventory/frontend-invoke-exceptions.tsv
+?? docs/plans/http-runtime-inventory/test-migration.tsv
+?? scripts/runtime-contract-check.ts
+?? scripts/runtime-contract-ledger.ts
+?? scripts/runtime-contract-scan.ts
+?? services/saaa-http/
+?? src/lib/transport/
+?? tests/runtime-contract.test.ts
+?? tests/transport-http.test.ts
+?? tests/transport-select.test.ts

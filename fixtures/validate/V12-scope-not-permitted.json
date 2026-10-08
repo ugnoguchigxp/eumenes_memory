@@ -1,0 +1,31 @@
+{
+  "fixtureFormat": 1,
+  "id": "V12-scope-not-permitted",
+  "covers": [
+    "access"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B01-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B01-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/access/scopeKeys",
+        "value": [
+          "conversation:c2"
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 1,
+      "status": "invalid",
+      "reasonCode": "SCOPE_NOT_PERMITTED"
+    }
+  }
+}

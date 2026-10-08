@@ -1,0 +1,8 @@
+{
+	"probe": "Actual records schema + actual Authorization.sql_filter predicate; model the journal record-tombstone replay into a DB containing pre-forget records",
+	"sqlite_version": "3.53.4",
+	"tombstone_replay_existing_record_visible": true,
+	"insert_same_record_blocked": true,
+	"normal_forget_epoch_update_hidden": true,
+	"scope": "SQL component probe only. Did not run Tauri restore or read production data. Journal sync recording coverage checked by source trace, not this probe."
+}

@@ -1,0 +1,57 @@
+{
+  "fixtureFormat": 1,
+  "id": "X03-no-change",
+  "covers": [
+    "noChange",
+    "progress"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.6 Extraction",
+    "本設計 §6.4(a) 日本語の決定的 fixture（モデルは使わない。canned output）"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    }
+  ],
+  "steps": [
+    {
+      "op": "prepare",
+      "run": "j1",
+      "expect": {
+        "status": "ready"
+      }
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": true,
+        "candidates": []
+      },
+      "expect": {
+        "status": "applied",
+        "admitted": 0,
+        "pendingUser": 0,
+        "rejected": 0
+      }
+    },
+    {
+      "op": "check",
+      "run": {
+        "id": "j1",
+        "stage": "settled"
+      },
+      "progress": {
+        "m1": "no_change"
+      },
+      "counts": {
+        "candidate": 0,
+        "state_item": 0
+      }
+    }
+  ]
+}

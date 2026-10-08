@@ -1,0 +1,29 @@
+{
+  "fixtureFormat": 1,
+  "id": "V06-digest-tampered-field",
+  "covers": [
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B01-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/viewDigest",
+        "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ]
+  },
+  "currentFrom": {
+    "fixture": "B01-ready-basic"
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 1,
+      "status": "invalid",
+      "reasonCode": "VIEW_DIGEST_MISMATCH"
+    }
+  }
+}

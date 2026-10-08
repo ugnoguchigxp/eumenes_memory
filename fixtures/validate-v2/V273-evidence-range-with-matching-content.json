@@ -1,0 +1,30 @@
+{
+  "fixtureFormat": 1,
+  "id": "V273-evidence-range-with-matching-content",
+  "covers": [
+    "evidence",
+    "utf8"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B265-evidence-basic"
+  },
+  "currentFrom": {
+    "fixture": "B265-evidence-basic",
+    "patch": [
+      {
+        "op": "add",
+        "path": "/snapshot/sources/1/content",
+        "value": "Tea is fine too. 紅茶も好き。"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "valid",
+      "viewDigest": "6fa872b16f5e67aaeef2583df0e46da1670af3f1ef82fa162469dcb80cba763d"
+    }
+  }
+}

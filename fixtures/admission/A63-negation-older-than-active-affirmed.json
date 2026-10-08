@@ -1,0 +1,51 @@
+{
+  "fixtureFormat": 1,
+  "id": "A63-negation-older-than-active-affirmed",
+  "covers": [
+    "negation",
+    "OLDER_EVIDENCE"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表",
+    "本設計 §6.4(a) 日本語の決定的 fixture"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 2,
+      "content": "辛いものは好きじゃない。"
+    }
+  ],
+  "candidate": {
+    "kind": "preference",
+    "subject": "self",
+    "semanticKey": "food.spicy",
+    "value": {
+      "text": "辛いもの",
+      "polarity": "negated"
+    },
+    "modality": "asserted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "辛いものは好きじゃない"
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit"
+  },
+  "activeForKey": {
+    "value": {
+      "text": "辛いもの",
+      "polarity": "affirmed"
+    },
+    "evidenceOrdinal": 6
+  },
+  "expect": {
+    "decision": "rejected",
+    "reasonCode": "OLDER_EVIDENCE"
+  }
+}

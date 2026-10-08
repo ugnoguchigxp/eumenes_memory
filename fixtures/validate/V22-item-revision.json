@@ -1,0 +1,34 @@
+{
+  "fixtureFormat": 1,
+  "id": "V22-item-revision",
+  "covers": [
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B01-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B01-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/snapshot/items/2/revision",
+        "value": "3"
+      },
+      {
+        "op": "replace",
+        "path": "/snapshot/items/2/text",
+        "value": "changed too"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 1,
+      "status": "invalid",
+      "reasonCode": "ITEM_REVISION_CHANGED"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "fixtureFormat": 1,
+  "id": "A67-partial-negation-default-policy-pending",
+  "covers": [
+    "partial-negation",
+    "POLICY_REQUIRES_USER"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表",
+    "本設計 §6.4(a) 日本語の決定的 fixture"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "甘いもの全部が好きなわけではない。"
+    }
+  ],
+  "candidate": {
+    "kind": "preference",
+    "subject": "self",
+    "semanticKey": "food.sweet",
+    "value": {
+      "text": "甘いもの全部が好き",
+      "polarity": "negated"
+    },
+    "modality": "asserted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "全部が好きなわけではない"
+      }
+    ]
+  },
+  "policy": {},
+  "expect": {
+    "decision": "pending_user",
+    "reasonCode": "POLICY_REQUIRES_USER"
+  }
+}

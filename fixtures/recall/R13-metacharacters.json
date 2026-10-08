@@ -1,0 +1,147 @@
+{
+	"id": "R13-metacharacters",
+	"fixtureFormat": 1,
+	"covers": [
+		"fts",
+		"like"
+	],
+	"description": "LIKE wildcards, backslash, double quotes and FTS operators in the query are literals",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "100% sure_thing \\ \"quoted\" -dash (paren) *star"
+		},
+		{
+			"op": "capture",
+			"origin": "o2",
+			"content": "100x surexthing"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "100% sure_thing",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "sure_thing",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "\"quoted\"",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "-dash",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "*star",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "\\",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "(paren)",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "%",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "_",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		}
+	]
+}

@@ -1,0 +1,647 @@
+{
+	"rubric_version": "1.1.0",
+	"mode": "full",
+	"depth": "deep",
+	"technical_profile": "agent",
+	"assessment_kind": "current",
+	"target": {
+		"locator": "/Users/y.noguchi/Code/SAAA",
+		"snapshot": "28616e61ce5fe853383d4af6ec14e5b5d542c076 + dirty supplied working-tree snapshot, scope SHA256 3030e9f69cdd141c81c87b514b8812b2ba7687f529c7d917d9809ab26ce8f362; snapshot.json and snapshot-check.json",
+		"reviewed_at": "2026-10-07",
+		"stage": "Implemented/pilot; current live product acceptance unverified",
+		"scope": "Memory subsystem and host integration for incremental Eumenes adoption. Risk-based source sampling, core package tests, isolated SQL probe. Excludes full application/security/distribution audit, production data, live providers, performance benchmarks, market/user outcome studies. Current in-process host constraints; standalone repository is proposed, not existing."
+	},
+	"evidence": [
+		{
+			"id": "E01",
+			"kind": "code",
+			"locator": "snapshot.json; snapshot-check.json; git-status.txt",
+			"observed_at": "2026-10-07",
+			"observation": "271 mapped source/doc files, 56398 lines; initial hashes unchanged at final check. Extra host files and Eumenes context hashed separately.",
+			"scope": "Counts include tests/docs; mapping is not exhaustive line review. Dirty working tree explicitly retained."
+		},
+		{
+			"id": "E02",
+			"kind": "code",
+			"locator": "SAAA/crates/personal-state-core/{Cargo.toml,src/model.rs,src/reducer.rs,tests/continuity.rs} @ E01",
+			"observed_at": "2026-10-07",
+			"observation": "IO-free deterministic core validates access, source/version/expiry, atomic patches, replay and forget dependency closure.",
+			"scope": "Core contracts do not establish model semantic accuracy or complete host authorization."
+		},
+		{
+			"id": "E03",
+			"kind": "execution",
+			"locator": "core-test-report.json; core-test.log",
+			"observed_at": "2026-10-07",
+			"observation": "SAAA_VERIFY_REPORT=<evidence>/core-test-report.json bun run --silent verify test --package crates/personal-state-core, cwd SAAA, local macOS/Bun/Cargo, exit 0. Wrapper recorded package cargo test --locked passed in 13806 ms total; no attached watcher, provesInputUnchanged=false.",
+			"scope": "One executed runner step, not one test case. Only core package; no full application or live model test. Independent hash comparison in E01."
+		},
+		{
+			"id": "E04",
+			"kind": "code",
+			"locator": "SAAA/src-tauri/src/runtime/conversation_check/{queue_runtime.rs,queue_context.rs,queue_context/projection.rs,queue_context/validation.rs}; src-tauri/src/lib.rs @ E01",
+			"observed_at": "2026-10-07",
+			"observation": "Active queue conversation path composes history, Personal State and optional World, then revalidates source/stamp/scope before adopting and committing. Worker is spawned from app lifecycle.",
+			"scope": "Legacy runtime removal and cfg(test) code do not mean all memory is inactive; traced active route, not executed desktop session."
+		},
+		{
+			"id": "E05",
+			"kind": "code",
+			"locator": "SAAA/src-tauri/src/memory/personal_state/{worker.rs,worker_run.rs,worker_run/patch.rs,admission.rs,jobs/claim.rs,maintenance.rs,local_binding.rs,product_binding.rs,contract.rs} @ E01",
+			"observed_at": "2026-10-07",
+			"observation": "Bounded extraction, source-backed candidates, host scope validation, job fences and atomic acceptance exist; host runtime tables, Tauri, LARM credentials and managed/local binding remain coupled.",
+			"scope": "Source trace; provider cancellation and actual model quality not certified here. Local URL alone does not authorize backend."
+		},
+		{
+			"id": "E06",
+			"kind": "code",
+			"locator": "SAAA/src-tauri/src/memory/personal_state/store.rs:16; snapshots.rs:114; runtime/conversation_check/queue_context/{projection.rs,validation.rs} @ E01",
+			"observed_at": "2026-10-07",
+			"observation": "Personal snapshots view loads global ledger and all snapshot rows before filtering; compose and acceptance call this path. World query loader at store.rs:63 is scoped to roots and dependencies.",
+			"scope": "Static complexity and extraction cost, not a measured latency regression; World optimization is counterevidence against generalizing to all queries."
+		},
+		{
+			"id": "E07",
+			"kind": "code",
+			"locator": "SAAA/src-tauri/src/records/{contract.rs,capture.rs,auth.rs,read.rs,forget.rs,schema.rs}; memory/personal_state/journal.rs:61-99 @ E01",
+			"observed_at": "2026-10-07",
+			"observation": "Normal records forget sets forget_epoch and removes derived storage; journal sync omits record tombstones, replay inserts only tombstone rows. Authorization requires record forget_epoch NULL but does not exclude tombstones; insertion trigger only protects new rows.",
+			"scope": "Restore contract gap; actual live data exposure not demonstrated. Existing cw_51 test asserts tombstone presence only."
+		},
+		{
+			"id": "E08",
+			"kind": "execution",
+			"locator": "records_restore_probe.py; records-restore-probe-rerun.json",
+			"observed_at": "2026-10-07",
+			"observation": "python3 spec/reviews/saaa-memory-2026-10-07/records_restore_probe.py /Users/y.noguchi/Code/SAAA, cwd Eumenes, local Python sqlite3, exit 0. Actual extracted records schema and auth predicate in :memory:: pre-forget existing record visible after tombstone replay; new insertion blocked; normal forget_epoch update hides it.",
+			"scope": "SQL component reproduction with negative control; not full Journal/Tauri restore. No production database touched."
+		},
+		{
+			"id": "E09",
+			"kind": "code",
+			"locator": "SAAA/src-tauri/src/memory/personal_state/world/{mod.rs,extraction.rs,runtime_frame.rs,runtime_frame_receipt.rs}; retrospective/; src-tauri/src/adaptive_improvement/ @ E01",
+			"observed_at": "2026-10-07",
+			"observation": "World projections derive from assertion ledger; finalized user source quote evidence, causal conditions and outcomes are distinct; host runtime frames and receipts bridge live state.",
+			"scope": "Graph extraction, retrospective and adaptive policy are separate capability layers. No claim of verified causal inference or measured quality."
+		},
+		{
+			"id": "E10",
+			"kind": "primary_doc",
+			"locator": "SAAA/spec/evidence/personal-state/{product-connection-results.json,gold-review.md}; world-delivery/remaining-results.md; memory-context-first-trial/{validation-results.json,review/validation-results.json} @ snapshot-check.json",
+			"observed_at": "2026-10-07",
+			"observation": "Historical evidence distinguishes fixture checks from incomplete real-model/product acceptance, remote absence verification and human-reviewed Japanese gold. World fixture benchmark is not Personal State foreground benchmark.",
+			"scope": "Documents span Sep13-Oct1; not proof failures persist today. Current live acceptance is unknown."
+		},
+		{
+			"id": "E11",
+			"kind": "code",
+			"locator": "Eumenes/api/domains/continuity/{contracts,service,projection}/index.ts @ snapshot-check.json",
+			"observed_at": "2026-10-07",
+			"observation": "Existing goal/decision/open_question events, revision checks, source digests, consistent snapshot and ready/blocked/overflow pure projection.",
+			"scope": "Concurrent implementation snapshot; not independently tested in this review. Does not yet establish runtime output acceptance integration."
+		},
+		{
+			"id": "E12",
+			"kind": "primary_doc",
+			"locator": "User request in current conversation, 2026-10-07",
+			"observed_at": "2026-10-07",
+			"observation": "User wants partial adoption from large SAAA memory system with eventual separate repository; queue/scheduler and previous implementation are underway.",
+			"scope": "One internal adopter and explicit demand, not retention or market validation."
+		},
+		{
+			"id": "E13",
+			"kind": "primary_doc",
+			"locator": "https://github.com/mem0ai/mem0 ; https://github.com/getzep/graphiti ; https://docs.letta.com/agent-sdk/memory (observed 2026-10-07)",
+			"observed_at": "2026-10-07",
+			"observation": "Official docs show memory SDK/retrieval, temporal graph memory, and agent-owned Git/MemFS memory as alternative approaches.",
+			"scope": "Documentation comparison only; no installations, like-for-like benchmark or feature-absence claims."
+		}
+	],
+	"claims": [
+		{
+			"id": "C01",
+			"type": "Fact",
+			"statement": "A separable deterministic core already exists and its scoped tests passed.",
+			"evidence_ids": ["E02", "E03"],
+			"limitations": "Does not certify full MemorySystem."
+		},
+		{
+			"id": "C02",
+			"type": "Inference",
+			"statement": "The valuable unit to adopt is source/state/view/lifecycle contracts; records alone would miss current-state adoption and invalidation.",
+			"evidence_ids": ["E04", "E07", "E09", "E11"],
+			"limitations": "Proposed Eumenes design, not implemented outcome."
+		},
+		{
+			"id": "C03",
+			"type": "Assumption",
+			"statement": "Initially Eumenes uses in-process memory with its existing storage owner and job queue.",
+			"limitations": "Revisit if multiple hosts require a shared remote authority."
+		},
+		{
+			"id": "C04",
+			"type": "Unknown",
+			"statement": "Current end-to-end model accuracy, long-term operational cost and external backend erasure completion are unverified.",
+			"evidence_ids": ["E10"],
+			"limitations": "No live provider or production data accessed."
+		}
+	],
+	"findings": [
+		{
+			"id": "F01",
+			"status": "confirmed",
+			"severity": "Medium",
+			"priority": "P1",
+			"priority_reason": "Address before adopting the affected capability in Eumenes.",
+			"confidence": "Medium",
+			"title": "Host-specific infrastructure remains inside reusable memory paths",
+			"root_cause": "Worker/store/runtime/provider ownership is coupled",
+			"evidence_ids": ["E04", "E05"],
+			"condition": "Move MemorySystem to an independent repository consumed by Eumenes",
+			"consequence": "Current memory module cannot be consumed by replacing one host adapter; queue/runtime/provider dependencies must be separated.",
+			"counterevidence": "personal-state-core already has an IO-free boundary and passed scoped tests.",
+			"fix": "Keep core; introduce host ports for sources, storage transactions, job claims, inference and acceptance. Do not copy a second scheduler.",
+			"verification": "Contract fixture suite runs without Tauri/LARM/app tables; Eumenes adapter uses one existing writer and queue.",
+			"impacts": [
+				{
+					"track": "technical",
+					"dimension": "maintainability",
+					"criterion": "change",
+					"reason": "Current memory module cannot be consumed by replacing one host adapter; queue/runtime/provider dependencies must be separated."
+				}
+			]
+		},
+		{
+			"id": "F02",
+			"status": "confirmed",
+			"severity": "Medium",
+			"priority": "P2",
+			"priority_reason": "Address before adopting the affected capability in Eumenes.",
+			"confidence": "Medium",
+			"title": "Foreground Personal State views load global history",
+			"root_cause": "Scoped view uses global Ledger load",
+			"evidence_ids": ["E04", "E06"],
+			"condition": "Long-lived memory grows, including history unrelated to the active scope",
+			"consequence": "Work per view and acceptance grows with unrelated source/assertion history; lookup work is not bounded by requested scope.",
+			"counterevidence": "World has scoped dependency-closure loading; no latency budget failure measured in this review.",
+			"fix": "Select scoped roots plus required source/dependency closure; keep a cheap revision/eligibility check for acceptance.",
+			"verification": "Equivalent view and invalidation fixtures; query-row/heap and p50/p95 comparisons at 1k/10k/100k records across scopes.",
+			"impacts": [
+				{
+					"track": "technical",
+					"dimension": "performance",
+					"criterion": "hot_path",
+					"reason": "Work per view and acceptance grows with unrelated source/assertion history; lookup work is not bounded by requested scope."
+				}
+			]
+		},
+		{
+			"id": "F03",
+			"status": "confirmed",
+			"severity": "Medium",
+			"priority": "P1",
+			"priority_reason": "Address before adopting the affected capability in Eumenes.",
+			"confidence": "High",
+			"title": "Record forgetting is incomplete across backup restore",
+			"root_cause": "Journal sync/replay and records visibility do not share one invalidation contract",
+			"evidence_ids": ["E07", "E08"],
+			"condition": "Restore a pre-forget record row and replay external record tombstone journal",
+			"consequence": "Restored row remains eligible under records auth predicate; additionally normal sync never records record tombstones.",
+			"counterevidence": "Normal forget updates forget_epoch/removes storage; insert trigger blocks resurrection of new rows. Probe does not establish live production exposure.",
+			"fix": "Persist record tombstones and replay full record invalidation before reads; defense-in-depth tombstone filter; verify descendants and blobs.",
+			"verification": "Forget a real captured record, restart, restore older DB with current journal: read/search/derived views absent, repeated restore idempotent, missing/corrupt journal blocks reads.",
+			"impacts": [
+				{
+					"track": "technical",
+					"dimension": "reliability",
+					"criterion": "recovery",
+					"reason": "Restored row remains eligible under records auth predicate; additionally normal sync never records record tombstones."
+				}
+			]
+		}
+	],
+	"tracks": {
+		"technical": {
+			"dimensions": {
+				"architecture": {
+					"criteria": {
+						"boundaries": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E02", "E04", "E05", "E09"],
+							"rationale": "Kernel, extraction, storage, projections and runtime ownership can be traced; host coupling remains explicit."
+						},
+						"flow": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E02", "E04", "E05", "E07"],
+							"rationale": "Primary input-to-state-to-view-to-acceptance transitions and consistency fences traced; restore deficiency separately recorded."
+						},
+						"fit": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Scale/integration fit for a second host has not been executed."
+						}
+					}
+				},
+				"correctness": {
+					"criteria": {
+						"contracts": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Core validation passed, but full host/model observable contracts and concurrency were not exercised end to end."
+						},
+						"edge_cases": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Core validation passed, but full host/model observable contracts and concurrency were not exercised end to end."
+						},
+						"concurrency": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Core validation passed, but full host/model observable contracts and concurrency were not exercised end to end."
+						}
+					}
+				},
+				"security": {
+					"criteria": {
+						"access": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E02", "E04", "E05", "E07"],
+							"rationale": "Resource scopes, trusted caller identity and pre-adoption rechecks traced across source, ledger and reads; not an exhaustive adversarial/lifecycle security certification."
+						},
+						"input_secrets": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No complete input/secret/abuse or adversarial runtime audit was performed."
+						},
+						"abuse": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No complete input/secret/abuse or adversarial runtime audit was performed."
+						}
+					}
+				},
+				"reliability": {
+					"criteria": {
+						"failure": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "End-to-end dependency failure, cancellation and saturation were not exercised."
+						},
+						"recovery": {
+							"status": "assessed",
+							"value": 1,
+							"confidence": "High",
+							"evidence_ids": ["E07", "E08"],
+							"rationale": "Records tombstone journal does not fully persist/reapply invalidation to pre-forget restored rows. Normal forget and insert guard do not repair existing restored rows."
+						},
+						"resilience": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "End-to-end dependency failure, cancellation and saturation were not exercised."
+						}
+					}
+				},
+				"maintainability": {
+					"criteria": {
+						"clarity": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E02", "E04", "E05", "E09"],
+							"rationale": "Principal source/state/view and failure contracts traceable through actual current caller chain; old runtime docs must be read against live entry points."
+						},
+						"change": {
+							"status": "assessed",
+							"value": 1,
+							"confidence": "Medium",
+							"evidence_ids": ["E05", "E04"],
+							"rationale": "Reusing memory worker/store in Eumenes requires app-runtime tables, lifecycle and provider bindings; replacing the host is not a local adapter swap today."
+						},
+						"debt": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Representative maintenance cost/history was not audited."
+						}
+					}
+				},
+				"common_components": {
+					"criteria": {
+						"duplication": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Repeated contracts across all legacy/current/runtime adapters were not exhaustively compared."
+						},
+						"reuse": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E02", "E03", "E09"],
+							"rationale": "Shared deterministic core drives personal state and World semantics without IO dependencies; reuse is real inside current host, not yet proven across hosts."
+						},
+						"abstraction": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Repeated contracts across all legacy/current/runtime adapters were not exhaustively compared."
+						}
+					}
+				},
+				"testing": {
+					"criteria": {
+						"risk_coverage": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Full runtime interaction and actual CI/release risk coverage were not rerun."
+						},
+						"quality": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E02", "E03", "E08"],
+							"rationale": "Core tests assert stale scope, replay, atomic rejection, expiry and indirect forget rather than only output shape. SQL negative control differentiates ordinary forget from replay; coverage limitations remain explicit."
+						},
+						"automation": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E03"],
+							"rationale": "Core check reproducible through repository verify wrapper with locked dependencies and persisted execution report. Full application CI not certified."
+						}
+					}
+				},
+				"supply_chain": {
+					"criteria": {
+						"dependencies": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Distribution integrity, dependency vulnerability handling and complete licensing were outside this review."
+						},
+						"build_release": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Distribution integrity, dependency vulnerability handling and complete licensing were outside this review."
+						},
+						"license": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Distribution integrity, dependency vulnerability handling and complete licensing were outside this review."
+						}
+					}
+				},
+				"performance": {
+					"criteria": {
+						"budget": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No current representative latency/memory budget benchmark; historical World figures cover a different path."
+						},
+						"hot_path": {
+							"status": "assessed",
+							"value": 1,
+							"confidence": "Medium",
+							"evidence_ids": ["E06"],
+							"rationale": "Foreground per-scope view has global-history work and per-source lookups; data isolation does not bound computation to selected scope. Current p95 impact is not measured."
+						},
+						"measurement": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No current representative latency/memory budget benchmark; historical World figures cover a different path."
+						}
+					}
+				},
+				"operability": {
+					"criteria": {
+						"signals": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E05", "E10"],
+							"rationale": "Maintenance exposes queued/running/held reasons, cancellation and external-evidence blocked status; reports explicitly separate fixtures from live acceptance."
+						},
+						"lifecycle": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Complete installation/update/recovery and user task validation were not performed."
+						},
+						"interaction": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Complete installation/update/recovery and user task validation were not performed."
+						}
+					}
+				}
+			}
+		},
+		"project": {
+			"dimensions": {
+				"problem": {
+					"criteria": {
+						"need": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E11", "E12"],
+							"rationale": "Concrete internal job: retain decisions and sources across agent runs while moving an existing large subsystem incrementally."
+						},
+						"impact": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No measured baseline of user loss or attained improvement."
+						},
+						"validation": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E12"],
+							"rationale": "Direct user adoption request and ongoing adjacent implementations support the internal need; one adopter only."
+						}
+					}
+				},
+				"solution": {
+					"criteria": {
+						"mechanism": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Current live model and representative user outcomes not validated."
+						},
+						"experience": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Current live model and representative user outcomes not validated."
+						},
+						"outcomes": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Current live model and representative user outcomes not validated."
+						}
+					}
+				},
+				"differentiation": {
+					"criteria": {
+						"alternatives": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Official-doc comparison is not a comparable runtime trial or established superiority."
+						},
+						"advantage": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Official-doc comparison is not a comparable runtime trial or established superiority."
+						},
+						"tradeoffs": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Official-doc comparison is not a comparable runtime trial or established superiority."
+						}
+					}
+				},
+				"novelty": {
+					"criteria": {
+						"prior_art": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No substantive novelty claim or research-level prior-art attribution was tested."
+						},
+						"substance": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No substantive novelty claim or research-level prior-art attribution was tested."
+						},
+						"verification": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No substantive novelty claim or research-level prior-art attribution was tested."
+						}
+					}
+				},
+				"adoption": {
+					"criteria": {
+						"entry": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Only intended internal adoption is known; onboarding cost and retained use not measured."
+						},
+						"reach": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E12"],
+							"rationale": "Known internal adopter has direct repository access and has started adjacent integration."
+						},
+						"retention": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Only intended internal adoption is known; onboarding cost and retained use not measured."
+						}
+					}
+				},
+				"defensibility": {
+					"criteria": {
+						"assets": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E02", "E03", "E09"],
+							"rationale": "Reusable reducer and risk-specific fixtures plus host integration knowledge are useful maintained assets; no market moat inferred."
+						},
+						"substitution": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No evidence of long-term substitution resistance or sustained resourcing."
+						},
+						"incentives": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No evidence of long-term substitution resistance or sustained resourcing."
+						}
+					}
+				},
+				"execution": {
+					"criteria": {
+						"delivery": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Subsystem code exists, but full promised acceptance, staffing and use-to-improvement loop not verified."
+						},
+						"focus": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Subsystem code exists, but full promised acceptance, staffing and use-to-improvement loop not verified."
+						},
+						"feedback": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Subsystem code exists, but full promised acceptance, staffing and use-to-improvement loop not verified."
+						}
+					}
+				},
+				"timing": {
+					"criteria": {
+						"drivers": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E11", "E12"],
+							"rationale": "Current queue/continuity work creates an immediate integration need and usable source-state base."
+						},
+						"readiness": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No deployment readiness or delivery-window evidence beyond current internal demand."
+						},
+						"window": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No deployment readiness or delivery-window evidence beyond current internal demand."
+						}
+					}
+				},
+				"health": {
+					"criteria": {
+						"ownership": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Maintainer continuity, governance and release response history not investigated."
+						},
+						"activity": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Maintainer continuity, governance and release response history not investigated."
+						},
+						"governance": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Maintainer continuity, governance and release response history not investigated."
+						}
+					}
+				},
+				"expansion": {
+					"criteria": {
+						"adjacency": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E02", "E03", "E11", "E12"],
+							"rationale": "Eumenes is a concrete adjacent host for the tested pure core concepts; completed cross-host outcome not claimed."
+						},
+						"scalability": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No resourced multi-host rollout or measured operating-scale proof."
+						},
+						"path": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No resourced multi-host rollout or measured operating-scale proof."
+						}
+					}
+				}
+			}
+		}
+	}
+}

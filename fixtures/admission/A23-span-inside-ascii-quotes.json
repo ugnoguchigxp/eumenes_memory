@@ -1,0 +1,43 @@
+{
+  "fixtureFormat": 1,
+  "id": "A23-span-inside-ascii-quotes",
+  "covers": [
+    "MODALITY_QUOTED",
+    "bracket"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表"
+  ],
+  "sources": [
+    {
+      "name": "m3",
+      "role": "user",
+      "ordinal": 7,
+      "content": "He said \"I like coffee\" yesterday."
+    }
+  ],
+  "candidate": {
+    "kind": "preference",
+    "subject": "self",
+    "semanticKey": "drink",
+    "value": {
+      "text": "likes coffee",
+      "polarity": "affirmed"
+    },
+    "modality": "asserted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m3",
+        "quote": "I like coffee"
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit"
+  },
+  "expect": {
+    "decision": "pending_user",
+    "reasonCode": "MODALITY_QUOTED"
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "fixtureFormat": 1,
+  "id": "X27-unknown-run",
+  "covers": [
+    "RUN_UNKNOWN"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.6 Extraction",
+    "本設計 §6.4(a) 日本語の決定的 fixture（モデルは使わない。canned output）"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    }
+  ],
+  "steps": [
+    {
+      "op": "settle",
+      "run": "never-prepared",
+      "output": {
+        "noChange": false,
+        "candidates": [
+          {
+            "kind": "preference",
+            "subject": "self",
+            "semanticKey": "drink",
+            "value": {
+              "text": "コーヒー",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m1",
+                "quote": "コーヒーが好き"
+              }
+            ]
+          }
+        ]
+      },
+      "policy": {
+        "all": "auto_admit"
+      },
+      "expect": {
+        "status": "stale",
+        "reasonCode": "RUN_UNKNOWN"
+      }
+    },
+    {
+      "op": "check",
+      "counts": {
+        "candidate": 0,
+        "state_item": 0,
+        "run": 0
+      }
+    }
+  ]
+}

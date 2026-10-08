@@ -1,0 +1,69 @@
+{
+	"id": "E02-japanese-boundaries",
+	"fixtureFormat": 1,
+	"covers": [
+		"range",
+		"utf8"
+	],
+	"description": "Japanese: 3 bytes per character; ranges must start and end on character boundaries",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "私は辛いものが好き"
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 3,
+			"end": 6,
+			"expect": {
+				"status": "available",
+				"text": "は",
+				"digest": "de77c92e700013835c3fc5ad8f581a6c050fa5f015b75f694fe41715cfb4847e"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 9,
+			"expect": {
+				"status": "available",
+				"text": "私は辛",
+				"digest": "21a73c9b9505c6a7c1dbe966b9ea1224da4a6e2f21d396df1ef6d780b3941287"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 1,
+			"end": 6,
+			"expect": {
+				"status": "invalid_range",
+				"reasonCode": "SOURCE_RANGE_NOT_CHAR_BOUNDARY"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 3,
+			"end": 7,
+			"expect": {
+				"status": "invalid_range",
+				"reasonCode": "SOURCE_RANGE_NOT_CHAR_BOUNDARY"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 27,
+			"expect": {
+				"status": "available",
+				"text": "私は辛いものが好き",
+				"digest": "8ac26c8ea78b1fb24536dde16e0ca77db41918d0ba93949f71f7d01ee2a2fc64"
+			}
+		}
+	]
+}

@@ -1,0 +1,40 @@
+{
+  "fixtureFormat": 1,
+  "id": "V267-unrelated-forgotten-source-ignored",
+  "covers": [
+    "evidence",
+    "coverage"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B268-evidence-budget-two-of-three"
+  },
+  "currentFrom": {
+    "fixture": "B268-evidence-budget-two-of-three",
+    "patch": [
+      {
+        "op": "add",
+        "path": "/snapshot/sources/-",
+        "value": {
+          "namespace": "memory",
+          "kind": "record",
+          "id": "rec:8abefd046721993691d2680c6b6cfeaa184f14a26298ae476f0058015aa25719",
+          "representation": "text",
+          "revision": "sha256:156aa006febe0c13d6cd2e679205a387607b33e7ddfe84acbdffc4f7864be0b9",
+          "digest": "156aa006febe0c13d6cd2e679205a387607b33e7ddfe84acbdffc4f7864be0b9",
+          "principal": "local:owner",
+          "scopeKey": "conversation:c1",
+          "status": "forgotten"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "valid",
+      "viewDigest": "9da1e880b635dc85d8e4fc2ed741d5018d595d70fca97a1b5734233aaecd27cf"
+    }
+  }
+}

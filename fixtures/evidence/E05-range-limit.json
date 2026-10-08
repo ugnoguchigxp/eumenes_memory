@@ -1,0 +1,66 @@
+{
+	"id": "E05-range-limit",
+	"fixtureFormat": 1,
+	"covers": [
+		"range",
+		"limits"
+	],
+	"description": "64 KiB (65536 bytes) is the largest range; one more byte is RANGE_TOO_LARGE regardless of content length",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"contentRepeat": {
+				"unit": "a",
+				"times": 70000
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 65536,
+			"expect": {
+				"status": "available",
+				"textLength": 65536,
+				"digest": "bf718b6f653bebc184e1479f1935b8da974d701b893afcf49e701f3e2f9f9c5a"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 100,
+			"end": 65636,
+			"expect": {
+				"status": "available",
+				"textLength": 65536,
+				"digest": "bf718b6f653bebc184e1479f1935b8da974d701b893afcf49e701f3e2f9f9c5a"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 65537,
+			"expect": {
+				"status": "invalid_range",
+				"reasonCode": "RANGE_TOO_LARGE"
+			}
+		},
+		{
+			"op": "capture",
+			"origin": "o2",
+			"content": "short"
+		},
+		{
+			"op": "range",
+			"origin": "o2",
+			"start": 0,
+			"end": 65537,
+			"expect": {
+				"status": "invalid_range",
+				"reasonCode": "RANGE_TOO_LARGE"
+			}
+		}
+	]
+}

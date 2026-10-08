@@ -1,0 +1,50 @@
+{
+  "fixtureFormat": 1,
+  "id": "A112-user-removed-with-never-policy-rejected",
+  "covers": [
+    "user-removed",
+    "keyHistory",
+    "POLICY_NEVER"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表（レビュー B の修正で追加）",
+    "本設計 §6.4(a) 日本語の決定的 fixture"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 9,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    }
+  ],
+  "candidate": {
+    "kind": "preference",
+    "subject": "self",
+    "semanticKey": "drink",
+    "value": {
+      "text": "コーヒーが好き",
+      "polarity": "affirmed"
+    },
+    "modality": "asserted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "コーヒーが好き"
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit",
+    "preference": "never"
+  },
+  "keyHistory": {
+    "disputedMaxOrdinal": null,
+    "userRemoved": true
+  },
+  "expect": {
+    "decision": "rejected",
+    "reasonCode": "POLICY_NEVER"
+  }
+}

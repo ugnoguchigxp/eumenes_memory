@@ -1,0 +1,40 @@
+{
+	"id": "L18-entry-state-item",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"S6"
+	],
+	"kind": "entry",
+	"description": "A state_item target carries the item id and its scope",
+	"input": {
+		"seq": 2,
+		"prevHash": "05f21b1de29700fd503b38de3a5cacbfcc03e7f7e5beb50bd8b9b42b5c1d2397",
+		"principal": "local:owner",
+		"targets": [
+			{
+				"type": "state_item",
+				"id": "state:0123456789abcdef",
+				"scopeKey": "conversation:c1"
+			}
+		]
+	},
+	"expect": {
+		"entry": {
+			"journalFormat": 1,
+			"seq": 2,
+			"prevHash": "05f21b1de29700fd503b38de3a5cacbfcc03e7f7e5beb50bd8b9b42b5c1d2397",
+			"forgetId": "forget:84d45a9042e0ef2ddf03ffba6cd4b348b4f7cb3df9445e849ab198b0d7979f51",
+			"principal": "local:owner",
+			"targets": [
+				{
+					"type": "state_item",
+					"id": "state:0123456789abcdef",
+					"scopeKey": "conversation:c1"
+				}
+			],
+			"hash": "52c4fcaa91f348cd630e6b48052c8da2ae0c073f99f7bb8a727564b8db1ccb18"
+		},
+		"hashInput": "{\"forgetId\":\"forget:84d45a9042e0ef2ddf03ffba6cd4b348b4f7cb3df9445e849ab198b0d7979f51\",\"journalFormat\":1,\"prevHash\":\"05f21b1de29700fd503b38de3a5cacbfcc03e7f7e5beb50bd8b9b42b5c1d2397\",\"principal\":\"local:owner\",\"seq\":2,\"targets\":[{\"id\":\"state:0123456789abcdef\",\"scopeKey\":\"conversation:c1\",\"type\":\"state_item\"}]}"
+	}
+}

@@ -1,0 +1,72 @@
+{
+	"id": "L20-chain-mixed-target-types",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"chain",
+		"S6"
+	],
+	"kind": "chain",
+	"description": "A valid chain whose entries target a record, a host_source, then a state_item and a scope",
+	"input": {
+		"entries": [
+			{
+				"journalFormat": 1,
+				"seq": 1,
+				"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+				"forgetId": "forget:f8506365e88e5cfeea88050a3c7035dce2c382a77d7ee3fab9430e3d6007dc52",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "record",
+						"id": "rec:1111111111111111111111111111111111111111111111111111111111111111",
+						"scopeKey": "scope:a"
+					}
+				],
+				"hash": "0d1bf45d212abeef8eb503754d1df5ba189074e444bc80969ae658d5c1893ac3"
+			},
+			{
+				"journalFormat": 1,
+				"seq": 2,
+				"prevHash": "0d1bf45d212abeef8eb503754d1df5ba189074e444bc80969ae658d5c1893ac3",
+				"forgetId": "forget:5f8dbd1d48efd04c73b2764a7ab8bb27037102bbfcb5a7af9f1afebe8b4e9fc8",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "host_source",
+						"id": "[\"conversation\",\"message\",\"m1\",\"text\"]",
+						"scopeKey": "scope:a"
+					}
+				],
+				"hash": "c2a7fc32b08805cd828841019fd854dd46d9c309cae013783a352a19aa0780e9"
+			},
+			{
+				"journalFormat": 1,
+				"seq": 3,
+				"prevHash": "c2a7fc32b08805cd828841019fd854dd46d9c309cae013783a352a19aa0780e9",
+				"forgetId": "forget:02111a2170a8a1d2d12b3c5cc52b15b129b894822e40cbaee5f0c3f5bfcd684d",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "scope",
+						"id": "scope:b",
+						"scopeKey": "scope:b"
+					},
+					{
+						"type": "state_item",
+						"id": "state:x",
+						"scopeKey": "scope:a"
+					}
+				],
+				"hash": "433614d1fd41a181973283f7830bb2e56bd94b5a7820ce811e7661a470b8d57b"
+			}
+		]
+	},
+	"expect": {
+		"status": "ok",
+		"head": {
+			"seq": 3,
+			"hash": "433614d1fd41a181973283f7830bb2e56bd94b5a7820ce811e7661a470b8d57b"
+		}
+	}
+}

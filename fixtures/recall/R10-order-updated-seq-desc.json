@@ -1,0 +1,107 @@
+{
+	"id": "R10-order-updated-seq-desc",
+	"fixtureFormat": 1,
+	"covers": [
+		"order"
+	],
+	"description": "Order is (updated_seq DESC, record_id ASC): the most recently captured or changed record is first",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "ordering token one"
+		},
+		{
+			"op": "capture",
+			"origin": "o2",
+			"content": "ordering token two"
+		},
+		{
+			"op": "capture",
+			"origin": "o3",
+			"content": "ordering token three"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "ordering token",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o3",
+					"o2",
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "ordering token one changed"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "ordering token",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1",
+					"o3",
+					"o2"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "capture",
+			"origin": "o2",
+			"content": "ordering token two"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "ordering token",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1",
+					"o3",
+					"o2"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "deactivate",
+			"origin": "o3"
+		},
+		{
+			"op": "reactivate",
+			"origin": "o3"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "ordering token",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o3",
+					"o1",
+					"o2"
+				],
+				"natural": "like"
+			}
+		}
+	]
+}

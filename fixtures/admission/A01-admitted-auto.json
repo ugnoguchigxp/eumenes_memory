@@ -1,0 +1,41 @@
+{
+  "fixtureFormat": 1,
+  "id": "A01-admitted-auto",
+  "covers": [
+    "admitted"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    }
+  ],
+  "candidate": {
+    "kind": "preference",
+    "subject": "self",
+    "semanticKey": "drink",
+    "value": {
+      "text": "コーヒーが好き",
+      "polarity": "affirmed"
+    },
+    "modality": "asserted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "コーヒーが好き"
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit"
+  },
+  "expect": {
+    "decision": "admitted"
+  }
+}

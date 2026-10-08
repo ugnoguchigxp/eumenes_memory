@@ -1,0 +1,63 @@
+{
+	"id": "R09-deactivate-reactivate",
+	"fixtureFormat": 1,
+	"covers": [
+		"deactivate"
+	],
+	"description": "Deactivated records are not searched; reactivation restores them",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "toggle phrase body"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "toggle phrase",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "deactivate",
+			"origin": "o1"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "toggle phrase",
+			"expect": {
+				"status": "ok",
+				"origins": [],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "reactivate",
+			"origin": "o1"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "toggle phrase",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		}
+	]
+}

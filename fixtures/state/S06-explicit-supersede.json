@@ -1,0 +1,106 @@
+{
+  "fixtureFormat": 1,
+  "id": "S06-explicit-supersede",
+  "covers": [
+    "supersede",
+    "explicit-no-ordinal-compare"
+  ],
+  "provenance": [
+    "本設計 §3.5",
+    "SAAA 28616e61ce5fe853383d4af6ec14e5b5d542c076 crates/personal-state-core/src/reducer.rs:476-495",
+    "明示操作は根拠の新旧を比べない（verification-status §6-6）"
+  ],
+  "steps": [
+    {
+      "action": "assert",
+      "as": "a",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 10,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "active",
+            "revision": 1,
+            "valueText": "コーヒー"
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    },
+    {
+      "action": "supersede",
+      "target": "a",
+      "as": "b",
+      "expectedRevision": 1,
+      "value": {
+        "text": "紅茶",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "atMs": 2000,
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "superseded",
+            "revision": 2,
+            "valueText": "コーヒー"
+          },
+          {
+            "as": "b",
+            "status": "active",
+            "revision": 1,
+            "valueText": "紅茶"
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "supersede",
+            "from": 1,
+            "to": 2
+          },
+          {
+            "as": "b",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    }
+  ],
+  "finalStatuses": {
+    "a": "superseded",
+    "b": "active"
+  }
+}

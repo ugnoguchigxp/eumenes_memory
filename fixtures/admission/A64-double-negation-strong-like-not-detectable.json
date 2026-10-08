@@ -1,0 +1,45 @@
+{
+  "fixtureFormat": 1,
+  "id": "A64-double-negation-strong-like-not-detectable",
+  "covers": [
+    "double-negation",
+    "limitation"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表",
+    "本設計 §6.4(a) 日本語の決定的 fixture"
+  ],
+  "note": "「嫌いではない」を強い好み affirmed にした候補は、quote が一致するため規則では止められない。E 段階で測る",
+  "stage": "E",
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "辛いものは嫌いではない。"
+    }
+  ],
+  "candidate": {
+    "kind": "preference",
+    "subject": "self",
+    "semanticKey": "food.spicy",
+    "value": {
+      "text": "辛いものが大好き",
+      "polarity": "affirmed"
+    },
+    "modality": "asserted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "辛いものは嫌いではない"
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit"
+  },
+  "expect": {
+    "decision": "admitted"
+  }
+}

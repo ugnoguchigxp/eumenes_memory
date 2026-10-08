@@ -1,0 +1,46 @@
+{
+  "fixtureFormat": 1,
+  "id": "A71-hypothetical-not-overridden-by-never",
+  "covers": [
+    "hypothetical",
+    "order"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表",
+    "本設計 §6.4(a) 日本語の決定的 fixture"
+  ],
+  "note": "rejected になる規則は理由を変えない（never は pending_user だけを置き換える）",
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "もし時間があれば毎朝走りたい。"
+    }
+  ],
+  "candidate": {
+    "kind": "habit",
+    "subject": "self",
+    "semanticKey": "run",
+    "value": {
+      "text": "毎朝走る",
+      "polarity": "affirmed"
+    },
+    "modality": "hypothetical",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "もし時間があれば毎朝走りたい"
+      }
+    ]
+  },
+  "policy": {
+    "all": "user_confirm",
+    "habit": "never"
+  },
+  "expect": {
+    "decision": "rejected",
+    "reasonCode": "MODALITY_NOT_ASSERTED"
+  }
+}

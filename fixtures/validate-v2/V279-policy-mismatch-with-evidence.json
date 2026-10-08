@@ -1,0 +1,35 @@
+{
+  "fixtureFormat": 1,
+  "id": "V279-policy-mismatch-with-evidence",
+  "covers": [
+    "access",
+    "evidence"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B265-evidence-basic"
+  },
+  "currentFrom": {
+    "fixture": "B265-evidence-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/access/policyRevision",
+        "value": "2"
+      },
+      {
+        "op": "replace",
+        "path": "/snapshot/policyRevision",
+        "value": "2"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "invalid",
+      "reasonCode": "POLICY_REVISION_MISMATCH"
+    }
+  }
+}

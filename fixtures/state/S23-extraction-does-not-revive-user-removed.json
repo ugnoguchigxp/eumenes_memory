@@ -1,0 +1,342 @@
+{
+  "fixtureFormat": 1,
+  "id": "S23-extraction-does-not-revive-user-removed",
+  "covers": [
+    "user_confirmed",
+    "deactivate",
+    "retract"
+  ],
+  "provenance": [
+    "本設計 §3.5 State 台帳（レビュー B の修正で追加）"
+  ],
+  "steps": [
+    {
+      "action": "assert",
+      "as": "a",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 3,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "active",
+            "revision": 1
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    },
+    {
+      "action": "deactivate",
+      "target": "a",
+      "expectedRevision": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "inactive",
+            "revision": 2
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "deactivate",
+            "from": 1,
+            "to": 2
+          }
+        ]
+      }
+    },
+    {
+      "action": "assert",
+      "as": "b",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "紅茶",
+        "polarity": "affirmed"
+      },
+      "origin": "admitted_extraction",
+      "evidenceOrdinal": 9,
+      "cause": {
+        "type": "candidate",
+        "id": "cand:run1:0"
+      },
+      "expect": {
+        "ok": false,
+        "reasonCode": "INVALID_TRANSITION"
+      }
+    },
+    {
+      "action": "assert",
+      "as": "c",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "紅茶",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "c",
+            "status": "active",
+            "revision": 1
+          }
+        ],
+        "events": [
+          {
+            "as": "c",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    },
+    {
+      "action": "assert",
+      "as": "d",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "snack"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "せんべい",
+        "polarity": "affirmed"
+      },
+      "origin": "user_edited",
+      "evidenceOrdinal": 3,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "d",
+            "status": "active",
+            "revision": 1
+          }
+        ],
+        "events": [
+          {
+            "as": "d",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    },
+    {
+      "action": "retract",
+      "target": "d",
+      "expectedRevision": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "d",
+            "status": "retracted",
+            "revision": 2
+          }
+        ],
+        "events": [
+          {
+            "as": "d",
+            "action": "retract",
+            "from": 1,
+            "to": 2
+          }
+        ]
+      }
+    },
+    {
+      "action": "assert",
+      "as": "e",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "snack"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "あられ",
+        "polarity": "affirmed"
+      },
+      "origin": "admitted_extraction",
+      "evidenceOrdinal": 9,
+      "cause": {
+        "type": "candidate",
+        "id": "cand:run1:0"
+      },
+      "expect": {
+        "ok": false,
+        "reasonCode": "INVALID_TRANSITION"
+      }
+    },
+    {
+      "action": "assert",
+      "as": "f",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "meal"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "ラーメン",
+        "polarity": "affirmed"
+      },
+      "origin": "admitted_extraction",
+      "evidenceOrdinal": 3,
+      "cause": {
+        "type": "candidate",
+        "id": "cand:run1:0"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "f",
+            "status": "active",
+            "revision": 1
+          }
+        ],
+        "events": [
+          {
+            "as": "f",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    },
+    {
+      "action": "deactivate",
+      "target": "f",
+      "expectedRevision": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "f",
+            "status": "inactive",
+            "revision": 2
+          }
+        ],
+        "events": [
+          {
+            "as": "f",
+            "action": "deactivate",
+            "from": 1,
+            "to": 2
+          }
+        ]
+      }
+    },
+    {
+      "action": "assert",
+      "as": "g",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "meal"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "うどん",
+        "polarity": "affirmed"
+      },
+      "origin": "admitted_extraction",
+      "evidenceOrdinal": 9,
+      "cause": {
+        "type": "candidate",
+        "id": "cand:run1:0"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "g",
+            "status": "active",
+            "revision": 1
+          }
+        ],
+        "events": [
+          {
+            "as": "g",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    }
+  ],
+  "finalStatuses": {
+    "a": "inactive",
+    "b": "(absent)",
+    "c": "active",
+    "d": "retracted",
+    "e": "(absent)",
+    "f": "inactive",
+    "g": "active"
+  }
+}

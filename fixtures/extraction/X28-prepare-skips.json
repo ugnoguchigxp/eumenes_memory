@@ -1,0 +1,129 @@
+{
+  "fixtureFormat": 1,
+  "id": "X28-prepare-skips",
+  "covers": [
+    "prepare",
+    "NO_NEW_INPUT",
+    "MEMORY_DISABLED",
+    "INPUT_TOO_LARGE"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.6 Extraction",
+    "本設計 §6.4(a) 日本語の決定的 fixture（モデルは使わない。canned output）"
+  ],
+  "description": "skip の各理由と、処理済みの出典（同じ revision）が NO_NEW_INPUT になること。skip は run を作らない。新しい revision は新しい入力",
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    },
+    {
+      "name": "m2",
+      "role": "user",
+      "ordinal": 8,
+      "content": "最近は紅茶が好きになった🍵。"
+    }
+  ],
+  "steps": [
+    {
+      "op": "prepare",
+      "run": "j0",
+      "expect": {
+        "status": "skip",
+        "reasonCode": "MEMORY_DISABLED"
+      },
+      "enabled": false
+    },
+    {
+      "op": "prepare",
+      "run": "j0",
+      "expect": {
+        "status": "skip",
+        "reasonCode": "INPUT_TOO_LARGE"
+      },
+      "maxInputBytes": 10
+    },
+    {
+      "op": "prepare",
+      "run": "j0",
+      "expect": {
+        "status": "skip",
+        "reasonCode": "NO_NEW_INPUT"
+      },
+      "sources": []
+    },
+    {
+      "op": "check",
+      "counts": {
+        "run": 0
+      }
+    },
+    {
+      "op": "prepare",
+      "run": "j1",
+      "expect": {
+        "status": "ready"
+      },
+      "sources": [
+        "m1"
+      ]
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": true,
+        "candidates": []
+      },
+      "expect": {
+        "status": "applied",
+        "admitted": 0,
+        "pendingUser": 0,
+        "rejected": 0
+      }
+    },
+    {
+      "op": "prepare",
+      "run": "j2",
+      "expect": {
+        "status": "skip",
+        "reasonCode": "NO_NEW_INPUT"
+      },
+      "sources": [
+        "m1"
+      ]
+    },
+    {
+      "op": "prepare",
+      "run": "j3",
+      "expect": {
+        "status": "ready",
+        "sourceNames": [
+          "m1",
+          "m2"
+        ]
+      },
+      "sources": [
+        "m1",
+        "m2"
+      ]
+    },
+    {
+      "op": "mutate",
+      "source": "m1",
+      "content": "私は紅茶が好きです。"
+    },
+    {
+      "op": "prepare",
+      "run": "j4",
+      "expect": {
+        "status": "ready"
+      },
+      "sources": [
+        "m1"
+      ]
+    }
+  ]
+}

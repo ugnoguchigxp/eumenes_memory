@@ -1,0 +1,45 @@
+{
+  "fixtureFormat": 1,
+  "id": "A80-quote-after-closed-bracket-admitted",
+  "covers": [
+    "quote",
+    "bracket",
+    "admitted"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表",
+    "本設計 §6.4(a) 日本語の決定的 fixture"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "「猫」の話です。私は猫が苦手です。"
+    }
+  ],
+  "candidate": {
+    "kind": "preference",
+    "subject": "self",
+    "semanticKey": "pet",
+    "value": {
+      "text": "猫が苦手",
+      "polarity": "affirmed"
+    },
+    "modality": "asserted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "私は猫が苦手",
+        "locate": "私は猫が苦手"
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit"
+  },
+  "expect": {
+    "decision": "admitted"
+  }
+}

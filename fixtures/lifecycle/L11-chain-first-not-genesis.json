@@ -1,0 +1,34 @@
+{
+	"id": "L11-chain-first-not-genesis",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"chain",
+		"tamper"
+	],
+	"kind": "chain",
+	"description": "The first entry's prevHash is not the genesis hash (even if the entry hashes are recomputed)",
+	"input": {
+		"entries": [
+			{
+				"journalFormat": 1,
+				"seq": 1,
+				"prevHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+				"forgetId": "forget:f8506365e88e5cfeea88050a3c7035dce2c382a77d7ee3fab9430e3d6007dc52",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "record",
+						"id": "rec:1111111111111111111111111111111111111111111111111111111111111111",
+						"scopeKey": "scope:a"
+					}
+				],
+				"hash": "467443d9d88e6780d6773b1829f8802a00a1c1c46094af99560a030408f7141d"
+			}
+		]
+	},
+	"expect": {
+		"status": "inconsistent",
+		"reasonCode": "JOURNAL_CHAIN_BROKEN"
+	}
+}

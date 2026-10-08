@@ -1,0 +1,13 @@
+{
+  "fixtureFormat": 1,
+  "id": "U04-empty",
+  "covers": [
+    "utf8"
+  ],
+  "operation": "utf8",
+  "text": "",
+  "utf8ByteLength": 0,
+  "boundaries": [
+    0
+  ]
+}

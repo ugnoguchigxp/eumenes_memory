@@ -1,0 +1,54 @@
+{
+  "fixtureFormat": 1,
+  "id": "V226-item-set",
+  "covers": [
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B201-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B201-ready-basic",
+    "patch": [
+      {
+        "op": "add",
+        "path": "/snapshot/items/-",
+        "value": {
+          "id": "continuity:n1",
+          "revision": "1",
+          "kind": "goal",
+          "text": "new active",
+          "status": "active",
+          "origin": "user_confirmed",
+          "primarySource": {
+            "namespace": "conversation",
+            "kind": "message",
+            "id": "m2",
+            "representation": "text",
+            "revision": "sha256:dce11897c6e5199207e46397cc04f157ef469ce9b8744da76fec69a0861f80b6",
+            "digest": "dce11897c6e5199207e46397cc04f157ef469ce9b8744da76fec69a0861f80b6"
+          },
+          "dependencies": [
+            {
+              "namespace": "conversation",
+              "kind": "message",
+              "id": "m2",
+              "representation": "text",
+              "revision": "sha256:dce11897c6e5199207e46397cc04f157ef469ce9b8744da76fec69a0861f80b6",
+              "digest": "dce11897c6e5199207e46397cc04f157ef469ce9b8744da76fec69a0861f80b6"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "invalid",
+      "reasonCode": "ITEM_SET_CHANGED"
+    }
+  }
+}

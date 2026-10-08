@@ -1,0 +1,17 @@
+{
+  "fixtureFormat": 1,
+  "id": "C04-ja-emoji",
+  "covers": [
+    "determinism",
+    "utf8"
+  ],
+  "operation": "canonical",
+  "value": {
+    "zwj": "👨‍👩‍👧",
+    "ja": "日本語",
+    "emoji": "😀"
+  },
+  "canonical": "{\"emoji\":\"😀\",\"ja\":\"日本語\",\"zwj\":\"👨‍👩‍👧\"}",
+  "sha256": "79c6474ebd3c9cd2ee42a021ccd1297e8f3f7b60ff11ca10f039d125e5d36bd9",
+  "utf8ByteLength": 60
+}

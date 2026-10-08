@@ -1,0 +1,114 @@
+{
+	"id": "R05-ascii-case-only",
+	"fixtureFormat": 1,
+	"covers": [
+		"fts",
+		"like"
+	],
+	"description": "Only ASCII letters are case-folded: full-width and accented letters are not",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "Release Notes for ＡＢＣ and École"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "RELEASE",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like",
+				"ranges": {
+					"o1": [
+						0,
+						7
+					]
+				}
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "notes release",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "ＡＢＣ",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "ａｂｃ",
+			"expect": {
+				"status": "ok",
+				"origins": [],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "École",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "école",
+			"expect": {
+				"status": "ok",
+				"origins": [],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "ECOLE",
+			"expect": {
+				"status": "ok",
+				"origins": [],
+				"natural": "like"
+			}
+		}
+	]
+}

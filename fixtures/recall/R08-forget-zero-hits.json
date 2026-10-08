@@ -1,0 +1,98 @@
+{
+	"id": "R08-forget-zero-hits",
+	"fixtureFormat": 1,
+	"covers": [
+		"forget",
+		"fts",
+		"like"
+	],
+	"description": "After forget the record is found by neither strategy (the index row is gone too)",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "forgettable secret phrase 食べ物"
+		},
+		{
+			"op": "capture",
+			"origin": "o2",
+			"content": "another secret phrase"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "secret phrase",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o2",
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "食べ",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "forget",
+			"origin": "o1"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "secret phrase",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o2"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "食べ",
+			"expect": {
+				"status": "ok",
+				"origins": [],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "forgettable",
+			"expect": {
+				"status": "ok",
+				"origins": [],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "ftsCount",
+			"term": "forgettable",
+			"expect": 0
+		}
+	]
+}

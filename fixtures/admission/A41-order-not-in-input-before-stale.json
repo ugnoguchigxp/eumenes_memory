@@ -1,0 +1,51 @@
+{
+  "fixtureFormat": 1,
+  "id": "A41-order-not-in-input-before-stale",
+  "covers": [
+    "order"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    }
+  ],
+  "candidate": {
+    "kind": "preference",
+    "subject": "self",
+    "semanticKey": "drink",
+    "value": {
+      "text": "コーヒーが好き",
+      "polarity": "affirmed"
+    },
+    "modality": "asserted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m9",
+        "quote": "x",
+        "range": [
+          0,
+          1
+        ]
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit"
+  },
+  "currentOverrides": {
+    "m1": {
+      "status": "forgotten"
+    }
+  },
+  "expect": {
+    "decision": "rejected",
+    "reasonCode": "EVIDENCE_NOT_IN_INPUT"
+  }
+}

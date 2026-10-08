@@ -1,0 +1,69 @@
+{
+	"id": "L06-chain-hash-tampered",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"chain",
+		"tamper"
+	],
+	"kind": "chain",
+	"description": "A stored hash that does not match the entry",
+	"input": {
+		"entries": [
+			{
+				"journalFormat": 1,
+				"seq": 1,
+				"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+				"forgetId": "forget:f8506365e88e5cfeea88050a3c7035dce2c382a77d7ee3fab9430e3d6007dc52",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "record",
+						"id": "rec:1111111111111111111111111111111111111111111111111111111111111111",
+						"scopeKey": "scope:a"
+					}
+				],
+				"hash": "0d1bf45d212abeef8eb503754d1df5ba189074e444bc80969ae658d5c1893ac3"
+			},
+			{
+				"journalFormat": 1,
+				"seq": 2,
+				"prevHash": "0d1bf45d212abeef8eb503754d1df5ba189074e444bc80969ae658d5c1893ac3",
+				"forgetId": "forget:0bca7ac5a3108643cac7da105609f4abef93b85db46215c0f0c67512ce78899e",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "scope",
+						"id": "scope:b",
+						"scopeKey": "scope:b"
+					}
+				],
+				"hash": "0000000000000000000000000000000000000000000000000000000000000000"
+			},
+			{
+				"journalFormat": 1,
+				"seq": 3,
+				"prevHash": "8bda1128e0c6cbe317636751e44fc9c876c5905f1d686b26acf691999e2adc21",
+				"forgetId": "forget:6afef04db92fb517d5190a408d16a70165b5bff55fce23a4c364658f51083717",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "record",
+						"id": "rec:1111111111111111111111111111111111111111111111111111111111111111",
+						"scopeKey": "scope:a"
+					},
+					{
+						"type": "record",
+						"id": "rec:2222222222222222222222222222222222222222222222222222222222222222",
+						"scopeKey": "scope:a"
+					}
+				],
+				"hash": "c13fee4bf716e75bbdb5bf83ef4e23e6ee7b99c01a019fc69de9119e095077a0"
+			}
+		]
+	},
+	"expect": {
+		"status": "inconsistent",
+		"reasonCode": "JOURNAL_CHAIN_BROKEN"
+	}
+}

@@ -1,0 +1,54 @@
+{
+  "fixtureFormat": 1,
+  "id": "V202-valid-inactive-added",
+  "covers": [
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B201-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B201-ready-basic",
+    "patch": [
+      {
+        "op": "add",
+        "path": "/snapshot/items/-",
+        "value": {
+          "id": "continuity:x9",
+          "revision": "1",
+          "kind": "goal",
+          "text": "inactive extra",
+          "status": "inactive",
+          "origin": "user_confirmed",
+          "primarySource": {
+            "namespace": "conversation",
+            "kind": "message",
+            "id": "m1",
+            "representation": "text",
+            "revision": "sha256:c2797d454f8daff8e3d512de4d6ffedf660174b4ceba845ac2628d4db6f6f070",
+            "digest": "c2797d454f8daff8e3d512de4d6ffedf660174b4ceba845ac2628d4db6f6f070"
+          },
+          "dependencies": [
+            {
+              "namespace": "conversation",
+              "kind": "message",
+              "id": "m1",
+              "representation": "text",
+              "revision": "sha256:c2797d454f8daff8e3d512de4d6ffedf660174b4ceba845ac2628d4db6f6f070",
+              "digest": "c2797d454f8daff8e3d512de4d6ffedf660174b4ceba845ac2628d4db6f6f070"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "valid",
+      "viewDigest": "f117d78108d8bd4e4c500bafe233ad521aa3555a3114f5b8d8ab833d297ec82f"
+    }
+  }
+}

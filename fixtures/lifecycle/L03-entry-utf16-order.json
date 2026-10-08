@@ -1,0 +1,60 @@
+{
+	"id": "L03-entry-utf16-order",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"utf8"
+	],
+	"kind": "entry",
+	"description": "Ordering is by UTF-16 code units (an astral character sorts before U+FFFF); non-ASCII principal and scope keys",
+	"input": {
+		"seq": 1,
+		"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+		"principal": "local:オーナー",
+		"targets": [
+			{
+				"type": "scope",
+				"id": "x",
+				"scopeKey": "😀"
+			},
+			{
+				"type": "scope",
+				"id": "x",
+				"scopeKey": "￿"
+			},
+			{
+				"type": "scope",
+				"id": "x",
+				"scopeKey": "あ"
+			}
+		]
+	},
+	"expect": {
+		"entry": {
+			"journalFormat": 1,
+			"seq": 1,
+			"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+			"forgetId": "forget:f26994f37c440d859c6d37ee02f830417130503648062518cf4b8bcaf1d5b28c",
+			"principal": "local:オーナー",
+			"targets": [
+				{
+					"type": "scope",
+					"id": "x",
+					"scopeKey": "あ"
+				},
+				{
+					"type": "scope",
+					"id": "x",
+					"scopeKey": "😀"
+				},
+				{
+					"type": "scope",
+					"id": "x",
+					"scopeKey": "￿"
+				}
+			],
+			"hash": "4bebf63336d0515f12f9b2adfab232f0d306f026c0507f2e2c2ba49397a3d3cb"
+		},
+		"hashInput": "{\"forgetId\":\"forget:f26994f37c440d859c6d37ee02f830417130503648062518cf4b8bcaf1d5b28c\",\"journalFormat\":1,\"prevHash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"principal\":\"local:オーナー\",\"seq\":1,\"targets\":[{\"id\":\"x\",\"scopeKey\":\"あ\",\"type\":\"scope\"},{\"id\":\"x\",\"scopeKey\":\"😀\",\"type\":\"scope\"},{\"id\":\"x\",\"scopeKey\":\"￿\",\"type\":\"scope\"}]}"
+	}
+}

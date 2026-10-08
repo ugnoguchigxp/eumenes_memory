@@ -1,0 +1,110 @@
+{
+	"id": "R11-pagination",
+	"fixtureFormat": 1,
+	"covers": [
+		"cursor"
+	],
+	"description": "limit/cursor pages cover every hit exactly once in order",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "page token 1"
+		},
+		{
+			"op": "capture",
+			"origin": "o2",
+			"content": "page token 2"
+		},
+		{
+			"op": "capture",
+			"origin": "o3",
+			"content": "page token 3"
+		},
+		{
+			"op": "capture",
+			"origin": "o4",
+			"content": "page token 4"
+		},
+		{
+			"op": "capture",
+			"origin": "o5",
+			"content": "page token 5"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "page token",
+			"limit": 2,
+			"expect": {
+				"status": "ok",
+				"pages": [
+					[
+						"o5",
+						"o4"
+					],
+					[
+						"o3",
+						"o2"
+					],
+					[
+						"o1"
+					]
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "page token",
+			"limit": 5,
+			"expect": {
+				"status": "ok",
+				"pages": [
+					[
+						"o5",
+						"o4",
+						"o3",
+						"o2",
+						"o1"
+					]
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "page token",
+			"limit": 1,
+			"expect": {
+				"status": "ok",
+				"pages": [
+					[
+						"o5"
+					],
+					[
+						"o4"
+					],
+					[
+						"o3"
+					],
+					[
+						"o2"
+					],
+					[
+						"o1"
+					]
+				],
+				"natural": "like"
+			}
+		}
+	]
+}

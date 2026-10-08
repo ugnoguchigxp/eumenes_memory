@@ -1,0 +1,67 @@
+{
+	"id": "L12-closure-transitive",
+	"fixtureFormat": 1,
+	"covers": [
+		"closure"
+	],
+	"kind": "closure",
+	"description": "dependents are followed transitively; unrelated edges are ignored",
+	"input": {
+		"starts": [
+			{
+				"type": "source",
+				"id": "S0"
+			}
+		],
+		"edges": [
+			{
+				"dependentType": "state_item",
+				"dependentId": "i1",
+				"dependencyType": "source",
+				"dependencyId": "S0",
+				"role": "primary"
+			},
+			{
+				"dependentType": "candidate",
+				"dependentId": "c1",
+				"dependencyType": "source",
+				"dependencyId": "S0",
+				"role": "support"
+			},
+			{
+				"dependentType": "state_item",
+				"dependentId": "i2",
+				"dependencyType": "candidate",
+				"dependencyId": "c1",
+				"role": "derived_from"
+			},
+			{
+				"dependentType": "state_item",
+				"dependentId": "iX",
+				"dependencyType": "source",
+				"dependencyId": "S9",
+				"role": "support"
+			}
+		]
+	},
+	"expect": {
+		"nodes": [
+			{
+				"type": "candidate",
+				"id": "c1"
+			},
+			{
+				"type": "state_item",
+				"id": "i1"
+			},
+			{
+				"type": "state_item",
+				"id": "i2"
+			}
+		],
+		"counts": {
+			"candidate": 1,
+			"state_item": 2
+		}
+	}
+}

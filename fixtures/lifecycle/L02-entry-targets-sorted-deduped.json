@@ -1,0 +1,64 @@
+{
+	"id": "L02-entry-targets-sorted-deduped",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal"
+	],
+	"kind": "entry",
+	"description": "targets are sorted by (type, scopeKey, id) and deduplicated before hashing",
+	"input": {
+		"seq": 2,
+		"prevHash": "abababababababababababababababababababababababababababababababab",
+		"principal": "local:owner",
+		"targets": [
+			{
+				"type": "scope",
+				"id": "scope:b",
+				"scopeKey": "scope:b"
+			},
+			{
+				"type": "record",
+				"id": "rec:2222222222222222222222222222222222222222222222222222222222222222",
+				"scopeKey": "scope:a"
+			},
+			{
+				"type": "record",
+				"id": "rec:1111111111111111111111111111111111111111111111111111111111111111",
+				"scopeKey": "scope:a"
+			},
+			{
+				"type": "record",
+				"id": "rec:1111111111111111111111111111111111111111111111111111111111111111",
+				"scopeKey": "scope:a"
+			}
+		]
+	},
+	"expect": {
+		"entry": {
+			"journalFormat": 1,
+			"seq": 2,
+			"prevHash": "abababababababababababababababababababababababababababababababab",
+			"forgetId": "forget:3ed7fed31957df54c742f09e2d70fb7de953cec00456692271a14a753e4b075e",
+			"principal": "local:owner",
+			"targets": [
+				{
+					"type": "record",
+					"id": "rec:1111111111111111111111111111111111111111111111111111111111111111",
+					"scopeKey": "scope:a"
+				},
+				{
+					"type": "record",
+					"id": "rec:2222222222222222222222222222222222222222222222222222222222222222",
+					"scopeKey": "scope:a"
+				},
+				{
+					"type": "scope",
+					"id": "scope:b",
+					"scopeKey": "scope:b"
+				}
+			],
+			"hash": "3379107148b4880744698625b1e2a8a98dd9a31dfa3a6934e4586d6150514af1"
+		},
+		"hashInput": "{\"forgetId\":\"forget:3ed7fed31957df54c742f09e2d70fb7de953cec00456692271a14a753e4b075e\",\"journalFormat\":1,\"prevHash\":\"abababababababababababababababababababababababababababababababab\",\"principal\":\"local:owner\",\"seq\":2,\"targets\":[{\"id\":\"rec:1111111111111111111111111111111111111111111111111111111111111111\",\"scopeKey\":\"scope:a\",\"type\":\"record\"},{\"id\":\"rec:2222222222222222222222222222222222222222222222222222222222222222\",\"scopeKey\":\"scope:a\",\"type\":\"record\"},{\"id\":\"scope:b\",\"scopeKey\":\"scope:b\",\"type\":\"scope\"}]}"
+	}
+}

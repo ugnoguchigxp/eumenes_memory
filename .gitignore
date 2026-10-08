@@ -1,0 +1,11 @@
+node_modules/
+dist/
+artifacts/
+*.tgz
+verification-reports/
+coverage/
+.serena/
+.DS_Store
+*.log
+__pycache__/
+.claude/settings.local.json

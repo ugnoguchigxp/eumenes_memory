@@ -1,0 +1,37 @@
+{
+  "fixtureFormat": 1,
+  "id": "V13-scope-mismatch",
+  "covers": [
+    "access"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B01-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B01-ready-basic",
+    "patch": [
+      {
+        "op": "replace",
+        "path": "/snapshot/scopeKey",
+        "value": "conversation:c2"
+      },
+      {
+        "op": "replace",
+        "path": "/access/scopeKeys",
+        "value": [
+          "conversation:c1",
+          "conversation:c2"
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 1,
+      "status": "invalid",
+      "reasonCode": "SCOPE_MISMATCH"
+    }
+  }
+}

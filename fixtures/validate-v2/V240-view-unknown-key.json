@@ -1,0 +1,26 @@
+{
+  "fixtureFormat": 1,
+  "id": "V240-view-unknown-key",
+  "covers": [
+    "schema"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B201-ready-basic",
+    "patch": [
+      {
+        "op": "add",
+        "path": "/extra",
+        "value": 1
+      }
+    ]
+  },
+  "currentFrom": {
+    "fixture": "B201-ready-basic"
+  },
+  "expect": {
+    "outcome": "error",
+    "code": "UNKNOWN_KEY",
+    "path": "$"
+  }
+}

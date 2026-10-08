@@ -1,0 +1,145 @@
+{
+  "fixtureFormat": 1,
+  "id": "X26-resettle-with-different-output",
+  "covers": [
+    "idempotent",
+    "RUN_ALREADY_SETTLED_DIFFERENT"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.6 Extraction",
+    "本設計 §6.4(a) 日本語の決定的 fixture（モデルは使わない。canned output）"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    }
+  ],
+  "steps": [
+    {
+      "op": "prepare",
+      "run": "j1",
+      "expect": {
+        "status": "ready"
+      }
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": false,
+        "candidates": [
+          {
+            "kind": "preference",
+            "subject": "self",
+            "semanticKey": "drink",
+            "value": {
+              "text": "コーヒー",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m1",
+                "quote": "コーヒーが好き"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "status": "applied",
+        "admitted": 0,
+        "pendingUser": 1,
+        "rejected": 0
+      }
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": true,
+        "candidates": []
+      },
+      "expect": {
+        "status": "stale",
+        "reasonCode": "RUN_ALREADY_SETTLED_DIFFERENT"
+      }
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": false,
+        "candidates": [
+          {
+            "kind": "preference",
+            "subject": "self",
+            "semanticKey": "drink",
+            "value": {
+              "text": "紅茶",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m1",
+                "quote": "コーヒーが好き"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "status": "stale",
+        "reasonCode": "RUN_ALREADY_SETTLED_DIFFERENT"
+      }
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": false,
+        "candidates": [
+          {
+            "kind": "preference",
+            "subject": "self",
+            "semanticKey": "drink",
+            "value": {
+              "text": "コーヒー",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m1",
+                "quote": "コーヒーが好き"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "status": "applied",
+        "admitted": 0,
+        "pendingUser": 1,
+        "rejected": 0
+      }
+    },
+    {
+      "op": "check",
+      "counts": {
+        "candidate": 1
+      },
+      "run": {
+        "id": "j1",
+        "stage": "settled"
+      }
+    }
+  ]
+}

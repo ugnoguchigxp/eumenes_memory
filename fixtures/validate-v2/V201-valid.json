@@ -1,0 +1,22 @@
+{
+  "fixtureFormat": 1,
+  "id": "V201-valid",
+  "covers": [
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B201-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B201-ready-basic"
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "valid",
+      "viewDigest": "f117d78108d8bd4e4c500bafe233ad521aa3555a3114f5b8d8ab833d297ec82f"
+    }
+  }
+}

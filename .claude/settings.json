@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena__initial_instructions",
+      "mcp__context-still__initial_instructions",
+      "mcp__serena__get_symbols_overview",
+      "Bash(bun test)",
+      "Bash(bun run verify)"
+    ]
+  }
+}

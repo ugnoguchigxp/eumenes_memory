@@ -1,0 +1,173 @@
+{
+	"id": "L28-db-sequential-forgets-accumulate",
+	"fixtureFormat": 1,
+	"covers": [
+		"closure",
+		"S6"
+	],
+	"kind": "forget-db",
+	"description": "Two forgets in a row: the second one starts from what is left, and the final receipt is the second forget's",
+	"input": {
+		"graph": {
+			"runs": [
+				{
+					"id": "A",
+					"inputs": [
+						"m:m1",
+						"m:m2",
+						"m:m3"
+					],
+					"provider": "larm"
+				},
+				{
+					"id": "B",
+					"inputs": [
+						"m:m4"
+					],
+					"provider": "larm"
+				}
+			],
+			"candidates": [
+				{
+					"id": "cA1",
+					"run": "A",
+					"evidence": [
+						"m:m1"
+					]
+				},
+				{
+					"id": "cA2",
+					"run": "A",
+					"evidence": [
+						"m:m2"
+					]
+				},
+				{
+					"id": "cB1",
+					"run": "B",
+					"evidence": [
+						"m:m4"
+					]
+				}
+			],
+			"items": [
+				{
+					"id": "iA1",
+					"evidence": [
+						"m:m1"
+					],
+					"fromCandidate": "cA1"
+				},
+				{
+					"id": "iA2",
+					"evidence": [
+						"m:m2"
+					],
+					"fromCandidate": "cA2"
+				},
+				{
+					"id": "iB1",
+					"evidence": [
+						"m:m4"
+					],
+					"fromCandidate": "cB1"
+				},
+				{
+					"id": "iU",
+					"evidence": [
+						"m:m5"
+					]
+				}
+			],
+			"externals": [
+				{
+					"id": "world:nA1",
+					"dependsOn": [
+						"i:iA1"
+					]
+				},
+				{
+					"id": "world:nB1",
+					"dependsOn": [
+						"i:iB1"
+					]
+				},
+				{
+					"id": "world:nM3",
+					"dependsOn": [
+						"m:m3"
+					]
+				}
+			],
+			"progress": [
+				"m:m1",
+				"m:m2",
+				"m:m3",
+				"m:m4"
+			]
+		},
+		"forget": [
+			{
+				"type": "host_source",
+				"source": "m:m4"
+			},
+			{
+				"type": "state_item",
+				"id": "iU"
+			}
+		]
+	},
+	"expect": {
+		"forgotten": {
+			"state_item": [
+				"iB1",
+				"iU"
+			],
+			"candidate": [
+				"cB1"
+			],
+			"extraction_run": [
+				"B"
+			],
+			"external": [
+				"world:nB1"
+			]
+		},
+		"kept": {
+			"state_item": [
+				"iA1",
+				"iA2"
+			],
+			"candidate": [
+				"cA1",
+				"cA2"
+			],
+			"extraction_run": [
+				"A"
+			],
+			"external": [
+				"world:nA1",
+				"world:nM3"
+			]
+		},
+		"tombstonedSources": [
+			"m:m4"
+		],
+		"receipt": {
+			"external": "none",
+			"completed": true,
+			"deletions": []
+		},
+		"valuesGone": [
+			"i:iB1",
+			"i:iU",
+			"c:cB1"
+		],
+		"valuesPresent": [
+			"i:iA1",
+			"i:iA2",
+			"c:cA1"
+		],
+		"progressRemaining": null
+	}
+}

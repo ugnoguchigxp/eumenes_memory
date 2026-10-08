@@ -1,0 +1,64 @@
+{
+	"id": "L15-closure-external",
+	"fixtureFormat": 1,
+	"covers": [
+		"closure"
+	],
+	"kind": "closure",
+	"description": "External derivatives join the closure like any dependent (providerRef:externalId)",
+	"input": {
+		"starts": [
+			{
+				"type": "source",
+				"id": "S0"
+			},
+			{
+				"type": "source",
+				"id": "S2"
+			}
+		],
+		"edges": [
+			{
+				"dependentType": "external",
+				"dependentId": "world:n1",
+				"dependencyType": "source",
+				"dependencyId": "S0",
+				"role": "derived_from"
+			},
+			{
+				"dependentType": "external",
+				"dependentId": "world:n2",
+				"dependencyType": "state_item",
+				"dependencyId": "i1",
+				"role": "derived_from"
+			},
+			{
+				"dependentType": "state_item",
+				"dependentId": "i1",
+				"dependencyType": "source",
+				"dependencyId": "S2",
+				"role": "primary"
+			}
+		]
+	},
+	"expect": {
+		"nodes": [
+			{
+				"type": "external",
+				"id": "world:n1"
+			},
+			{
+				"type": "external",
+				"id": "world:n2"
+			},
+			{
+				"type": "state_item",
+				"id": "i1"
+			}
+		],
+		"counts": {
+			"external": 2,
+			"state_item": 1
+		}
+	}
+}

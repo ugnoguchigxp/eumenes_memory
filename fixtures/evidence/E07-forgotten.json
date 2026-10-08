@@ -1,0 +1,77 @@
+{
+	"id": "E07-forgotten",
+	"fixtureFormat": 1,
+	"covers": [
+		"range",
+		"forget"
+	],
+	"description": "After forget every read path reports forgotten, for every revision",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "secret one",
+			"label": "v1"
+		},
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "secret two",
+			"label": "v2"
+		},
+		{
+			"op": "forget",
+			"origin": "o1"
+		},
+		{
+			"op": "read",
+			"origin": "o1",
+			"expect": {
+				"status": "forgotten"
+			}
+		},
+		{
+			"op": "read",
+			"origin": "o1",
+			"revision": "@v1",
+			"expect": {
+				"status": "forgotten"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 3,
+			"expect": {
+				"status": "forgotten"
+			},
+			"revision": "@v1"
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 3,
+			"expect": {
+				"status": "forgotten"
+			},
+			"revision": "@v2"
+		},
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "secret three",
+			"expect": {
+				"blocked": "TOMBSTONED"
+			}
+		},
+		{
+			"op": "read",
+			"origin": "o1",
+			"expect": {
+				"status": "forgotten"
+			}
+		}
+	]
+}

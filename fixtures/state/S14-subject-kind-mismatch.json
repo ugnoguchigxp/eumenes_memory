@@ -1,0 +1,109 @@
+{
+  "fixtureFormat": 1,
+  "id": "S14-subject-kind-mismatch",
+  "covers": [
+    "SUBJECT_KIND_MISMATCH",
+    "subject"
+  ],
+  "provenance": [
+    "本設計 §3.5 kind=other_person_note ⇔ subject が other:*"
+  ],
+  "steps": [
+    {
+      "action": "assert",
+      "as": "a",
+      "identity": {
+        "subject": "other:friend-1",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": false,
+        "reasonCode": "SUBJECT_KIND_MISMATCH"
+      }
+    },
+    {
+      "action": "assert",
+      "as": "b",
+      "identity": {
+        "subject": "self",
+        "kind": "other_person_note",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": false,
+        "reasonCode": "SUBJECT_KIND_MISMATCH"
+      }
+    },
+    {
+      "action": "assert",
+      "as": "c",
+      "identity": {
+        "subject": "unknown",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": false,
+        "reasonCode": "SUBJECT_KIND_MISMATCH"
+      }
+    },
+    {
+      "action": "assert",
+      "as": "d",
+      "identity": {
+        "subject": "other:",
+        "kind": "other_person_note",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": false,
+        "reasonCode": "SUBJECT_KIND_MISMATCH"
+      }
+    }
+  ]
+}

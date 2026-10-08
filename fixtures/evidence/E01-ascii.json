@@ -1,0 +1,48 @@
+{
+	"id": "E01-ascii",
+	"fixtureFormat": 1,
+	"covers": [
+		"range"
+	],
+	"description": "ASCII range returns the text and the SHA-256 of the raw bytes",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "hello world"
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 5,
+			"expect": {
+				"status": "available",
+				"text": "hello",
+				"digest": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 6,
+			"end": 11,
+			"expect": {
+				"status": "available",
+				"text": "world",
+				"digest": "486ea46224d1bb4fb680f34f7c9ad96a8f24ec88be73ea8e5a6c65260e9cb8a7"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 11,
+			"expect": {
+				"status": "available",
+				"text": "hello world",
+				"digest": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+			}
+		}
+	]
+}

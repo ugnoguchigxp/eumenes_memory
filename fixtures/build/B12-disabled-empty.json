@@ -1,0 +1,44 @@
+{
+  "fixtureFormat": 1,
+  "id": "B12-disabled-empty",
+  "covers": [
+    "disabled-empty"
+  ],
+  "operation": "build",
+  "input": {
+    "schemaVersion": 1,
+    "access": {
+      "principal": "local:owner",
+      "scopeKeys": [
+        "conversation:c1"
+      ],
+      "purpose": "dialogue.generate",
+      "policyRevision": "1"
+    },
+    "snapshot": {
+      "principal": "local:owner",
+      "scopeKey": "conversation:c1",
+      "stateRevision": "7",
+      "policyRevision": "1",
+      "complete": true,
+      "sources": [],
+      "items": []
+    },
+    "maxBytes": 1000000,
+    "enabled": false
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 1,
+      "status": "disabled",
+      "principal": "local:owner",
+      "scopeKey": "conversation:c1",
+      "purpose": "dialogue.generate",
+      "stateRevision": "7",
+      "policyRevision": "1",
+      "instructionAuthority": "none",
+      "reasonCode": "MEMORY_DISABLED"
+    }
+  }
+}

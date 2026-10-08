@@ -1,0 +1,74 @@
+{
+	"id": "E08-access",
+	"fixtureFormat": 1,
+	"covers": [
+		"range",
+		"access"
+	],
+	"description": "A scope outside the access is not_permitted; the same origin in another scope is another record",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "scope a body",
+			"scope": "scope:a"
+		},
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "scope b body",
+			"scope": "scope:b"
+		},
+		{
+			"op": "read",
+			"origin": "o1",
+			"scope": "scope:a",
+			"accessScopes": [
+				"scope:b"
+			],
+			"expect": {
+				"status": "not_permitted"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 3,
+			"expect": {
+				"status": "not_permitted"
+			},
+			"scope": "scope:a",
+			"accessScopes": [
+				"scope:b"
+			]
+		},
+		{
+			"op": "read",
+			"origin": "o1",
+			"scope": "scope:b",
+			"expect": {
+				"status": "available",
+				"content": "scope b body"
+			}
+		},
+		{
+			"op": "read",
+			"origin": "o1",
+			"scope": "scope:a",
+			"principal": "local:other",
+			"expect": {
+				"status": "missing"
+			}
+		},
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "x",
+			"scope": "scope:z",
+			"expect": {
+				"blocked": "SCOPE_NOT_PERMITTED"
+			}
+		}
+	]
+}

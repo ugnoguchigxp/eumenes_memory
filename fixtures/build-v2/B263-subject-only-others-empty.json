@@ -1,0 +1,117 @@
+{
+  "fixtureFormat": 1,
+  "id": "B263-subject-only-others-empty",
+  "covers": [
+    "subject",
+    "disabled-empty"
+  ],
+  "operation": "build",
+  "input": {
+    "schemaVersion": 2,
+    "access": {
+      "principal": "local:owner",
+      "scopeKeys": [
+        "conversation:c1"
+      ],
+      "purpose": "dialogue.generate",
+      "policyRevision": "1"
+    },
+    "snapshot": {
+      "principal": "local:owner",
+      "scopeKey": "conversation:c1",
+      "stateRevision": "c:7|m:3",
+      "policyRevision": "1",
+      "complete": true,
+      "sources": [],
+      "items": [
+        {
+          "id": "state:o1",
+          "revision": "1",
+          "kind": "preference",
+          "text": "紅茶が好き",
+          "status": "active",
+          "origin": "admitted_extraction",
+          "primarySource": {
+            "namespace": "memory",
+            "kind": "record",
+            "id": "rec:31c84920f438f014c2a48a283565017184b11d3fe77d902d2ab47b3cc1c05a2b",
+            "representation": "text",
+            "revision": "sha256:7ffaa94200a5308af70bd8d11059e3bf44abb203e77b02c8fc992b4b76c6aa84",
+            "digest": "7ffaa94200a5308af70bd8d11059e3bf44abb203e77b02c8fc992b4b76c6aa84",
+            "range": {
+              "startByte": 17,
+              "endByte": 32
+            }
+          },
+          "dependencies": [
+            {
+              "namespace": "memory",
+              "kind": "record",
+              "id": "rec:31c84920f438f014c2a48a283565017184b11d3fe77d902d2ab47b3cc1c05a2b",
+              "representation": "text",
+              "revision": "sha256:7ffaa94200a5308af70bd8d11059e3bf44abb203e77b02c8fc992b4b76c6aa84",
+              "digest": "7ffaa94200a5308af70bd8d11059e3bf44abb203e77b02c8fc992b4b76c6aa84",
+              "range": {
+                "startByte": 17,
+                "endByte": 32
+              }
+            }
+          ],
+          "subject": "other:mother"
+        },
+        {
+          "id": "state:u1",
+          "revision": "1",
+          "kind": "preference",
+          "text": "辛いのが好き",
+          "status": "active",
+          "origin": "admitted_extraction",
+          "primarySource": {
+            "namespace": "memory",
+            "kind": "record",
+            "id": "rec:8abefd046721993691d2680c6b6cfeaa184f14a26298ae476f0058015aa25719",
+            "representation": "text",
+            "revision": "sha256:156aa006febe0c13d6cd2e679205a387607b33e7ddfe84acbdffc4f7864be0b9",
+            "digest": "156aa006febe0c13d6cd2e679205a387607b33e7ddfe84acbdffc4f7864be0b9"
+          },
+          "dependencies": [
+            {
+              "namespace": "memory",
+              "kind": "record",
+              "id": "rec:8abefd046721993691d2680c6b6cfeaa184f14a26298ae476f0058015aa25719",
+              "representation": "text",
+              "revision": "sha256:156aa006febe0c13d6cd2e679205a387607b33e7ddfe84acbdffc4f7864be0b9",
+              "digest": "156aa006febe0c13d6cd2e679205a387607b33e7ddfe84acbdffc4f7864be0b9"
+            }
+          ],
+          "subject": "unknown"
+        }
+      ]
+    },
+    "maxBytes": 1000000,
+    "enabled": true
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "principal": "local:owner",
+      "scopeKey": "conversation:c1",
+      "purpose": "dialogue.generate",
+      "stateRevision": "c:7|m:3",
+      "policyRevision": "1",
+      "instructionAuthority": "none",
+      "status": "ready",
+      "items": [],
+      "evidence": [],
+      "dependencies": [],
+      "coverage": {
+        "complete": true,
+        "omitted": []
+      },
+      "viewDigest": "be593fe1b91cffcb570d1d50391b6a85fd73e6c8a4d7183185112e3b346e9ea1"
+    },
+    "canonicalWithoutDigest": "{\"coverage\":{\"complete\":true,\"omitted\":[]},\"dependencies\":[],\"evidence\":[],\"instructionAuthority\":\"none\",\"items\":[],\"policyRevision\":\"1\",\"principal\":\"local:owner\",\"purpose\":\"dialogue.generate\",\"schemaVersion\":2,\"scopeKey\":\"conversation:c1\",\"stateRevision\":\"c:7|m:3\",\"status\":\"ready\"}",
+    "finalByteLength": 363
+  }
+}

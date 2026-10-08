@@ -1,0 +1,28 @@
+{
+  "fixtureFormat": 1,
+  "id": "V258-state-item-tombstoned",
+  "covers": [
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B265-evidence-basic"
+  },
+  "currentFrom": {
+    "fixture": "B265-evidence-basic",
+    "patch": [
+      {
+        "op": "remove",
+        "path": "/snapshot/items/0"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "invalid",
+      "reasonCode": "ITEM_MISSING"
+    }
+  }
+}

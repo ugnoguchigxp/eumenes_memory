@@ -1,0 +1,39 @@
+{
+	"id": "L01-entry-single-record",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal"
+	],
+	"kind": "entry",
+	"description": "hash = sha256(canonical JSON of the body); forgetId derives from principal, seq and targets",
+	"input": {
+		"seq": 1,
+		"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+		"principal": "local:owner",
+		"targets": [
+			{
+				"type": "record",
+				"id": "rec:1111111111111111111111111111111111111111111111111111111111111111",
+				"scopeKey": "scope:a"
+			}
+		]
+	},
+	"expect": {
+		"entry": {
+			"journalFormat": 1,
+			"seq": 1,
+			"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+			"forgetId": "forget:f8506365e88e5cfeea88050a3c7035dce2c382a77d7ee3fab9430e3d6007dc52",
+			"principal": "local:owner",
+			"targets": [
+				{
+					"type": "record",
+					"id": "rec:1111111111111111111111111111111111111111111111111111111111111111",
+					"scopeKey": "scope:a"
+				}
+			],
+			"hash": "0d1bf45d212abeef8eb503754d1df5ba189074e444bc80969ae658d5c1893ac3"
+		},
+		"hashInput": "{\"forgetId\":\"forget:f8506365e88e5cfeea88050a3c7035dce2c382a77d7ee3fab9430e3d6007dc52\",\"journalFormat\":1,\"prevHash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"principal\":\"local:owner\",\"seq\":1,\"targets\":[{\"id\":\"rec:1111111111111111111111111111111111111111111111111111111111111111\",\"scopeKey\":\"scope:a\",\"type\":\"record\"}]}"
+	}
+}

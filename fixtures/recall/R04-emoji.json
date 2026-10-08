@@ -1,0 +1,96 @@
+{
+	"id": "R04-emoji",
+	"fixtureFormat": 1,
+	"covers": [
+		"fts",
+		"like"
+	],
+	"description": "Emoji are single characters: 3 emoji can use FTS, 2 emoji use LIKE; byte ranges are UTF-8",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "party 😀😀😀 tonight 🍣"
+		},
+		{
+			"op": "capture",
+			"origin": "o2",
+			"content": "only 😀 here"
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "😀😀😀",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like",
+				"ranges": {
+					"o1": [
+						6,
+						18
+					]
+				}
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "😀😀",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like",
+				"ranges": {
+					"o1": [
+						6,
+						14
+					]
+				}
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "😀",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o2",
+					"o1"
+				],
+				"natural": "like"
+			}
+		},
+		{
+			"op": "search",
+			"scopes": [
+				"scope:a"
+			],
+			"query": "🍣",
+			"expect": {
+				"status": "ok",
+				"origins": [
+					"o1"
+				],
+				"natural": "like",
+				"ranges": {
+					"o1": [
+						27,
+						31
+					]
+				}
+			}
+		}
+	]
+}

@@ -1,0 +1,28 @@
+{
+  "fixtureFormat": 1,
+  "id": "V220-item-missing",
+  "covers": [
+    "stale"
+  ],
+  "operation": "validate",
+  "viewFrom": {
+    "fixture": "B201-ready-basic"
+  },
+  "currentFrom": {
+    "fixture": "B201-ready-basic",
+    "patch": [
+      {
+        "op": "remove",
+        "path": "/snapshot/items/0"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "result",
+    "result": {
+      "schemaVersion": 2,
+      "status": "invalid",
+      "reasonCode": "ITEM_MISSING"
+    }
+  }
+}

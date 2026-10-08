@@ -1,0 +1,134 @@
+{
+  "fixtureFormat": 1,
+  "id": "S12-reactivate-conflict",
+  "covers": [
+    "reactivate",
+    "ACTIVE_EXISTS"
+  ],
+  "provenance": [
+    "SAAA 28616e61ce5fe853383d4af6ec14e5b5d542c076 crates/personal-state-core/src/reducer.rs:466-474"
+  ],
+  "steps": [
+    {
+      "action": "assert",
+      "as": "a",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "コーヒー",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "active",
+            "revision": 1,
+            "valueText": "コーヒー"
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    },
+    {
+      "action": "deactivate",
+      "target": "a",
+      "expectedRevision": 1,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "a",
+            "status": "inactive",
+            "revision": 2
+          }
+        ],
+        "events": [
+          {
+            "as": "a",
+            "action": "deactivate",
+            "from": 1,
+            "to": 2
+          }
+        ]
+      }
+    },
+    {
+      "action": "assert",
+      "as": "b",
+      "identity": {
+        "subject": "self",
+        "kind": "preference",
+        "semanticKey": "drink"
+      },
+      "expectedRevision": null,
+      "value": {
+        "text": "紅茶",
+        "polarity": "affirmed"
+      },
+      "origin": "user_confirmed",
+      "evidenceOrdinal": 2,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": true,
+        "items": [
+          {
+            "as": "b",
+            "status": "active",
+            "revision": 1
+          }
+        ],
+        "events": [
+          {
+            "as": "b",
+            "action": "assert",
+            "from": null,
+            "to": 1
+          }
+        ]
+      }
+    },
+    {
+      "action": "reactivate",
+      "target": "a",
+      "expectedRevision": 2,
+      "cause": {
+        "type": "user",
+        "id": "owner"
+      },
+      "expect": {
+        "ok": false,
+        "reasonCode": "ACTIVE_EXISTS"
+      }
+    }
+  ],
+  "finalStatuses": {
+    "a": "inactive",
+    "b": "active"
+  }
+}

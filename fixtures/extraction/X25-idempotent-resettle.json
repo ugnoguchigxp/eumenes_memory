@@ -1,0 +1,123 @@
+{
+  "fixtureFormat": 1,
+  "id": "X25-idempotent-resettle",
+  "covers": [
+    "idempotent"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.6 Extraction",
+    "本設計 §6.4(a) 日本語の決定的 fixture（モデルは使わない。canned output）"
+  ],
+  "description": "同じ run・同じ output の再 settle は前回の結果を返し、何も増えない（policy が違っても保存済みの結果を返す）",
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    }
+  ],
+  "steps": [
+    {
+      "op": "prepare",
+      "run": "j1",
+      "expect": {
+        "status": "ready"
+      }
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": false,
+        "candidates": [
+          {
+            "kind": "preference",
+            "subject": "self",
+            "semanticKey": "drink",
+            "value": {
+              "text": "コーヒー",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m1",
+                "quote": "コーヒーが好き"
+              }
+            ]
+          }
+        ]
+      },
+      "policy": {
+        "all": "auto_admit"
+      },
+      "expect": {
+        "status": "applied",
+        "admitted": 1,
+        "pendingUser": 0,
+        "rejected": 0
+      }
+    },
+    {
+      "op": "settle",
+      "run": "j1",
+      "output": {
+        "noChange": false,
+        "candidates": [
+          {
+            "kind": "preference",
+            "subject": "self",
+            "semanticKey": "drink",
+            "value": {
+              "text": "コーヒー",
+              "polarity": "affirmed"
+            },
+            "modality": "asserted",
+            "temporal": "current",
+            "evidence": [
+              {
+                "source": "m1",
+                "quote": "コーヒーが好き"
+              }
+            ]
+          }
+        ]
+      },
+      "policy": {
+        "all": "auto_admit"
+      },
+      "expect": {
+        "status": "applied",
+        "admitted": 1,
+        "pendingUser": 0,
+        "rejected": 0
+      }
+    },
+    {
+      "op": "check",
+      "counts": {
+        "candidate": 1,
+        "state_item": 1,
+        "run": 1,
+        "evidence": 1
+      }
+    },
+    {
+      "op": "list-state",
+      "includeInactive": true,
+      "expect": {
+        "items": [
+          {
+            "semanticKey": "drink",
+            "status": "active",
+            "origin": "admitted_extraction",
+            "text": "コーヒー",
+            "polarity": "affirmed"
+          }
+        ]
+      }
+    }
+  ]
+}

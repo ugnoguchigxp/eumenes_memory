@@ -1,0 +1,47 @@
+{
+  "fixtureFormat": 1,
+  "id": "A11-range-mid-character",
+  "covers": [
+    "QUOTE_MISMATCH",
+    "utf8-boundary"
+  ],
+  "provenance": [
+    "本設計 full-system-design §3.5 Admission 規則表"
+  ],
+  "sources": [
+    {
+      "name": "m1",
+      "role": "user",
+      "ordinal": 5,
+      "content": "私はコーヒーが好きです。毎朝飲みます。"
+    }
+  ],
+  "candidate": {
+    "kind": "preference",
+    "subject": "self",
+    "semanticKey": "drink",
+    "value": {
+      "text": "コーヒーが好き",
+      "polarity": "affirmed"
+    },
+    "modality": "asserted",
+    "temporal": "current",
+    "evidence": [
+      {
+        "source": "m1",
+        "quote": "コーヒーが好き",
+        "range": [
+          1,
+          22
+        ]
+      }
+    ]
+  },
+  "policy": {
+    "all": "auto_admit"
+  },
+  "expect": {
+    "decision": "rejected",
+    "reasonCode": "QUOTE_MISMATCH"
+  }
+}

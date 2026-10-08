@@ -1,0 +1,96 @@
+{
+	"id": "E03-emoji-boundaries",
+	"fixtureFormat": 1,
+	"covers": [
+		"range",
+		"utf8"
+	],
+	"description": "Emoji is 4 bytes; ZWJ sequences are split only at code point boundaries (graphemes are not considered)",
+	"steps": [
+		{
+			"op": "capture",
+			"origin": "o1",
+			"content": "a😀b"
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 1,
+			"end": 5,
+			"expect": {
+				"status": "available",
+				"text": "😀",
+				"digest": "f0443a342c5ef54783a111b51ba56c938e474c32324d90c3a60c9c8e3a37e2d9"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 1,
+			"end": 3,
+			"expect": {
+				"status": "invalid_range",
+				"reasonCode": "SOURCE_RANGE_NOT_CHAR_BOUNDARY"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 2,
+			"end": 5,
+			"expect": {
+				"status": "invalid_range",
+				"reasonCode": "SOURCE_RANGE_NOT_CHAR_BOUNDARY"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o1",
+			"start": 0,
+			"end": 6,
+			"expect": {
+				"status": "available",
+				"text": "a😀b",
+				"digest": "6fba5b2ea783ded096fc2444d540ffbdf49168df30993b155b7efb683313f110"
+			}
+		},
+		{
+			"op": "capture",
+			"origin": "o2",
+			"content": "👨‍👩‍👧"
+		},
+		{
+			"op": "range",
+			"origin": "o2",
+			"start": 0,
+			"end": 4,
+			"expect": {
+				"status": "available",
+				"text": "👨",
+				"digest": "324852f659ffc7752c6191fa4e9a153a10bc4ef9bd47527e7f752578c0af0f7e"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o2",
+			"start": 4,
+			"end": 7,
+			"expect": {
+				"status": "available",
+				"text": "‍",
+				"digest": "b34b7a15cf631544f3bfd30f601dc2c6953760b956eb1d40aea01c7f8bacd118"
+			}
+		},
+		{
+			"op": "range",
+			"origin": "o2",
+			"start": 0,
+			"end": 18,
+			"expect": {
+				"status": "available",
+				"text": "👨‍👩‍👧",
+				"digest": "cc3baf32248d766570483335ce273f90c99f020f4bc530d05ffe869cd3ac2ae8"
+			}
+		}
+	]
+}
