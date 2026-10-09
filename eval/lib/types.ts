@@ -73,6 +73,15 @@ export interface GoldCandidate {
 	/** 人が読むための値の説明。比較しない（oracle が value.text に使う）。 */
 	readonly valueHint: string;
 	readonly acceptable?: Acceptable;
+	/**
+	 * 保存した値の意味の正解。候補の `value.text` が `anyOf` のどれかを含み、`noneOf` のどれも含まなければ正しい。
+	 * 引用が合い属性が合っていても、対象・値が違う候補（別の対象の取り違えなど）を見逃さないための採点。
+	 * 省略した gold は値の意味を採点しない。
+	 */
+	readonly valueMeaning?: {
+		readonly anyOf: readonly string[];
+		readonly noneOf?: readonly string[];
+	};
 }
 
 export interface EvalSource {
@@ -123,6 +132,8 @@ export const COUNT_KEYS = Object.freeze([
 	"polarityErrors",
 	"modalityErrors",
 	"temporalErrors",
+	"valueScored",
+	"valueErrors",
 	"missed",
 	"overExtracted",
 	"duplicates",
@@ -148,6 +159,7 @@ export const RATE_KEYS = Object.freeze([
 	"quoteMismatchRate",
 	"noChangeAccuracy",
 	"falseAdmissionRate",
+	"valueErrorRate",
 ] as const);
 export type RateKey = (typeof RATE_KEYS)[number];
 

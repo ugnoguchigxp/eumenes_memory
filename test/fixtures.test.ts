@@ -5,10 +5,10 @@ import {
 	isUtf8CharBoundary,
 	utf8ByteLength,
 } from "../src/canonical/utf8.ts";
-import { buildMemoryView } from "../src/view/build.ts";
-import { validateMemoryView } from "../src/validation/validate.ts";
-import { validateMemoryViewV2 } from "../src/validation/validate-v2.ts";
-import { buildMemoryViewV2 } from "../src/view/build-v2.ts";
+import { buildMemoryView } from "../src/domains/projection/index.ts";
+import { validateMemoryView } from "../src/domains/projection/index.ts";
+import { validateMemoryViewV2 } from "../src/domains/projection/index.ts";
+import { buildMemoryViewV2 } from "../src/domains/projection/index.ts";
 import {
 	describeInternalFixtures,
 	describePublicFixtures,

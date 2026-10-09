@@ -1,9 +1,9 @@
 /** fixtures/lifecycle（ジャーナル entry の hash 鎖、閉包計算）を純粋関数に対して実行する。 */
-import { computeClosure } from "../../src/lifecycle/closure.ts";
+import { computeClosure } from "../../src/domains/lifecycle/index.ts";
 import {
 	buildJournalEntry,
 	verifyForgetJournal,
-} from "../../src/lifecycle/journal.ts";
+} from "../../src/domains/lifecycle/index.ts";
 import { describeLifecycleFixtures } from "../runners/lifecycle.ts";
 
 describeLifecycleFixtures({

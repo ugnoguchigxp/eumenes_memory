@@ -50,61 +50,68 @@ export type {
 	ViewCoverage,
 	ViewItem,
 } from "./contracts/types.ts";
-export { validateMemoryView } from "./validation/validate.ts";
-export { buildMemoryView } from "./view/build.ts";
+export { validateMemoryView } from "./domains/projection/index.ts";
+export { buildMemoryView } from "./domains/projection/index.ts";
 
 // ---- View v2（schemaVersion 2。v1 の関数・型・挙動は上のまま変わらない）----
 export {
 	parseBuildMemoryViewInputV2,
 	parseMemoryViewV2,
 	parseValidationCurrentV2,
-} from "./contracts/parse-v2.ts";
-export { validateMemoryViewV2 } from "./validation/validate-v2.ts";
-export { buildMemoryViewV2 } from "./view/build-v2.ts";
-export { composeSnapshotV2 } from "./view/snapshot-v2.ts";
+} from "./domains/projection/contracts/parse-v2.ts";
+export { validateMemoryViewV2 } from "./domains/projection/index.ts";
+export { buildMemoryViewV2 } from "./domains/projection/index.ts";
+export { composeSnapshotV2 } from "./domains/projection/index.ts";
 export type {
 	ComposeSnapshotV2Input,
 	ContinuityPartV2,
 	MemoryPartV2,
-} from "./view/snapshot-v2.ts";
+} from "./domains/projection/index.ts";
 
 // ---- 全体設計（S0 で確定した family 契約。型・定数のみで実行ロジックは持たない）----
 export * from "./contracts/common.ts";
 export * from "./contracts/versions.ts";
-export * from "./contracts/records.ts";
-export * from "./contracts/recall.ts";
+export * from "./domains/records/contracts/index.ts";
+export * from "./domains/recall/contracts/index.ts";
 export * from "./contracts/view-v2.ts";
-export * from "./contracts/state.ts";
-export * from "./contracts/extraction.ts";
-export * from "./contracts/lifecycle.ts";
+export * from "./domains/state/contracts/index.ts";
+export * from "./domains/extraction/contracts/index.ts";
+export * from "./domains/lifecycle/contracts/index.ts";
 export * from "./contracts/external.ts";
 
 // ---- 純粋部品（S1〜S5）----
-export { sliceUtf8Range } from "./evidence/range.ts";
-export { verifyForgetJournal } from "./lifecycle/journal.ts";
+export { sliceUtf8Range } from "./domains/records/index.ts";
+export { verifyForgetJournal } from "./domains/lifecycle/index.ts";
 export {
 	candidateValue,
 	effectiveCandidateKind,
 	evaluateAdmission,
-} from "./state/admission.ts";
-export type { AdmissionCandidate, AdmissionInput } from "./state/admission.ts";
+} from "./domains/state/index.ts";
+export type {
+	AdmissionCandidate,
+	AdmissionInput,
+} from "./domains/state/index.ts";
 export {
 	checkEvidence,
 	evidenceOrdinalOf,
 	isQuotedSpan,
 	quoteMatches,
-} from "./state/evidence.ts";
-export { stateItemId } from "./state/ids.ts";
+} from "./domains/state/index.ts";
+export { stateItemId } from "./domains/state/index.ts";
 export {
 	applyStateTransition,
 	isSubjectKindConsistent,
-} from "./state/reducer.ts";
+} from "./domains/state/index.ts";
 export type {
 	StateItemIdentity,
 	StateTransitionRequest,
-} from "./state/reducer.ts";
-export { stateValueEquals } from "./state/value.ts";
-export { parseExtractionOutput } from "./extraction/candidate.ts";
-export type { ParsedExtractionOutput } from "./extraction/candidate.ts";
-export { candidateIdOf, runIdOf } from "./extraction/ids.ts";
-export { buildExtractionPromptMaterial } from "./extraction/prompt.ts";
+} from "./domains/state/index.ts";
+export { stateValueEquals } from "./domains/state/index.ts";
+export { parseExtractionOutput } from "./domains/extraction/index.ts";
+export type { ParsedExtractionOutput } from "./domains/extraction/index.ts";
+export { candidateIdOf, runIdOf } from "./domains/extraction/index.ts";
+export { buildExtractionPromptMaterial } from "./domains/extraction/index.ts";
+
+// ---- 時間と選択（evolution-proposal 段階2〜3の純粋部品）----
+export * from "./domains/temporal/index.ts";
+export * from "./domains/selection/index.ts";

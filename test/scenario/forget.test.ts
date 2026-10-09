@@ -17,11 +17,11 @@ import {
 	searchRecords,
 } from "eumenes-memory/sqlite";
 import type { ForgetJournalEntry, MemoryDb } from "eumenes-memory/sqlite";
-import { searchRecordsWithStrategy } from "../../src/store/recall.ts";
+import { searchRecordsWithStrategy } from "../../src/domains/recall/sqlite.ts";
 import {
 	buildJournalEntry,
 	isSelfConsistent,
-} from "../../src/lifecycle/journal.ts";
+} from "../../src/domains/lifecycle/index.ts";
 import { openTestStore } from "../support/store.ts";
 import type { TestStore } from "../support/store.ts";
 import {

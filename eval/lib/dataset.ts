@@ -152,7 +152,7 @@ function readGold(
 			"spans",
 			"valueHint",
 		],
-		["acceptable"],
+		["acceptable", "valueMeaning"],
 	);
 	const spans = value["spans"];
 	if (!Array.isArray(spans) || spans.length === 0 || spans.length > 4) {
@@ -167,9 +167,34 @@ function readGold(
 		spans: spans.map((span: unknown) => readSpan(id, span, sources)),
 		valueHint: readString(id, "valueHint", value["valueHint"]),
 	};
-	return Object.hasOwn(value, "acceptable")
+	const withAcceptable = Object.hasOwn(value, "acceptable")
 		? { ...candidate, acceptable: readAcceptable(id, value["acceptable"]) }
 		: candidate;
+	return Object.hasOwn(value, "valueMeaning")
+		? {
+				...withAcceptable,
+				valueMeaning: readValueMeaning(id, value["valueMeaning"]),
+			}
+		: withAcceptable;
+}
+
+function readTerms(id: string, label: string, value: unknown): string[] {
+	if (!Array.isArray(value) || value.length === 0) {
+		return fail(id, `${label} must be a non-empty array`);
+	}
+	return value.map((term: unknown) => readString(id, label, term));
+}
+
+function readValueMeaning(
+	id: string,
+	value: unknown,
+): NonNullable<GoldCandidate["valueMeaning"]> {
+	if (!isRecord(value)) return fail(id, "valueMeaning must be an object");
+	exactKeys(id, value, ["anyOf"], ["noneOf"]);
+	const anyOf = readTerms(id, "valueMeaning.anyOf", value["anyOf"]);
+	return Object.hasOwn(value, "noneOf")
+		? { anyOf, noneOf: readTerms(id, "valueMeaning.noneOf", value["noneOf"]) }
+		: { anyOf };
 }
 
 /** 1 ケースを厳密に検査して型付きで返す（不正なら例外）。 */

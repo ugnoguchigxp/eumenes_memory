@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkBoundaries } from "../scripts/boundaries.ts";
 import { extractSpecifiers } from "../scripts/public-surface.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -66,76 +67,24 @@ describe("src hygiene", () => {
 		}
 	});
 
-	test("dependency direction between layers (full-system-design §1.2)", () => {
-		// 層 -> import してよい層。store は全部品を使ってよい唯一の層。
-		const PURE_BASE = ["canonical", "contracts"];
-		const ALLOWED: Readonly<Record<string, readonly string[]>> = {
-			canonical: ["canonical"],
-			contracts: ["canonical", "contracts"],
-			evidence: [...PURE_BASE, "evidence"],
-			state: [...PURE_BASE, "evidence", "state"],
-			recall: [...PURE_BASE, "evidence", "recall"],
-			lifecycle: [...PURE_BASE, "evidence", "lifecycle"],
-			extraction: [
-				...PURE_BASE,
-				"evidence",
-				"state",
-				"recall",
-				"lifecycle",
-				"extraction",
-			],
-			view: [...PURE_BASE, "state", "view"],
-			validation: [...PURE_BASE, "view", "validation"],
-			store: [
-				...PURE_BASE,
-				"evidence",
-				"state",
-				"recall",
-				"lifecycle",
-				"extraction",
-				"store",
-			],
-		};
-		const layerOf = (name: string): string | undefined => {
-			const match = /^src\/([^/]+)\//.exec(name);
-			return match?.[1];
-		};
-		for (const file of FILES) {
-			const own = layerOf(file.name);
-			if (own === undefined) continue; // src/index.ts, src/sqlite.ts は別のテスト
-			expect(Object.keys(ALLOWED)).toContain(own);
-			for (const specifier of extractSpecifiers(file.text)) {
-				if (!specifier.startsWith(".")) continue;
-				const target = join(dirname(file.name), specifier);
-				const targetLayer = layerOf(target);
-				if (targetLayer === undefined) {
-					// src 直下のファイル（index.ts / sqlite.ts）への依存は禁止
-					expect({ file: file.name, target, ok: false }).toEqual({
-						file: file.name,
-						target,
-						ok: true,
-					});
-					continue;
-				}
-				expect({
-					file: file.name,
-					target,
-					ok: (ALLOWED[own] ?? []).includes(targetLayer),
-				}).toEqual({ file: file.name, target, ok: true });
-			}
-		}
+	test("domain boundaries and pure entry dependency graph", () => {
+		expect(checkBoundaries(ROOT)).toEqual([]);
 	});
 
-	test("public entry files: index.ts is pure, sqlite.ts only re-exports store and contracts", () => {
+	test("public entry files: index.ts is pure, sqlite.ts only re-exports domain persistence and contracts", () => {
 		const entry = (name: string) =>
 			FILES.find((file) => file.name === name)?.text ?? "";
 		const targets = (name: string) =>
 			extractSpecifiers(entry(name)).map((specifier) => join("src", specifier));
 		for (const target of targets("src/index.ts")) {
-			expect(target).not.toMatch(/^src\/(store\/|sqlite\.ts)/);
+			expect(target).not.toMatch(
+				/^src\/(infrastructure\/|sqlite\.ts)|\/sqlite\.ts$/,
+			);
 		}
 		for (const target of targets("src/sqlite.ts")) {
-			expect(target).toMatch(/^src\/(store|contracts)\//);
+			expect(target).toMatch(
+				/^src\/(infrastructure\/sqlite|contracts|domains\/[^/]+\/(sqlite\.ts|contracts\/))/,
+			);
 		}
 		expect(targets("src/sqlite.ts").length).toBeGreaterThan(5);
 	});
@@ -145,7 +94,10 @@ describe("src hygiene", () => {
 			text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 		const storeFiles = FILES.filter(
 			(file) =>
-				file.name.startsWith("src/store/") || file.name === "src/sqlite.ts",
+				file.name.startsWith("src/infrastructure/sqlite/") ||
+				file.name.includes("/repository/") ||
+				file.name.includes("/migrations/") ||
+				file.name.endsWith("/sqlite.ts"),
 		);
 		expect(storeFiles.length).toBeGreaterThan(8);
 		for (const file of storeFiles) {

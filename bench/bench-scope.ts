@@ -5,15 +5,15 @@
  * 使い捨ての `:memory:` DB に `captureRecord` で実際に投入し、`searchRecordsWithStrategy` を戦略指定で計測する。
  * 結果は標準出力に markdown で出す（`spec/bench-scope-results.md` に貼る）。時刻は performance.now（src ではないので可）。
  */
-import { captureRecord } from "../src/store/records.ts";
+import { captureRecord } from "../src/domains/records/sqlite.ts";
 import {
 	buildSearchQuery,
 	searchRecordsWithStrategy,
-} from "../src/store/recall.ts";
-import { parseQueryTerms } from "../src/recall/query.ts";
+} from "../src/domains/recall/sqlite.ts";
+import { parseQueryTerms } from "../src/domains/recall/index.ts";
 import { openTestStore } from "../test/support/store.ts";
 import type { TestStore } from "../test/support/store.ts";
-import type { RecallStrategy } from "../src/contracts/recall.ts";
+import type { RecallStrategy } from "../src/domains/recall/contracts/index.ts";
 
 const quick = process.argv.includes("--quick");
 const ITERATIONS = 30;

@@ -28,10 +28,15 @@
 | 外部接続: ExternalDependent（`registerExternalDependents` / `unregisterExternalDependents` / `recordExternalDeletion`） | S6 | ● | ● | ● | ● | — | — | 外部派生物 `(providerRef, externalId)` を node 種別 `external` で登録、forget の閉包に入ると `memory_forget_external` に `pending`。receipt は failed > pending > unverified > confirmed に集約。World 側の実体は別リポジトリ（未結合） |
 | Records（capture / read / range / sourceStates / deactivate） | S1 | ● | ● | ● | ● | — | — | fixture E01–E11、F03 復元シナリオ（古い DB + 最新ジャーナル）で read/search/view に出ない |
 | Recall（`searchRecords`） | S2 | ● | ● | ● | ● | — | — | fixture R01–R15、like/fts 同値 property、`LIKE_SCAN_MAX = 5000`（spec/bench-scope-results.md）。FTS5 は macOS システム SQLite でのみ確認 |
-| View v2（build / validate / parse / `composeSnapshotV2`） | S4 | ● | ● | ● | ● | — | — | `buildMemoryViewV2` / `validateMemoryViewV2` / parse（v1 の関数は無変更、`schemaVersion: 2` は従来どおり拒否）。fixture build-v2 114 件（v1 同一入力の v2 化 + 新 kind・subject・evidence・coverage.omitted・予算・出典検査）+ validate-v2 63 件、実 SQLite 結合（Records + State → 検索 → build → 忘却 → validate） |
-| State 台帳（明示操作、reducer、admission 規則表） | S3 | ● | ● | ● | ● | — | — | fixture S01–S20、admission 規則表（S3 の 47 件 + S5 で 59 件追加 = 106 件。§6.4(a) の全カテゴリ）。抽出由来の永続は S5 |
+| View v2（build / validate / parse / `composeSnapshotV2`） | S4 | ● | ● | ● | ● | ● | — | `buildMemoryViewV2` / `validateMemoryViewV2` / parse（v1 の関数は無変更、`schemaVersion: 2` は従来どおり拒否）。fixture build-v2 114 件（v1 同一入力の v2 化 + 新 kind・subject・evidence・coverage.omitted・予算・出典検査）+ validate-v2 63 件、実 SQLite 結合（Records + State → 検索 → build → 忘却 → validate）。Eumenes 結合: 対話の prepare で build、採用 transaction で validate（api/domains/dialogue/test/memory-integration） |
+| State 台帳（明示操作、reducer、admission 規則表） | S3 | ● | ● | ● | ● | ● | — | fixture S01–S20、admission 規則表（S3 の 47 件 + S5 で 59 件追加 = 106 件。§6.4(a) の全カテゴリ）。抽出由来の永続は S5。Eumenes 結合: 明示登録・停止・再開・訂正（retract）。抽出由来の永続は未結合 |
 | Extraction（prepare / settle / confirm、`ExtractorPort`） | S5 | ● | ● | ● | ● | — | — | fixture X01–X40、実 SQLite の結合試験（§8、§10）。意味精度は主張しない（E は未） |
-| Lifecycle / Forget（plan / apply / reconcile / receipt、外部削除） | S1→S6 | ● | ● | ● | ● | — | — | target は record / host_source / state_item / scope。閉包は candidate / state_item / run / input / shown / progress / external に届き、値を消す（§9）。物理消去は保証しない |
+| Lifecycle / Forget（plan / apply / reconcile / receipt、外部削除） | S1→S6 | ● | ● | ● | ● | ● | — | target は record / host_source / state_item / scope。閉包は candidate / state_item / run / input / shown / progress / external に届き、値を消す（§9）。物理消去は保証しない。Eumenes 結合: state_item の忘却を外部 journal（fsync）経由で適用、起動時 reconcile、古い DB 復元で再適用、journal 改ざんで Memory を使わない |
+| 時間判定（temporal: 精度つき期間、現在/過去/未来/時点不明、過去時点の照会） | 提案 段階2 | ● | ● | — | ● | ● | — | 成立期間の精度・根拠は State に永続（migration 0004、`assertUserState` の `validity`）。Eumenes 結合で期限切れ項目を現在の理解から除外 |
+| 選択（selection: 認可後のscope適用、必須/追加集合、矛盾解決、overflow/hold、取得状況フラグ） | 提案 段階2 | ● | ● | — | ● | — | — | `listStateScopes`（複数scopeと各scopeの版）→ `candidateFromStateItem` → `selectContext` を実 SQLite で結合（test/scenario/selection-state）。Eumenes の対話はまだ単一scopeの View v2 を使う |
+| 利用根拠の再検証・公開版の更新判定・Checkpoint検査 | 提案 段階3 | ● | ● | — | ● | — | — | 再検証は実 SQLite の scope 版で試験。公開版・Checkpoint は純粋のみ。Eumenes は現状 View v2 の `validateMemoryViewV2` で採用時に再検証 |
+| ユーザー停止の保護（由来に依らず cause_type=user の retract/deactivate を保護）、意味 key の辞書照合（`keyDictionary`） | 提案 段階2 | ● | ● | — | ● | — | — | 実 SQLite（state・extraction 試験）。辞書で確定できた key だけ正規化し、不明・曖昧は統合しない |
+| 抽出評価の値の意味採点（`valueMeaning`: anyOf/noneOf、`valueErrors`） | 提案 段階4 | ● | ● | — | — | — | — | 合成データの gold は valueHint 由来で `humanReviewed:false`。実モデル評価は未実施 |
 | World / Consolidation | — | — | — | — | — | — | — | **本体では作らない**（別ドメイン・別リポジトリ）。接続部は ExternalDependent と変更フィードだけ |
 
 ## 2. migration 凍結点
@@ -44,6 +49,7 @@
 | 0001 | 登録済み | foundation |
 | 0002 | 登録済み | records（S1+S2） |
 | 0003 | 登録済み | state（S3）+ extraction（S5: run / input / shown / candidate / candidate_evidence / source_progress と各 no_resurrection trigger。採用前なので同ファイルに追記） |
+| 0004 | 登録済み | state の成立期間の精度つき日付と根拠（追記。0001〜0003 の本文は不変）。Eumenes 結合では 0.2.0 の配布物から採用 |
 
 ## 3. S0 の検証記録
 
@@ -264,3 +270,16 @@ S0 での判断（設計書の細部を確定・補足したもの）:
 - `value.text` はモデルの任意の文字列で、evidence の quote とは検証上結ばれない（quote が出典の range と一致することしか検査しない）。意味の一致は規則では検出できず、E 段階（実モデル評価）の対象。
 - 抽出由来の item をユーザーが retract / deactivate した key は、再抽出で自動採用されうる（決定どおり user 由来の item だけを保護）。
 - `store/extraction.ts` の候補 evidence の `range` の ownValue 化は到達不能な防御（spans は常に range を持つ）のため、pollution テストでは検出されない。
+
+
+## 11. ドメイン移行と開発基盤（2026-10-09）
+
+改善案の段階0を実装した。Records / Recall / State / Extraction / Projection / Lifecycleが契約・純粋処理・同期SQL・テストを所有する。共通SQL基盤は `src/infrastructure/sqlite/`。現在の構造・依存規則は [ドメイン構造](../src/domains/README.md) を参照する。以前の節の `src/store/` などは移行前の記録。
+
+- TypeScript ASTとモジュール解決による境界検査を追加。別ドメインの内部参照、宣言外の依存、共有契約による迂回、循環、純粋入口からSQLへの依存、所有者のないソースを拒否する。alias・再export・動的import・型importを含む回帰テストで検証した。
+- Eumenesと同じoxfmt 0.71.0 / oxlint 1.86.0・共通設定を維持。`lint:fix`、`test:domain`、`verify --domain`、`verify:all` を追加した。引数なしのverifyも全体検証。
+- 検証ごとの対象・ソースハッシュ・実ツール版・各段階の結果・所要時間を `verification-reports/` に記録する。途中のソース変更で失敗することと、検証失敗時にも記録することをテストした。
+- パッケージ公開面の名前と既存3本の移行SQLは移動前と一致。既存fixtureの名前・内容も維持。移行SQLの登録漏れとSHA-256を継続検査する。
+- 全体verifyは1,478件のテストで成功。State指定verify、Extraction単独の `test:domain` も成功。既存の忘却・復元・再採用・出典失効のシナリオを含む。
+
+ホスト結合（H）と実モデル評価（E）の到達状態は変わらない。Eumenes本体のコード変更、時間評価・関連記憶の選択、公開Snapshotの更新は次段階。構造移行を機能改善の完了とは扱わない。

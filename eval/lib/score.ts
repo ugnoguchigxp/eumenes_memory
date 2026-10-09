@@ -12,6 +12,9 @@
  * - どの gold にも割り当てられない候補は `overExtracted`（過剰抽出）。ただし `tolerated` の範囲と重なるものは
  *   `tolerated` に数え、過剰にも誤採用にも数えない。gold と重なるが先に別の候補が割り当てられていたものは
  *   `duplicates`（`overExtracted` にも含む）。
+ * - 値の意味: gold が `valueMeaning` を持つとき、割り当てた候補の `value.text` を正規化（NFKC・小文字）して
+ *   `anyOf` のどれかを含み `noneOf` のどれも含まないかを採点する（`valueScored` / `valueErrors`）。外れた候補は
+ *   属性が全部合っていても `fullMatch` にならず、採用されていれば `falseAdmissions` に数える。
  * - `falseAdmissions`: Admission が `admitted` にした候補のうち、属性がすべて正しく gold に割り当てられていないもの
  *   （tolerated を除く）。評価では全 self kind を `auto_admit` にした最悪ケースの方針で settle する。
  */
@@ -162,6 +165,22 @@ function attributeOk(
 	}
 }
 
+function normalizeText(text: string): string {
+	return text.normalize("NFKC").toLowerCase();
+}
+
+/** 値の意味が正解か（gold が `valueMeaning` を持つときだけ採点する）。 */
+function valueOk(
+	gold: GoldCandidate,
+	candidate: ExtractionOutputCandidate,
+): boolean | null {
+	const meaning = gold.valueMeaning;
+	if (meaning === undefined) return null;
+	const text = normalizeText(candidate.value.text);
+	const has = (term: string) => text.includes(normalizeText(term));
+	return meaning.anyOf.some(has) && !(meaning.noneOf ?? []).some(has);
+}
+
 function attributeErrors(
 	gold: GoldCandidate,
 	candidate: ExtractionOutputCandidate,
@@ -244,7 +263,9 @@ export function scoreCase(evalCase: EvalCase, run: CaseRun): CaseScore {
 			const shared = overlapBetween(entry.spans, goldSpans);
 			if (shared === 0) continue;
 			const score =
-				ATTRIBUTES.length - attributeErrors(expected, entry.candidate).length;
+				ATTRIBUTES.length -
+				attributeErrors(expected, entry.candidate).length +
+				(valueOk(expected, entry.candidate) === false ? 0 : 1);
 			if (
 				best === null ||
 				score > best.score ||
@@ -265,7 +286,13 @@ export function scoreCase(evalCase: EvalCase, run: CaseRun): CaseScore {
 			bump(counts, ERROR_KEY[attribute]);
 			flags.push(`${attribute}:${goldIndex}`);
 		}
-		if (errors.length === 0) {
+		const meaning = valueOk(expected, best.emitted.candidate);
+		if (meaning !== null) bump(counts, "valueScored");
+		if (meaning === false) {
+			bump(counts, "valueErrors");
+			flags.push(`value:${goldIndex}`);
+		}
+		if (errors.length === 0 && meaning !== false) {
 			bump(counts, "fullMatch");
 			fullMatches.add(best.emitted.index);
 		}
@@ -318,6 +345,7 @@ export function toMetrics(counts: Counts): Metrics {
 		),
 		noChangeAccuracy: ratio(counts.noChangeCorrect, counts.noChangeCases),
 		falseAdmissionRate: ratio(counts.falseAdmissions, counts.admitted),
+		valueErrorRate: ratio(counts.valueErrors, counts.valueScored),
 	};
 	return { ...counts, ...rates };
 }

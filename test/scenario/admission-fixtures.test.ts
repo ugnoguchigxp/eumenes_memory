@@ -2,7 +2,7 @@
 import {
 	effectiveCandidateKind,
 	evaluateAdmission,
-} from "../../src/state/admission.ts";
+} from "../../src/domains/state/index.ts";
 import { describeAdmissionFixtures } from "../runners/admission-fixture-runner.ts";
 
 describeAdmissionFixtures({ evaluateAdmission, effectiveCandidateKind });

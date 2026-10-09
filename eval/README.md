@@ -120,6 +120,7 @@ bun test eval/test
 - `noChangeAccuracy`: 期待が noChange のケースで、結果が applied かつ候補 0 件の割合。
 - **`falseAdmissions`（誤採用）**: 評価は全 self kind を `auto_admit` にした最悪ケースの方針で settle する（`other_person_note` は `user_confirm`）。
   Admission が `admitted` にした候補のうち、gold に属性がすべて正しく割り当てられていないもの（tolerated を除く）。`falseAdmissionRate` = それ / admitted。
+- **値の意味**（oracle は valueHint をそのまま返すので、oracle が誤り 0 になるのは採点経路の自己検査にすぎず、実モデルの意味精度の根拠にならない。動詞の項目は語幹も許容する。`noneOf` も部分一致なので、正しい値が別の対象に言及すると誤りに数える限界がある）: gold が `valueMeaning`（`anyOf` / `noneOf`）を持つとき、割り当てた候補の `value.text`（NFKC・小文字に正規化）が `anyOf` のどれかを含み `noneOf` のどれも含まないかを採点する。`valueScored` / `valueErrors` / `valueErrorRate`。外れた候補は属性が合っていても `fullMatch` にならず、採用されていれば誤採用に数える。現在の gold は valueHint 由来で人手未確認。
   本体は既定で自動採用しない。これは「auto_admit を有効にした場合に何が入るか」を測る指標で、設計書 §6.4(b) の最重要指標（誤採用率）に対応する。
 - `candidateRecall` = matched / goldCandidates（`acceptNoChange` で候補を出さなかったケースの gold は除く）、`fullMatchRate`、`overExtractionRate` = overExtracted / 出した候補数。分母 0 の比率は null。
 - `adapterFailures`（例外・タイムアウト）、`rejectedOutputs`（settle が `rejected_output`）はそのケースの gold を見逃しに数える。

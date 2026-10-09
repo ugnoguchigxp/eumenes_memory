@@ -144,6 +144,48 @@ describe("echo-noop baseline", () => {
 });
 
 describe("metrics notice injected mistakes", () => {
+	test("a wrong value with correct quote and attributes is a value error and a false admission (oracle scores 0)", async () => {
+		const clean = await run(oracle);
+		expect(clean.overall.worst.valueScored).toBeGreaterThan(50);
+		expect(clean.overall.worst.valueErrors).toBe(0);
+		expect(clean.overall.worst.valueErrorRate).toBe(0);
+
+		const report = await run(
+			derived("wrong-value", (output) => ({
+				...output,
+				candidates: output.candidates.map((candidate) => ({
+					...candidate,
+					value: { ...candidate.value, text: "まったく別のもの" },
+				})),
+			})),
+		);
+		const worst = report.overall.worst;
+		expect(worst.valueErrors).toBe(worst.valueScored);
+		expect(worst.polarityErrors).toBe(0);
+		expect(worst.kindErrors).toBe(0);
+		expect(worst.fullMatch).toBe(0);
+		expect(worst.falseAdmissions).toBeGreaterThan(10);
+	});
+
+	test("swapping the targets of two candidates in one case is caught by noneOf", async () => {
+		const report = await run(
+			derived("swap-targets", (output) => {
+				const texts = output.candidates.map((c) => c.value.text);
+				return {
+					...output,
+					candidates: output.candidates.map((candidate, index) => ({
+						...candidate,
+						value: {
+							...candidate.value,
+							text: texts[(index + 1) % texts.length] ?? candidate.value.text,
+						},
+					})),
+				};
+			}),
+		);
+		expect(report.overall.worst.valueErrors).toBeGreaterThan(0);
+	});
+
 	test("flipping polarity is counted as polarity errors and, when admitted, as false admissions", async () => {
 		const report = await run(
 			derived("flip-polarity", (output) => ({

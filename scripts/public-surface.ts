@@ -28,7 +28,7 @@ const ALLOWED_SUPPORT_SPECIFIERS = new Set([
 /** from "x" / import "x" / import("x") / require("x") の指定子を取り出す。 */
 export function extractSpecifiers(source: string): string[] {
 	const patterns = [
-		/\bfrom\s*["']([^"']+)["']/g,
+		/(?<![\w"'`])from\s*["']([^"']+)["']/g,
 		/\bimport\s*["']([^"']+)["']/g,
 		/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
 		/\brequire\s*\(\s*["']([^"']+)["']\s*\)/g,

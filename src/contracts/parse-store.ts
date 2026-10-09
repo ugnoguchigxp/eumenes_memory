@@ -1,6 +1,6 @@
 /**
  * 永続 API の入力 parse に共通の部品と、S0 で実装する `listMemoryChanges` の入力 parse。
- * 各 family の parse は担当スライスが自分のファイル（例 `src/store/records-input.ts`）に書き、
+ * 各 family の parse は所有ドメインが自分のファイル（例 `src/domains/records/service/parse.ts`）に書き、
  * ここの部品を使う。違反は MemoryContractError（code と path のみ）。
  */
 import { deepFreeze } from "../canonical/freeze.ts";

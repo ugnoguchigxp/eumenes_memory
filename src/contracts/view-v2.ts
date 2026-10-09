@@ -1,5 +1,5 @@
 /**
- * View v2（schemaVersion 2）の契約（full-system-design §3.4）。実装は S4（`src/view` / `src/validation`）。
+ * View v2（schemaVersion 2）の契約（full-system-design §3.4）。実装は S4（`src/domains/projection/`）。
  *
  * - schemaVersion 1 の型・挙動は一切変えない（`types.ts` が正本）。v2 は別の型・別の関数として並べる:
  *   `buildMemoryViewV2` / `validateMemoryViewV2` / `parseBuildMemoryViewInputV2` / `parseValidationCurrentV2` /
@@ -31,7 +31,7 @@ import type {
 	SourceRef,
 	SourceState,
 } from "./types.ts";
-import type { RecallHit } from "./recall.ts";
+import type { RecallHit } from "../domains/recall/contracts/index.ts";
 import type { Subject } from "./common.ts";
 import { BUILD_REASON_CODES, VALIDATION_REASON_CODES } from "./reason-codes.ts";
 import type {

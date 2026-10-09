@@ -19,15 +19,21 @@ M0 に続く全体（永続層、Records / Recall、State 台帳、View v2、Ext
 
 ```sh
 bun install          # 依存取得（bun.lock を使用。実行時依存はゼロ）
-bun run verify       # format → lint → typecheck → Eumenes 互換 typecheck → eval typecheck → test → public-surface
+bun run verify       # 全体検証（format / lint / 境界 / 型 / test / 公開面）
+bun run verify:all   # 明示的な全体検証
+bun run verify -- --domain state  # Stateと依存先・共有基盤の検証
+bun run test:domain -- state      # Stateが所有するテスト
+bun run lint:fix     # 自動修正（verifyではソースを変更しない）
 ```
+
+内部はRecords / Recall / State / Extraction / Projection / Lifecycleのドメイン構造。所有範囲と依存規則は [ドメイン構造](src/domains/README.md)、改善の次段階は [発展案](spec/eumenes-memory-evolution-proposal.md)。oxfmt / oxlintの版と共通設定は隣接Eumenesに合わせ、React向けの設定はこのライブラリに持ち込まない。検証記録は `verification-reports/` に保存する。
 
 ## 公開面
 
 | import | 内容 |
 |---|---|
 | `eumenes-memory` | 純粋 API（M0 の view 構成・再検証）と、全 family の型・定数・reasonCode・上限（`CONTRACT_VERSIONS`、`LIMITS_*` など） |
-| `eumenes-memory/sqlite` | 永続 API。ホストが渡す `MemoryDb`（bun:sqlite の `Database` が構造的に満たす）に対する同期関数と `migrations`。`bun:sqlite` は import しない。records / recall / state / extraction / lifecycle（忘却・ジャーナル・外部派生物の登録）の同期関数と `assertMemorySchema` / `migrations` / `listMemoryChanges` / `MemoryStoreError`。起動手順と規則は [src/store/README.md](src/store/README.md) |
+| `eumenes-memory/sqlite` | 永続 API。ホストが渡す `MemoryDb`（bun:sqlite の `Database` が構造的に満たす）に対する同期関数と `migrations`。`bun:sqlite` は import しない。records / recall / state / extraction / lifecycle（忘却・ジャーナル・外部派生物の登録）の同期関数と `assertMemorySchema` / `migrations` / `listMemoryChanges` / `MemoryStoreError`。起動手順と規則は [src/infrastructure/sqlite/README.md](src/infrastructure/sqlite/README.md) |
 
 ## Eumenes からの利用例
 
