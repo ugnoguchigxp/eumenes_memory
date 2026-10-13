@@ -37,7 +37,7 @@ import { sourceKey } from "../../../contracts/source-key.ts";
 import {
 	LIMITS_STATE,
 	STATE_KINDS,
-	USER_STATE_ORIGINS,
+	HOST_STATE_ORIGINS,
 } from "../contracts/index.ts";
 import type {
 	AssertUserStateInput,
@@ -46,6 +46,7 @@ import type {
 	ListStateInput,
 	ListStateScopesInput,
 	ReadMemorySnapshotPartInput,
+	ReadStateFactInput,
 	StateTargetInput,
 	StateValue,
 } from "../contracts/index.ts";
@@ -239,7 +240,7 @@ function readOrigin(record: Rec, path: string) {
 	return readEnum(
 		requiredField(record, path, "origin"),
 		keyPath(path, "origin"),
-		USER_STATE_ORIGINS,
+		HOST_STATE_ORIGINS,
 	);
 }
 
@@ -543,6 +544,20 @@ export function parseReadSnapshotPartInput(
 	const record = readRecord(value, path);
 	checkKeys(record, path, SCOPED_READ_KEYS);
 	return deepFreeze(readScopedHeader(record, path));
+}
+
+export function parseReadStateFactInput(value: unknown): ReadStateFactInput {
+	const path = "$";
+	const record = readRecord(value, path);
+	checkKeys(record, path, [...SCOPED_READ_KEYS, "itemId"]);
+	return deepFreeze({
+		...readScopedHeader(record, path),
+		itemId: readIdentifier(
+			requiredField(record, path, "itemId"),
+			keyPath(path, "itemId"),
+			LIMITS.maxItemIdBytes,
+		),
+	});
 }
 
 export function parseListStateScopesInput(

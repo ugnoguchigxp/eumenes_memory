@@ -138,6 +138,18 @@ export type MemoryChangeDraft = Omit<MemoryChange, "seq"> & {
 	readonly principal: string;
 };
 
+export interface LatestMemoryChangeSeqInput {
+	readonly contractVersion: ContractVersion;
+	readonly access: AccessContext;
+	/** `access.scopeKeys` の部分集合でなければ `blocked`。 */
+	readonly scopeKeys: readonly string[];
+}
+
+/** `seq` = 指定 scope で可視な変更の最大 seq（変更がなければ 0）。`listMemoryChanges` の `afterSeq` にそのまま渡せる。 */
+export type LatestMemoryChangeSeqResult =
+	| { readonly status: "ok"; readonly seq: number }
+	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
+
 export interface ListMemoryChangesInput {
 	readonly contractVersion: ContractVersion;
 	readonly access: AccessContext;

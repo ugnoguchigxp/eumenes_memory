@@ -1,5 +1,7 @@
 # 検証状況（機能 × 到達段階）
 
+> **パス表記について**: 本書の `src/store/*`、`src/state/*`、`src/recall/*`、`src/lifecycle/*`、`src/evidence/*` は設計・実装時点の旧構造。現在は共通基盤が `src/infrastructure/sqlite/`、各機能が `src/domains/<domain>/{contracts,service,repository,test}/` にある（[ドメイン構造](../src/domains/README.md)）。記録は当時のまま残す。
+
 2026-10-08 / 所有: 親担当（各スライス完了時に更新）。設計の正本は [full-system-design.md](full-system-design.md)、
 ユーザー決定による範囲変更（World / Consolidation は別ドメイン・別リポジトリ、Rust spike なし）は §6 に記録する。
 
@@ -35,6 +37,8 @@
 | 時間判定（temporal: 精度つき期間、現在/過去/未来/時点不明、過去時点の照会） | 提案 段階2 | ● | ● | — | ● | ● | — | 成立期間の精度・根拠は State に永続（migration 0004、`assertUserState` の `validity`）。Eumenes 結合で期限切れ項目を現在の理解から除外 |
 | 選択（selection: 認可後のscope適用、必須/追加集合、矛盾解決、overflow/hold、取得状況フラグ） | 提案 段階2 | ● | ● | — | ● | — | — | `listStateScopes`（複数scopeと各scopeの版）→ `candidateFromStateItem` → `selectContext` を実 SQLite で結合（test/scenario/selection-state）。Eumenes の対話はまだ単一scopeの View v2 を使う |
 | 利用根拠の再検証・公開版の更新判定・Checkpoint検査 | 提案 段階3 | ● | ● | — | ● | — | — | 再検証は実 SQLite の scope 版で試験。公開版・Checkpoint は純粋のみ。Eumenes は現状 View v2 の `validateMemoryViewV2` で採用時に再検証 |
+| ホスト向けの読み取り（`latestMemoryChangeSeq`: scope で可視な変更の最大 seq、`readStateFact`: item と同じ事実の forgotten・墓標を除く全版の ID） | 0.3.7 | ● | ● | — | ● | — | — | 実 SQLite（principal・scope の分離、ブロック、forgotten・墓標の除外、`listState` の上限に依存しない）。Eumenes が内部の表を直接 SQL で読んでいた箇所の置き換え用 |
+| State の origin `agent_inferred`（ホストのエージェントが依頼なしに推定。`assertUserState` / `editState` が受理） | 0.3.7 | ● | ● | — | ● | — | — | migration 0007。ユーザー由来の保護は受けない: 抽出由来は根拠順位で置き換え（Admission 13 の対象外）、`user_confirmed` / `user_edited` は `replaces` / `editState` で置き換え、同値なら origin を昇格（reducer・実 SQLite・Admission）。停止（retract / deactivate）の保護は origin ではなく操作（cause_type=user）に効く。view v2 の item origin にも追加（`ITEM_ORIGINS_V2` の末尾。契約版は変更しない） |
 | ユーザー停止の保護（由来に依らず cause_type=user の retract/deactivate を保護）、意味 key の辞書照合（`keyDictionary`） | 提案 段階2 | ● | ● | — | ● | — | — | 実 SQLite（state・extraction 試験）。辞書で確定できた key だけ正規化し、不明・曖昧は統合しない |
 | 抽出評価の値の意味採点（`valueMeaning`: anyOf/noneOf、`valueErrors`） | 提案 段階4 | ● | ● | — | — | — | — | 合成データの gold は valueHint 由来で `humanReviewed:false`。実モデル評価は未実施 |
 | World / Consolidation | — | — | — | — | — | — | — | **本体では作らない**（別ドメイン・別リポジトリ）。接続部は ExternalDependent と変更フィードだけ |
@@ -50,6 +54,9 @@
 | 0002 | 登録済み | records（S1+S2） |
 | 0003 | 登録済み | state（S3）+ extraction（S5: run / input / shown / candidate / candidate_evidence / source_progress と各 no_resurrection trigger。採用前なので同ファイルに追記） |
 | 0004 | 登録済み | state の成立期間の精度つき日付と根拠（追記。0001〜0003 の本文は不変）。Eumenes 結合では 0.2.0 の配布物から採用 |
+| 0005 | 登録済み | records の再生成可能な資料の保持（`memory_record_retention`: 鮮度期限・未使用期限・採用 revision。retention v1） |
+| 0006 | 登録済み | 忘却した資料の retention metadata を除去する（既存行の削除と、`status='forgotten'` への更新で消す trigger） |
+| 0007 | 登録済み（0.3.7） | state の origin に `agent_inferred` を加える（CHECK の変更のため state 表4つを作り直し。行は不変。`foreign_keys=ON` の transaction 内で適用して行・外部キー・index・trigger の保存を試験） |
 
 ## 3. S0 の検証記録
 

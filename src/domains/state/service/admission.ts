@@ -15,7 +15,8 @@
  * 11 NOT_USER_SOURCE            根拠の出典のどれかの role が user でない → pending_user
  * 12 OLDER_EVIDENCE             同 key の active と値が違い、根拠の順位が古い、または同 key の disputed の最新より古い → rejected
  * 13 （確認済み項目の保護）     同 key の active が user_confirmed / user_edited で値が違う → pending_user
- *                               （reasonCode は POLICY_REQUIRES_USER。抽出由来は確認済みの項目を黙って上書きしない）
+ *                               （reasonCode は POLICY_REQUIRES_USER。抽出由来は確認済みの項目を黙って上書きしない。
+ *                               agent_inferred の active は対象外で、通常の根拠順位の規則で置き換わる）
  * 13b（dispute の継続）         同 key に disputed の item が残り（active なし、または active と値が違う）、根拠が disputed の最新以上
  *                               → pending_user（POLICY_REQUIRES_USER。dispute を自動で解消しない）
  * 13c（ユーザーが消したもの）   同 key で user_confirmed / user_edited の item を retract / deactivate 済み（active なし、

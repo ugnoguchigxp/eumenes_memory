@@ -1,15 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import * as sqlite from "../../src/sqlite.ts";
 
-/** 実装済みの公開関数。これら以外の関数は S0 時点では最終シグネチャの stub。 */
-const IMPLEMENTED = new Set([
+/** 不正入力の検査では扱わない公開関数（接続の検査と変更フィードの読み取り）。 */
+const OTHER_EXPORTS = new Set([
 	"assertMemorySchema",
 	"isMemoryStoreError",
 	"listMemoryChanges",
 ]);
 
-const STUBS = [
+/** 公開の永続操作と migration 検査。不正な入力では成功を返さず例外を投げる。 */
+const PERSISTENCE_OPERATIONS = [
 	"captureRecord",
+	"checkHostMigrations",
 	"readRecord",
 	"readRecordRange",
 	"recordSourceStates",
@@ -23,6 +25,8 @@ const STUBS = [
 	"retractState",
 	"listState",
 	"listStateScopes",
+	"readStateFact",
+	"latestMemoryChangeSeq",
 	"readMemorySnapshotPart",
 	"prepareExtraction",
 	"settleExtraction",
@@ -35,6 +39,11 @@ const STUBS = [
 	"getForgetReceipt",
 	"registerExternalDependents",
 	"unregisterExternalDependents",
+	"retainRecord",
+	"readRetainedRecord",
+	"useRetainedRecord",
+	"retainedRecordStats",
+	"evictRetainedRecords",
 ] as const;
 
 describe("./sqlite public surface", () => {
@@ -44,21 +53,21 @@ describe("./sqlite public surface", () => {
 				"MEMORY_DB_SCHEMA_VERSION",
 				"MemoryStoreError",
 				"STORE_ERROR_CODES",
-				...IMPLEMENTED,
-				...STUBS,
+				...OTHER_EXPORTS,
+				...PERSISTENCE_OPERATIONS,
 				"migrations",
 			].sort(),
 		);
 	});
 
-	test.each([...STUBS])(
+	test.each([...PERSISTENCE_OPERATIONS])(
 		"%s throws on garbage input and never returns a success",
 		(name) => {
 			const fn = (
 				sqlite as unknown as Record<string, (...args: unknown[]) => unknown>
 			)[name];
 			expect(typeof fn).toBe("function");
-			// S0 の stub は NOT_IMPLEMENTED、実装後は入力検査の例外。どちらでも「成功を返さない」。
+			// 空の db と入力は、入力検査の例外になる（成功を返さない）。
 			expect(() => fn?.({}, {})).toThrow();
 		},
 	);

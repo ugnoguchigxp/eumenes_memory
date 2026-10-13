@@ -1,5 +1,7 @@
 # MemorySystem 全体設計（M2–M4 + Lifecycle）
 
+> **パス表記について**: 本書の `src/store/*`、`src/state/*`、`src/recall/*`、`src/lifecycle/*`、`src/evidence/*` は設計・実装時点の旧構造。現在は共通基盤が `src/infrastructure/sqlite/`、各機能が `src/domains/<domain>/{contracts,service,repository,test}/` にある（[ドメイン構造](../src/domains/README.md)）。記録は当時のまま残す。
+
 2026-10-08 / 設計のみ（コード未作成）。対象リポジトリ: `/Users/y.noguchi/Code/eumenes_memory`（M0 実装・検証済み、未コミット）。
 
 **方針転換（ユーザー決定 2026-10-08）**: [implementation-plan.md](implementation-plan.md) §3「M0 のみ実装、後続はロードマップ」と §8「M0 のみ実装し…」を本書で置き換える。MemorySystem 全体（Records / Recall / State・Extraction / World / Consolidation / Lifecycle・忘却）を**最初から実装対象**とし、各機能の**検証段階を少しずつ上げる**。plan の他の節（所有責任 §2、M1 接続 §4、SAAA 継承 §6、パッケージ境界 §7）と [persistence-design.md](persistence-design.md) は引き続き有効で、本書はそれらを具体化する。既存 spec は編集しない（plan §3/§8 の置き換えは本書冒頭の宣言による）。
@@ -203,7 +205,7 @@ index: `(principal, scope_key, status)` on record、`(record_id)` on body。
 
 | 表 | 主な列 |
 |---|---|
-| `memory_state_item` | item_id PK, principal, scope_key, subject(`self` / `other:<opaque>`), kind, semantic_key, status(`active`/`inactive`/`superseded`/`disputed`/`retracted`/`invalidated`/`forgotten`), revision INT, value_json（forgotten で NULL）, polarity, origin(`user_confirmed`/`user_edited`/`admitted_extraction`), valid_from_ms, valid_until_ms, created_seq, updated_seq |
+| `memory_state_item` | item_id PK, principal, scope_key, subject(`self` / `other:<opaque>`), kind, semantic_key, status(`active`/`inactive`/`superseded`/`disputed`/`retracted`/`invalidated`/`forgotten`), revision INT, value_json（forgotten で NULL）, polarity, origin(`user_confirmed`/`user_edited`/`admitted_extraction`/`agent_inferred`), valid_from_ms, valid_until_ms, created_seq, updated_seq |
 | `memory_state_event` | event_seq PK, item_id, action(`assert`/`activate`/`edit`/`supersede`/`dispute`/`retract`/`deactivate`/`reactivate`/`invalidate`/`forget`), from_revision, to_revision, cause_type(`user`/`candidate`/`lifecycle`), cause_id, at_ms | 追記専用。forget で payload 列を消し action と seq だけ残す |
 | `memory_extraction_run` | run_id PK（= ホストの `jobId:attempt`）, principal, scope_key, stage(`prepared`/`settled`/`stale`/`rejected_output`), input_digest, extractor_profile, provider_ref, prepared_seq, settled_seq, outcome_code |
 | `memory_extraction_input` | run_id, source_key, revision, digest, PK(run_id, source_key) |
@@ -331,7 +333,7 @@ interface RecallHit {
 type StateKind = "preference" | "personal_fact" | "constraint" | "habit" | "other_person_note";
 interface StateValue { readonly text: string; readonly polarity: Polarity; readonly attributes?: Readonly<Record<string, string>> }
 // 明示操作（モデルなし）
-assertUserState(db, { contractVersion: 1; access; scopeKey; clock; kind; semanticKey; value: StateValue; evidence: EvidenceSpan[]; origin: "user_confirmed" | "user_edited"; replaces?: { itemId; revision } })
+assertUserState(db, { contractVersion: 1; access; scopeKey; clock; kind; semanticKey; value: StateValue; evidence: EvidenceSpan[]; origin: "user_confirmed" | "user_edited" | "agent_inferred"; replaces?: { itemId; revision } })
 editState / deactivateState / reactivateState / retractState(db, { …; itemId; expectedRevision })
 listState(db, { access; scopeKey; kinds?; includeInactive?: boolean })
 ```

@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import type { MemoryStoreError } from "../errors.ts";
-import { checkSchemaAgainst, assertMemorySchema } from "../schema-check.ts";
+import {
+	assertMemorySchema,
+	checkHostMigrations,
+	checkSchemaAgainst,
+} from "../schema-check.ts";
 import {
 	composeMigration,
 	MEMORY_DB_SCHEMA_VERSION,
@@ -30,6 +34,41 @@ function codeOf(operation: () => unknown): string | undefined {
 	}
 	return undefined;
 }
+
+describe("checkHostMigrations", () => {
+	const memory = MIGRATION_BODIES.map((body, index) =>
+		composeMigration(index + 1, body),
+	);
+
+	test("accepts the memory migrations appended after host migrations, in order", () => {
+		expect(checkHostMigrations(memory)).toEqual([]);
+		expect(checkHostMigrations(["CREATE TABLE host(a);", ...memory])).toEqual(
+			[],
+		);
+		const interleaved = memory.flatMap((sql, i) => [
+			`CREATE TABLE h${i}(a);`,
+			sql,
+		]);
+		expect(checkHostMigrations(interleaved)).toEqual([]);
+	});
+
+	test("reports missing, duplicated, reordered and edited migrations", () => {
+		expect(checkHostMigrations([])).toHaveLength(memory.length);
+		expect(checkHostMigrations([...memory, memory[0] as string])).toEqual([
+			"memory migration 0001 appears 2 times",
+		]);
+		const swapped = [...memory];
+		[swapped[1], swapped[2]] = [swapped[2] as string, swapped[1] as string];
+		expect(checkHostMigrations(swapped)).toEqual([
+			"memory migration 0003 is out of order",
+		]);
+		const edited = [...memory];
+		edited[0] = `${edited[0]}\n-- edited`;
+		expect(checkHostMigrations(edited)).toEqual([
+			"memory migration 0001 is missing",
+		]);
+	});
+});
 
 describe("assertMemorySchema", () => {
 	test("accepts a freshly migrated database and records version and hashes", () => {

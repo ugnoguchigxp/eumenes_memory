@@ -14,8 +14,8 @@
  * - 依存の forget / invalidate は閉包で確定書き込みする（reducer を通さない）: reducer.rs:503-571 の意図。
  *
  * 本設計独自（SAAA に無い）: CAS（expectedRevision）、subject（self / other:*）と kind の同値検査、
- * 明示操作（user_confirmed / user_edited）が新旧比較を受けないこと、根拠の新旧が同じで値が違うときの dispute、
- * deactivate / reactivate（可逆）、同値の明示確認による origin の昇格（抽出由来 → user 由来。降格はしない）、
+ * 明示操作（user_confirmed / user_edited / agent_inferred）が新旧比較を受けないこと、根拠の新旧が同じで値が違うときの dispute、
+ * deactivate / reactivate（可逆）、同値の明示確認による origin の昇格（抽出由来・推定由来 → user 由来。降格はしない）、
  * 同 key の履歴（`StateKeyHistory`）の扱い: disputed の item より古い根拠は `OLDER_EVIDENCE`、同順位以上でも
  * dispute を黙って解消せず disputed のまま加わる、ユーザー由来 item を retract / deactivate した key へは
  * 抽出由来を書かない（`INVALID_TRANSITION`。Admission は先に `pending_user` にする）。
@@ -39,7 +39,7 @@ import type {
 	StateValue,
 	StateReasonCode,
 } from "../contracts/index.ts";
-import { USER_STATE_ORIGINS } from "../contracts/index.ts";
+import { HOST_STATE_ORIGINS, USER_STATE_ORIGINS } from "../contracts/index.ts";
 import { ownValue } from "../../../contracts/own.ts";
 import { stateValueEquals } from "./value.ts";
 
@@ -86,11 +86,16 @@ const UNCHANGED: StateTransitionResult = Object.freeze({
 	events: Object.freeze([]),
 });
 
+/** ホストの明示書き込み（`user_confirmed` / `user_edited` / `agent_inferred`）。新旧比較を受けず、CAS だけで決まる。 */
 function isExplicitOrigin(origin: StateOrigin | undefined): boolean {
 	return (
 		origin !== undefined &&
-		(USER_STATE_ORIGINS as readonly string[]).includes(origin)
+		(HOST_STATE_ORIGINS as readonly string[]).includes(origin)
 	);
+}
+
+function isUserOrigin(origin: StateOrigin): boolean {
+	return (USER_STATE_ORIGINS as readonly string[]).includes(origin);
 }
 
 function event(
@@ -239,8 +244,9 @@ function disputeWith(
 }
 
 /**
- * 同値の明示確認: active が抽出由来で、明示操作が同じ値を書いたとき、値は変えず origin だけを user 由来へ上げる
- * （revision +1、event は `edit`）。user 由来の item は変えない（降格しない）。昇格しないなら null。
+ * 同値の明示確認: active が抽出由来または推定由来（`agent_inferred`）で、ユーザーの明示操作が同じ値を書いたとき、
+ * 値は変えず origin だけを user 由来へ上げる（revision +1、event は `edit`）。user 由来の item は変えない（降格しない）。
+ * 同値の `agent_inferred` 書き込みは origin を変えない。昇格しないなら null。
  */
 function promoteOrigin(
 	current: StateItemView,
@@ -248,7 +254,11 @@ function promoteOrigin(
 	cause: StateCause,
 	atMs: number,
 ): StateTransitionResult | null {
-	if (current.origin !== "admitted_extraction" || !isExplicitOrigin(origin)) {
+	if (
+		(current.origin !== "admitted_extraction" &&
+			current.origin !== "agent_inferred") ||
+		!isUserOrigin(origin)
+	) {
 		return null;
 	}
 	return {
@@ -509,7 +519,7 @@ function applyEdit(
  *
  * - `assert`: `current` と `expectedRevision` は null、`identity` / `value` / `origin` / `evidenceOrdinal` が必須。
  *   active が無ければ新規 active（抽出由来で同 key に disputed が残るときは `context.keyHistory` の規則）。ある場合、
- *   同値は冪等（ただし抽出由来の active に明示操作が同値を書けば origin を昇格）、明示操作は ACTIVE_EXISTS、
+ *   同値は冪等（ただし抽出由来・推定由来の active にユーザーの明示操作が同値を書けば origin を昇格）、明示操作は ACTIVE_EXISTS、
  *   抽出由来は根拠の新旧で supersede / OLDER_EVIDENCE / dispute。
  * - `supersede`: current（active）を CAS で置き換える。同じ新旧規則（抽出由来のみ）。
  * - `edit`: active / inactive / disputed の値を変える。status は変わらない（同値でも抽出由来なら origin を昇格）。

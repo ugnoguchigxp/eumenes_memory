@@ -36,6 +36,8 @@ import type {
 	ListStateScopesInput,
 	ListStateScopesResult,
 	ReadMemorySnapshotPartInput,
+	ReadStateFactInput,
+	ReadStateFactResult,
 	ReadMemorySnapshotPartResult,
 	StateCause,
 	StateEventDraft,
@@ -77,6 +79,7 @@ import {
 	parseListStateInput,
 	parseListStateScopesInput,
 	parseReadSnapshotPartInput,
+	parseReadStateFactInput,
 	parseStateTargetInput,
 } from "../service/parse.ts";
 import {
@@ -1252,6 +1255,39 @@ export function listState(
 	return {
 		status: "ok",
 		items: hydrate(db, parsed.scopeKey, rows),
+	};
+}
+
+/** item と同じ事実（同 subject・kind・semanticKey）の、forgotten・墓標つきを除く全版の ID を古い順に返す。 */
+export function readStateFact(
+	db: MemoryDb,
+	input: ReadStateFactInput,
+): ReadStateFactResult {
+	const parsed = parseReadStateFactInput(input);
+	enterRead(db);
+	if (!isPermitted(parsed.access, parsed.scopeKey)) {
+		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
+	}
+	const principal = parsed.access.principal;
+	const loaded = loadItem(db, principal, parsed.scopeKey, parsed.itemId);
+	if (loaded.status !== "found") return { status: loaded.status };
+	const { subject, kind, semanticKey } = loaded.row.view;
+	const rows = guarded(() =>
+		db
+			.query(
+				`SELECT i.item_id FROM memory_state_item i
+				WHERE i.principal = ? AND i.scope_key = ? AND i.subject = ? AND i.kind = ?
+					AND i.semantic_key = ? AND i.status != 'forgotten' AND ${NO_TOMBSTONE}
+				ORDER BY i.created_seq ASC, i.item_id ASC`,
+			)
+			.all(principal, parsed.scopeKey, subject, kind, semanticKey),
+	);
+	return {
+		status: "ok",
+		subject,
+		kind,
+		semanticKey,
+		itemIds: rows.map((row) => readText(row, "item_id")),
 	};
 }
 

@@ -72,6 +72,7 @@ export type {
 export * from "./contracts/common.ts";
 export * from "./contracts/versions.ts";
 export * from "./domains/records/contracts/index.ts";
+export type * from "./domains/records/contracts/retention.ts";
 export * from "./domains/recall/contracts/index.ts";
 export * from "./contracts/view-v2.ts";
 export * from "./domains/state/contracts/index.ts";

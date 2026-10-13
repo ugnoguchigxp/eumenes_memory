@@ -13,7 +13,12 @@ import { dirname, join } from "node:path";
 import { checkBoundaries, moduleReferences } from "../scripts/boundaries.ts";
 import { dependencyClosure, domainName } from "../scripts/domains.ts";
 import { domainTests } from "../scripts/test-domain.ts";
-import { parseVerifyArgs, sourceHash, verify } from "../scripts/verify.ts";
+import {
+	parseVerifyArgs,
+	pruneReports,
+	sourceHash,
+	verify,
+} from "../scripts/verify.ts";
 
 const roots: string[] = [];
 afterEach(() => {
@@ -314,6 +319,24 @@ describe("verification selection and evidence", () => {
 		);
 		expect(report.sourceUnchanged).toBe(false);
 		expect(report.error).toContain("Source changed");
+	});
+});
+
+describe("pruneReports", () => {
+	test("keeps the newest reports and latest.json", () => {
+		const root = scratch();
+		const names = [
+			"2026-01-01T00-00-00.000Z-a.json",
+			"2026-01-02T00-00-00.000Z-b.json",
+			"2026-01-03T00-00-00.000Z-c.json",
+		];
+		for (const name of names) put(root, `reports/${name}`, "{}");
+		put(root, "reports/latest.json", "{}");
+		put(root, "reports/notes.txt", "keep");
+		const removed = pruneReports(join(root, "reports"), 2);
+		expect(removed).toEqual([names[0]!]);
+		expect(readFileSync(join(root, "reports/latest.json"), "utf8")).toBe("{}");
+		expect(readFileSync(join(root, "reports/notes.txt"), "utf8")).toBe("keep");
 	});
 });
 

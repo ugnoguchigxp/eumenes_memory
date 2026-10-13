@@ -1,6 +1,13 @@
 /** Read-only checks with dependency closure, fixed-source evidence and timings. Live model evaluation is separate. */
 import { createHash, randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	renameSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { join, relative } from "node:path";
 import ts from "typescript";
 import { checkBoundaries, walkFiles } from "./boundaries.ts";
@@ -44,6 +51,18 @@ export function sourceHash(root: string): string {
 	}
 	return hash.digest("hex");
 }
+
+/** Keeps the newest `keep` run reports (names start with an ISO timestamp) and `latest.json`. */
+export function pruneReports(dir: string, keep = REPORTS_KEPT): string[] {
+	const runs = readdirSync(dir)
+		.filter((name) => /^\d{4}-.*\.json$/.test(name))
+		.sort();
+	const removed = runs.slice(0, Math.max(0, runs.length - keep));
+	for (const name of removed) rmSync(join(dir, name), { force: true });
+	return removed;
+}
+
+const REPORTS_KEPT = 50;
 
 interface StageResult {
 	name: string;
@@ -138,7 +157,7 @@ export async function verify(root: string, mode: VerifyMode): Promise<number> {
 									"test/public-surface.test.ts",
 									"test/tooling.test.ts",
 									"test/fixtures.test.ts",
-									"test/scenario/stubs.test.ts",
+									"test/scenario/sqlite-surface.test.ts",
 									"test/scenario/prototype-pollution.test.ts",
 								]),
 						},
@@ -196,6 +215,7 @@ export async function verify(root: string, mode: VerifyMode): Promise<number> {
 	const latestTemp = join(reportDir, `${runId}.latest.tmp`);
 	writeFileSync(latestTemp, json);
 	renameSync(latestTemp, join(reportDir, "latest.json"));
+	pruneReports(reportDir);
 	console.log(
 		`\nverify ${report.status}; report: verification-reports/${runId}.json`,
 	);

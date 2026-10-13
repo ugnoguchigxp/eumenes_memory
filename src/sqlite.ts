@@ -4,7 +4,7 @@
  * ホストが渡す `MemoryDb` に対する同期関数と、スキーマ定義（migrations）だけを提供する。
  * 起動手順と運用規則は `src/infrastructure/sqlite/README.md`、migration の追加手順は `src/infrastructure/sqlite/migrations/README.md`。
  *
- * 実装済み（S0〜S6）: `listMemoryChanges`、`assertMemorySchema`、`migrations`、`MemoryStoreError`、Records / Recall / State /
+ * 実装済み（S0〜S6）: `listMemoryChanges`、`latestMemoryChangeSeq`、`assertMemorySchema`、`migrations`、`MemoryStoreError`、Records / Recall / State /
  * Extraction / Lifecycle（`planForget` / `applyForget` / `reconcileForgetJournal` / `getForgetReceipt` / `recordExternalDeletion`）、
  * ExternalDependent の登録・解除。World / Consolidation は別ドメイン・別リポジトリ（接続部は ExternalDependent と変更フィードだけ）。
  * 到達段階は `spec/verification-status.md`。
@@ -20,7 +20,10 @@ export {
 	isMemoryStoreError,
 } from "./infrastructure/sqlite/errors.ts";
 export type { StoreErrorCode } from "./infrastructure/sqlite/errors.ts";
-export { assertMemorySchema } from "./infrastructure/sqlite/schema-check.ts";
+export {
+	assertMemorySchema,
+	checkHostMigrations,
+} from "./infrastructure/sqlite/schema-check.ts";
 export {
 	MEMORY_DB_SCHEMA_VERSION,
 	migrations,
@@ -43,6 +46,7 @@ export {
 	listStateScopes,
 	reactivateState,
 	readMemorySnapshotPart,
+	readStateFact,
 	retractState,
 } from "./domains/state/sqlite.ts";
 export {
@@ -60,11 +64,22 @@ export {
 	registerExternalDependents,
 	unregisterExternalDependents,
 } from "./domains/lifecycle/sqlite.ts";
-export { listMemoryChanges } from "./infrastructure/sqlite/changes.ts";
+export {
+	latestMemoryChangeSeq,
+	listMemoryChanges,
+} from "./infrastructure/sqlite/changes.ts";
 
 // 入出力の型（値の定数は "eumenes-memory" から import する）。
 export type * from "./contracts/common.ts";
 export type * from "./domains/records/contracts/index.ts";
+export type * from "./domains/records/contracts/retention.ts";
+export {
+	retainRecord,
+	readRetainedRecord,
+	useRetainedRecord,
+	retainedRecordStats,
+	evictRetainedRecords,
+} from "./domains/records/sqlite.ts";
 export type * from "./domains/recall/contracts/index.ts";
 export type * from "./domains/state/contracts/index.ts";
 export type * from "./domains/extraction/contracts/index.ts";

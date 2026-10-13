@@ -21,7 +21,10 @@ import {
 } from "./reader.ts";
 import type { ContractVersion, HostClock } from "./common.ts";
 import { LIMITS_EXTERNAL } from "./external.ts";
-import type { ListMemoryChangesInput } from "./external.ts";
+import type {
+	LatestMemoryChangeSeqInput,
+	ListMemoryChangesInput,
+} from "./external.ts";
 
 /** `contractVersion` を検査する。整数でなければ INVALID_*、期待と違えば UNSUPPORTED_SCHEMA_VERSION。 */
 export function readContractVersion(
@@ -108,4 +111,26 @@ export function parseListMemoryChangesInput(
 		LIMITS_EXTERNAL.maxChangesPerPage,
 	);
 	return deepFreeze({ contractVersion, access, scopeKeys, afterSeq, limit });
+}
+
+export function parseLatestMemoryChangeSeqInput(
+	value: unknown,
+): LatestMemoryChangeSeqInput {
+	const path = "$";
+	const record = readRecord(value, path);
+	checkKeys(record, path, ["contractVersion", "access", "scopeKeys"]);
+	const contractVersion = readContractVersion(
+		record,
+		path,
+		CONTRACT_VERSIONS.external,
+	);
+	const access = readAccessContext(
+		requiredField(record, path, "access"),
+		keyPath(path, "access"),
+	);
+	const scopeKeys = readScopeKeys(
+		requiredField(record, path, "scopeKeys"),
+		keyPath(path, "scopeKeys"),
+	);
+	return deepFreeze({ contractVersion, access, scopeKeys });
 }

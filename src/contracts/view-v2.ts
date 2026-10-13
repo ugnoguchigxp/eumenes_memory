@@ -66,6 +66,7 @@ export const ITEM_ORIGINS_V2 = Object.freeze([
 	"user_confirmed",
 	"user_edited",
 	"admitted_extraction",
+	"agent_inferred",
 ] as const);
 export type ItemOriginV2 = (typeof ITEM_ORIGINS_V2)[number];
 

@@ -2,7 +2,7 @@
 
 ホストが渡す `MemoryDb` に対する**同期関数とスキーマ定義だけ**を提供する。接続の open/close、flock、WAL、PRAGMA、
 transaction、migration の実行、非同期処理（モデル呼び出し）はホストの責任。設計の正本は
-[spec/full-system-design.md](../../spec/full-system-design.md) §2 と [spec/persistence-design.md](../../spec/persistence-design.md)。
+[spec/full-system-design.md](../../../spec/full-system-design.md) §2 と [spec/persistence-design.md](../../../spec/persistence-design.md)。
 
 ## 規則（共通基盤と各repositoryが守る）
 
@@ -32,7 +32,7 @@ transaction、migration の実行、非同期処理（モデル呼び出し）�
 | `migrations/` | 登録配列と 0001 foundation。手順は [migrations/README.md](migrations/README.md) |
 | `scope-state.ts` | `bumpScopeRevision` / `readScopeRevision` |
 | `dependency.ts` / `tombstone.ts` | `addDependency` / `isTombstoned` |
-| `changes.ts` | `appendMemoryChange`（内部）/ `listMemoryChanges`（公開、外部ドメイン向けフィード） |
+| `changes.ts` | `appendMemoryChange`（内部）/ `listMemoryChanges`・`latestMemoryChangeSeq`（公開、外部ドメイン向けフィードと最大 seq） |
 | `records.ts` `recall.ts` `state.ts` `extraction.ts` `lifecycle.ts` | 実装済み（S1〜S6）。`lifecycle.ts` は target record / host_source / state_item / scope の plan・apply・reconcile・receipt、ExternalDependent の登録・解除、外部削除の記録。値の消去は表の持ち主（`scrubRecord` / `scrubStateItem` / `scrubCandidate` / `scrubRun` / `scrubSourceProgress`）が行い、`lifecycle.ts` が閉包を求めて呼ぶ |
 
 入出力の型・reasonCode・上限は `src/contracts/{records,recall,state,extraction,lifecycle,external}.ts`（親だけが編集する）。
@@ -42,7 +42,7 @@ transaction、migration の実行、非同期処理（モデル呼び出し）�
 本体は状態を持たないため、「古い版へ復元された DB」を読み出し関数だけでは検出できない。**fail closed の責任はホストの起動手順にある**。
 
 1. DB を開き、ホストの migration の後ろに本体の `migrations` を**各要素 1 本ずつ**追記して適用する（`[...hostMigrations, ...migrations]`）。
-   ホスト側に「本体の migrations が自配列の部分列として正しく並ぶ」テストを置く。
+   ホスト側のテストで `expect(checkHostMigrations(hostMigrationsArray)).toEqual([])` を呼ぶ（欠落・重複・順序違い・改変を文字列で返す。空なら正しい）。
 2. `assertMemorySchema(db)` を呼ぶ（版が新しい DB や migration の中身が違う DB は `SCHEMA_TOO_NEW` / `SCHEMA_MISMATCH` で拒否）。
 3. 墓標ジャーナル（DB の外のファイル、所有はホスト）を読み、`reconcileForgetJournal` を **queue / worker の起動前**に実行する。
    `inconsistent` が返ったら Memory の読み出し・抽出を止める（fail closed）。
@@ -61,6 +61,7 @@ transaction、migration の実行、非同期処理（モデル呼び出し）�
   `confirmed` / `unverified` / `failed` にする。receipt の集約は failed > pending > unverified > confirmed、
   `completed` は外部削除が無いか全部 `confirmed` のときだけ。プロバイダー（抽出 run の `providerRef`、record の
   `providerRef`）の外部削除も同じ表に `externalId = null` の行で載る。
+- `latestMemoryChangeSeq`（実装済み）: 指定 scope で可視な変更の最大 seq（なければ 0）。ホストは `memory_change` を直接読まず、これを世代番号に使う。
 - `listMemoryChanges`（実装済み）: 読み取り専用の変更フィード。ID と版・状態だけを返す。本文は `readRecord` / `listState` で読む。
   forget は record / state_item の `forgotten` と、host_source（SourceKey）の `source` `forgotten` を `forgetId` つきで流す
   （外部ドメインはこれを見て自分の派生物を作り直す／消す。外部が自分で消したら `recordExternalDeletion`）。

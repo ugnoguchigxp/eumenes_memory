@@ -10,11 +10,14 @@
  * - `kind === "other_person_note"` ⇔ `subject` が `other:*`。不一致は `SUBJECT_KIND_MISMATCH`。
  *   `unknown` subject は台帳に載らない。
  * - 根拠の新旧は `evidenceOrdinal`（ホストが付与する出典の順位）で比べる。`user_confirmed` /
- *   `user_edited` の明示操作は新旧比較を受けず、CAS（expectedRevision / replaces）だけで決まる。
+ *   `user_edited` / `agent_inferred` のホスト明示書き込みは新旧比較を受けず、CAS（expectedRevision / replaces）だけで決まる。
+ * - `agent_inferred`（ホストのエージェントが依頼なしに推定した内容）はユーザー由来ではない。確認済み項目の保護
+ *   （抽出由来に黙って上書きされない）は効かず、抽出由来の書き込みは根拠順位の規則どおり置き換える。
+ *   ユーザー本人が止めた（retract / deactivate）ものとして残る保護は、origin ではなく停止操作そのものに効く。
  * - 抽出の根拠 quote は state 側に本文を残さない（SourceRef + range だけ。本文は出典を読む）。
- * - 同値の明示確認は origin を昇格する: active が `admitted_extraction` で、明示操作（`assertUserState` /
+ * - 同値の明示確認は origin を昇格する: active が `admitted_extraction` または `agent_inferred` で、ユーザーの明示操作（`assertUserState` /
  *   `confirmCandidate` / 同値の `editState`）が同じ値を `user_confirmed` / `user_edited` で書いたとき、値は変えず
- *   origin だけを user 由来へ上げる（revision を +1、event は `edit`、結果は `applied`）。逆（user 由来 → 抽出由来）の
+ *   origin だけを user 由来へ上げる（revision を +1、event は `edit`、結果は `applied`）。逆（user 由来 → 抽出由来・推定由来）の
  *   降格はしない。昇格後は「確認済み項目の保護」（抽出由来は黙って上書きしない）が効く。
  * - 抽出由来の書き込みは、同 key の active 以外の履歴も見る（`StateKeyHistory`）: (a) disputed の item があり、
  *   新しい書き込みの根拠順位が disputed 群の最新より古ければ `OLDER_EVIDENCE`、同順位以上でも dispute を黙って
@@ -83,16 +86,33 @@ export const STATE_ITEM_STATUSES = Object.freeze([
 ] as const);
 export type StateItemStatus = (typeof STATE_ITEM_STATUSES)[number];
 
-/** 明示操作（モデルなし）で付く origin。 */
+/**
+ * ユーザー本人の明示操作で付く origin。「確認済み項目の保護」（抽出由来に黙って上書きされない）と
+ * 「ユーザーが消したものの保護」は、この origin の item にだけ効く。
+ */
 export const USER_STATE_ORIGINS = Object.freeze([
 	"user_confirmed",
 	"user_edited",
 ] as const);
-export type UserStateOrigin = (typeof USER_STATE_ORIGINS)[number];
+
+/**
+ * `assertUserState` / `editState` が受け付ける origin。ユーザー本人の明示操作に加え、ホストのエージェントが
+ * ユーザーの依頼なしに推定した内容を書くための `agent_inferred` を持つ。
+ * `agent_inferred` の item は、新旧比較を受けない明示書き込み（CAS だけ）で書かれるが、ユーザー由来の保護は受けない:
+ * 抽出由来の書き込みは根拠順位の規則で置き換えられ、同値の `user_confirmed` / `user_edited` は値を変えずに origin を昇格し、
+ * 値が違う `user_confirmed` / `user_edited` は `replaces` / `editState` で置き換える。
+ * 逆向き（user 由来 → `agent_inferred`）の降格は、同値のときは行わない（値が違う書き込みは、その値を書いた者を origin に残す）。
+ */
+export const HOST_STATE_ORIGINS = Object.freeze([
+	...USER_STATE_ORIGINS,
+	"agent_inferred",
+] as const);
+export type HostStateOrigin = (typeof HOST_STATE_ORIGINS)[number];
 
 export const STATE_ORIGINS = Object.freeze([
 	...USER_STATE_ORIGINS,
 	"admitted_extraction",
+	"agent_inferred",
 ] as const);
 export type StateOrigin = (typeof STATE_ORIGINS)[number];
 
@@ -323,7 +343,7 @@ export interface AssertUserStateInput extends ScopedWrite {
 	/** 1 件以上 `LIMITS_STATE.maxEvidencePerItem` 件以下。各 source は `sources` に含まれること。 */
 	readonly evidence: readonly EvidenceSpan[];
 	readonly sources: readonly HostSourceState[];
-	readonly origin: UserStateOrigin;
+	readonly origin: HostStateOrigin;
 	/** 保存するだけで本体は評価しない（期限の評価はホスト）。 */
 	readonly validFromMs?: number;
 	/** 保存するだけで本体は評価しない（期限の評価はホスト）。 */
@@ -343,7 +363,7 @@ export interface EditStateInput extends ScopedWrite {
 	readonly value: StateValue;
 	readonly evidence: readonly EvidenceSpan[];
 	readonly sources: readonly HostSourceState[];
-	readonly origin: UserStateOrigin;
+	readonly origin: HostStateOrigin;
 }
 
 /** deactivate / reactivate / retract 共通。 */
@@ -395,6 +415,28 @@ export type ListStateScopesResult =
 			}[];
 	  }
 	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
+
+/**
+ * 1 つの item が属する「同じ事実」の全版を引く（`itemId` が forgotten・墓標つき・他 scope・存在しない場合は
+ * `forgotten` / `missing` / `not_permitted` を返す）。同じ事実 = 同 (principal, scope, subject, kind, semanticKey)。
+ * `itemIds` は forgotten・墓標つきを除く全 status の版を、古い順（createdSeq 昇順）に返し、`itemId` 自身を含む。
+ * `listState` の上限（`LIMITS_STATE.maxListItems`）に左右されない。ホストが忘却の対象（置き換え前の旧版も同じ値を
+ * 持つ）を決めるために使う。
+ */
+export interface ReadStateFactInput extends ScopedRead {
+	readonly itemId: string;
+}
+
+export type ReadStateFactResult =
+	| {
+			readonly status: "ok";
+			readonly subject: StateSubject;
+			readonly kind: StateKind;
+			readonly semanticKey: string;
+			readonly itemIds: readonly string[];
+	  }
+	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode }
+	| { readonly status: MissingStatus };
 
 export type ReadMemorySnapshotPartInput = ScopedRead;
 

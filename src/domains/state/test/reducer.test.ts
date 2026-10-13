@@ -497,3 +497,136 @@ describe("key history", () => {
 		});
 	});
 });
+
+describe("agent_inferred origin", () => {
+	const inferred = (overrides: Partial<StateTransitionRequest> = {}) =>
+		request({ origin: "agent_inferred", evidenceOrdinal: 1, ...overrides });
+
+	test("a host write with agent_inferred is explicit: CAS only, no evidence comparison", () => {
+		const current = view({ evidenceOrdinal: 50 });
+		// 根拠順位が古くても拒否されない（assert + replaces の supersede）。
+		expect(
+			applyStateTransition(
+				current,
+				inferred({ action: "supersede", expectedRevision: 1 }),
+				{ atMs: 1, activeForKey: current },
+			),
+		).toMatchObject({
+			ok: true,
+			items: [
+				{ status: "superseded" },
+				{ status: "active", origin: "agent_inferred" },
+			],
+		});
+		// replaces なしで別の値は ACTIVE_EXISTS（user 由来の明示書き込みと同じ）。
+		expect(
+			applyStateTransition(null, inferred(), {
+				atMs: 1,
+				activeForKey: current,
+			}),
+		).toEqual({ ok: false, reasonCode: "ACTIVE_EXISTS" });
+	});
+
+	test("agent_inferred ignores the key history like any explicit write", () => {
+		expect(
+			applyStateTransition(null, inferred(), {
+				atMs: 1,
+				activeForKey: null,
+				keyHistory: { disputedMaxOrdinal: 9, userRemoved: true },
+			}),
+		).toMatchObject({
+			ok: true,
+			items: [{ status: "active", origin: "agent_inferred" }],
+		});
+	});
+
+	test("a user write of the same value promotes an agent_inferred item; a later agent write never relabels", () => {
+		const current = view({ origin: "agent_inferred" });
+		const same = { text: "コーヒー", polarity: "affirmed" } as const;
+		for (const origin of ["user_confirmed", "user_edited"] as const) {
+			expect(
+				applyStateTransition(
+					null,
+					request({ origin, evidenceOrdinal: 1, value: same }),
+					{ atMs: 2, activeForKey: current },
+				),
+			).toMatchObject({ ok: true, items: [{ revision: 2, origin }] });
+		}
+		// 同値の agent_inferred は昇格でも降格でもない（冪等）。
+		for (const origin of ["admitted_extraction", "agent_inferred"] as const) {
+			const item = view({ origin });
+			expect(
+				applyStateTransition(null, inferred({ value: same }), {
+					atMs: 2,
+					activeForKey: item,
+				}),
+			).toEqual({ ok: true, items: [], events: [] });
+		}
+		const confirmed = view({ origin: "user_confirmed" });
+		expect(
+			applyStateTransition(null, inferred({ value: same }), {
+				atMs: 2,
+				activeForKey: confirmed,
+			}),
+		).toEqual({ ok: true, items: [], events: [] });
+	});
+
+	test("a user write of a different value replaces an agent_inferred item (supersede and edit)", () => {
+		const current = view({ origin: "agent_inferred", evidenceOrdinal: 99 });
+		expect(
+			applyStateTransition(
+				current,
+				request({
+					action: "supersede",
+					expectedRevision: 1,
+					origin: "user_confirmed",
+					evidenceOrdinal: 1,
+				}),
+				{ atMs: 2, activeForKey: current },
+			),
+		).toMatchObject({
+			ok: true,
+			items: [
+				{ status: "superseded" },
+				{ status: "active", origin: "user_confirmed" },
+			],
+		});
+		expect(
+			applyStateTransition(
+				current,
+				request({
+					action: "edit",
+					expectedRevision: 1,
+					origin: "user_confirmed",
+					evidenceOrdinal: 1,
+				}),
+				{ atMs: 2, activeForKey: current },
+			),
+		).toMatchObject({
+			ok: true,
+			items: [{ revision: 2, origin: "user_confirmed" }],
+		});
+	});
+
+	test("an extraction write supersedes an agent_inferred item by the evidence order (no user protection)", () => {
+		const current = view({ origin: "agent_inferred", evidenceOrdinal: 5 });
+		expect(
+			applyStateTransition(null, request({ evidenceOrdinal: 9 }), {
+				atMs: 2,
+				activeForKey: current,
+			}),
+		).toMatchObject({
+			ok: true,
+			items: [
+				{ status: "superseded" },
+				{ status: "active", origin: "admitted_extraction" },
+			],
+		});
+		expect(
+			applyStateTransition(null, request({ evidenceOrdinal: 3 }), {
+				atMs: 2,
+				activeForKey: current,
+			}),
+		).toEqual({ ok: false, reasonCode: "OLDER_EVIDENCE" });
+	});
+});

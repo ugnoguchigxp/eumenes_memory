@@ -3,12 +3,17 @@ import {
 	MEMORY_CHANGE_TARGET_TYPES,
 } from "../../contracts/external.ts";
 import type {
+	LatestMemoryChangeSeqInput,
+	LatestMemoryChangeSeqResult,
 	ListMemoryChangesInput,
 	ListMemoryChangesResult,
 	MemoryChange,
 	MemoryChangeDraft,
 } from "../../contracts/external.ts";
-import { parseListMemoryChangesInput } from "../../contracts/parse-store.ts";
+import {
+	parseLatestMemoryChangeSeqInput,
+	parseListMemoryChangesInput,
+} from "../../contracts/parse-store.ts";
 import {
 	guarded,
 	issueSeq,
@@ -113,4 +118,31 @@ export function listMemoryChanges(
 		nextAfterSeq: last === undefined ? parsed.afterSeq : last.seq,
 		hasMore,
 	};
+}
+
+/**
+ * 指定 scope で可視な変更の最大 seq（なければ 0）。ホストが「この scope の State / Records が変わったか」を
+ * 1 回の読み取りで見る cheap な世代番号。`listMemoryChanges` と同じ可視範囲（principal と scope）を数える。
+ * 読み取り専用接続で呼べる。内部の表を直接読む代わりにこれを使う。
+ */
+export function latestMemoryChangeSeq(
+	db: MemoryDb,
+	input: LatestMemoryChangeSeqInput,
+): LatestMemoryChangeSeqResult {
+	const parsed = parseLatestMemoryChangeSeqInput(input);
+	enterRead(db);
+	const permitted = new Set(parsed.access.scopeKeys);
+	if (!parsed.scopeKeys.every((scopeKey) => permitted.has(scopeKey))) {
+		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
+	}
+	const placeholders = parsed.scopeKeys.map(() => "?").join(", ");
+	const row = guarded(() =>
+		db
+			.query(
+				`SELECT COALESCE(MAX(seq), 0) AS seq FROM memory_change
+				WHERE principal = ? AND scope_key IN (${placeholders})`,
+			)
+			.get(parsed.access.principal, ...parsed.scopeKeys),
+	);
+	return { status: "ok", seq: readInteger(row, "seq") };
 }

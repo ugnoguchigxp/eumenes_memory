@@ -86,7 +86,7 @@ fts:
 `EXPLAIN QUERY PLAN`: どちらの戦略も `memory_record` は `memory_record_by_scope (principal, scope_key, status)` の
 index 検索で、全表走査（`SCAN memory_record`）はない。墓標の二重検査は主キーの covering index 検索。FTS 側の `SCAN memory_record_fts
 VIRTUAL TABLE INDEX 0:M1` は全文索引の MATCH 自体（仮想表の検索）で、record の全走査ではない。この検査は
-`src/store/test/recall.test.ts` が（plan に `SCAN memory_record` が無いこととして）固定している。
+`src/domains/recall/test/recall.test.ts` が（plan に `SCAN memory_record` が無いこととして）固定している。
 
 ## 読み取り
 

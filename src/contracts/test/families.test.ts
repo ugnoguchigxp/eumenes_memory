@@ -55,6 +55,7 @@ describe("family contracts (S0)", () => {
 		expect([...api.ITEM_ORIGINS_V2]).toEqual([
 			...api.ITEM_ORIGINS,
 			"admitted_extraction",
+			"agent_inferred",
 		]);
 	});
 
@@ -98,6 +99,16 @@ describe("family contracts (S0)", () => {
 			"user_confirmed",
 			"user_edited",
 			"admitted_extraction",
+			"agent_inferred",
+		]);
+		expect([...api.USER_STATE_ORIGINS]).toEqual([
+			"user_confirmed",
+			"user_edited",
+		]);
+		expect([...api.HOST_STATE_ORIGINS]).toEqual([
+			"user_confirmed",
+			"user_edited",
+			"agent_inferred",
 		]);
 		expect([...api.ADMISSION_MODES]).toEqual([
 			"never",

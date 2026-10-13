@@ -1,7 +1,11 @@
 import { guarded, readRow, readText } from "./db.ts";
 import type { MemoryDb } from "./db.ts";
 import { MemoryStoreError } from "./errors.ts";
-import { MIGRATION_BODIES, migrationHash } from "./migrations/index.ts";
+import {
+	composeMigration,
+	MIGRATION_BODIES,
+	migrationHash,
+} from "./migrations/index.ts";
 
 /**
  * DB の `memory_schema_info` を、期待する migration body の列と照合する（1 回の SELECT）。
@@ -61,4 +65,31 @@ const MIGRATION_HASHES: readonly string[] = Object.freeze(
  */
 export function assertMemorySchema(db: MemoryDb): void {
 	checkSchemaAgainstHashes(db, MIGRATION_HASHES);
+}
+
+/**
+ * ホストの migration 配列（`[...hostMigrations, ...migrations]` の形で本体を追記したもの）を検査する。
+ * 本体の各 migration が、順序を保ち、各 1 本ずつ、中身が一致して含まれていなければ問題を返す。空なら正しい。
+ * ホストは自分のテストで `expect(checkHostMigrations(hostMigrations)).toEqual([])` を呼ぶ。
+ */
+export function checkHostMigrations(
+	hostMigrations: readonly string[],
+): string[] {
+	const problems: string[] = [];
+	let from = 0;
+	MIGRATION_BODIES.forEach((body, index) => {
+		const expected = composeMigration(index + 1, body);
+		const matches: number[] = [];
+		hostMigrations.forEach((candidate, position) => {
+			if (candidate === expected) matches.push(position);
+		});
+		const label = `memory migration ${String(index + 1).padStart(4, "0")}`;
+		const first = matches[0];
+		if (first === undefined) problems.push(`${label} is missing`);
+		else if (matches.length > 1)
+			problems.push(`${label} appears ${matches.length} times`);
+		else if (first < from) problems.push(`${label} is out of order`);
+		else from = first;
+	});
+	return problems;
 }
