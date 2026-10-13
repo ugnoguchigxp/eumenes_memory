@@ -1,5 +1,5 @@
 /**
- * 本文の UTF-8 byte 範囲の読み出し（純粋）。Records の `readRecordRange` と、将来の quote 検査が共有する。
+ * 本文の UTF-8 byte 範囲の読み出し（純粋）。ホストが出典の range を検査するために使う。
  * 範囲は半開区間 [startByte, endByte)。両端が UTF-8 のコードポイント境界でなければならない（書記素は見ない）。
  */
 import { sha256Hex } from "../../../canonical/sha256.ts";

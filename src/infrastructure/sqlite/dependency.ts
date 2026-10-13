@@ -17,7 +17,7 @@ export interface DependencyEdgeRow {
 }
 
 /**
- * 依存辺を張る（同じ辺は無視）。派生行（candidate / state_item / run / external）は必ず依存辺を持つ
+ * 依存辺を張る（同じ辺は無視）。派生行（state_item / external）は必ず依存辺を持つ
  * （辺のない派生行を作らない）。`source` の id は SourceKey。
  */
 export function addDependency(db: MemoryDb, edge: DependencyEdgeRow): void {

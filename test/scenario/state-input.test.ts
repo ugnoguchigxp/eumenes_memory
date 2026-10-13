@@ -1,21 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { MemoryContractError } from "../../src/contracts/errors.ts";
-import { parseConfirmCandidateInput } from "../../src/domains/extraction/index.ts";
 import {
-	ACCESS,
-	SCOPE,
 	assertInput,
 	COFFEE,
-	editInput,
 	makeSpan,
 	targetInput,
 	value,
 } from "../../src/domains/state/testing.ts";
 import {
 	parseAssertUserStateInput,
-	parseEditStateInput,
 	parseListStateInput,
-	parseReadSnapshotPartInput,
 	parseStateTargetInput,
 } from "../../src/domains/state/index.ts";
 
@@ -128,13 +122,7 @@ describe("state input parse", () => {
 		expect(codeOf(() => parseAssertUserStateInput(input))).toBe(code);
 	});
 
-	test("edit / target / list / snapshot inputs", () => {
-		expect(parseEditStateInput(editInput("state:a", 1)).expectedRevision).toBe(
-			1,
-		);
-		expect(codeOf(() => parseEditStateInput(editInput("state:a", 0)))).toBe(
-			"INVALID_INTEGER",
-		);
+	test("target / list inputs", () => {
 		expect(parseStateTargetInput(targetInput("state:a", 3)).itemId).toBe(
 			"state:a",
 		);
@@ -167,12 +155,6 @@ describe("state input parse", () => {
 		expect(
 			codeOf(() => parseListStateInput({ ...header, includeInactive: "yes" })),
 		).toBe("INVALID_TYPE");
-		expect(parseReadSnapshotPartInput(header).scopeKey).toBe("conversation:c1");
-		expect(
-			codeOf(() =>
-				parseReadSnapshotPartInput({ ...header, clock: { atMs: 1 } }),
-			),
-		).toBe("UNKNOWN_KEY");
 	});
 });
 
@@ -205,27 +187,5 @@ describe("error paths never contain attribute key names (M0: key names stay out 
 			expect(error.path).not.toContain(secretKey);
 			expect(error.message).not.toContain(secretKey);
 		}
-	});
-
-	test("the same holds for the editedValue of a candidate confirmation", () => {
-		const secretKey = "secret-attribute-name";
-		const error = errorOf(() =>
-			parseConfirmCandidateInput({
-				contractVersion: 1,
-				access: ACCESS,
-				scopeKey: SCOPE,
-				clock: { atMs: 1 },
-				candidateId: "cand:x",
-				action: "admit",
-				editedValue: {
-					text: "x",
-					polarity: "affirmed",
-					attributes: { [secretKey]: "x".repeat(300) },
-				},
-				currentSources: [],
-			}),
-		);
-		expect(error.path).toBe("$.editedValue.attributes");
-		expect(error.path).not.toContain(secretKey);
 	});
 });

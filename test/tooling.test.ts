@@ -106,10 +106,10 @@ describe("domain boundary enforcement", () => {
 		const root = scratch();
 		put(
 			root,
-			"src/domains/extraction/service/check.ts",
-			'export * from "../../projection/index.ts";',
+			"src/domains/records/service/check.ts",
+			'export * from "../../lifecycle/index.ts";',
 		);
-		put(root, "src/domains/projection/index.ts", "export const project = 1;");
+		put(root, "src/domains/lifecycle/index.ts", "export const forget = 1;");
 		expect(
 			checkBoundaries(root).some((problem) =>
 				problem.includes("Undeclared domain dependency"),
@@ -121,17 +121,17 @@ describe("domain boundary enforcement", () => {
 		const root = scratch();
 		put(
 			root,
-			"src/domains/projection/contracts/index.ts",
-			"export type Project = string;",
+			"src/domains/lifecycle/contracts/index.ts",
+			"export type Forget = string;",
 		);
 		put(
 			root,
 			"src/contracts/bridge.ts",
-			'export type {Project} from "../domains/projection/contracts/index.ts";',
+			'export type {Forget} from "../domains/lifecycle/contracts/index.ts";',
 		);
 		put(
 			root,
-			"src/domains/extraction/service/check.ts",
+			"src/domains/records/service/check.ts",
 			'export * from "../../../contracts/bridge.ts";',
 		);
 		expect(
@@ -237,10 +237,8 @@ describe("verification selection and evidence", () => {
 		});
 		expect(dependencyClosure(["lifecycle"])).toEqual([
 			"records",
-			"recall",
 			"temporal",
 			"state",
-			"extraction",
 			"lifecycle",
 		]);
 		for (const args of [
@@ -256,12 +254,12 @@ describe("verification selection and evidence", () => {
 		const root = join(import.meta.dir, "..");
 		const tests = domainTests(root, ["state"]);
 		expect(tests.length).toBeGreaterThan(0);
-		expect(tests.some((path) => path.includes("/domains/extraction/"))).toBe(
+		expect(tests.some((path) => path.includes("/domains/lifecycle/"))).toBe(
 			false,
 		);
-		expect(
-			tests.some((path) => path.endsWith("/admission-fixtures.test.ts")),
-		).toBe(true);
+		expect(tests.some((path) => path.endsWith("/state-input.test.ts"))).toBe(
+			true,
+		);
 	});
 
 	test("source evidence changes with fixture bytes and paths, not generated reports", () => {

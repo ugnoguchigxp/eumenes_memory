@@ -1,108 +1,79 @@
 {
-	"id": "L27-db-record-source-in-closure",
-	"fixtureFormat": 1,
-	"covers": [
-		"closure",
-		"FG1",
-		"S6"
-	],
-	"kind": "forget-db",
-	"description": "Forgetting a record reaches the items, candidates, runs and external derivatives that cite or read it (the record's source key is the start)",
-	"input": {
-		"graph": {
-			"records": [
-				"r1"
-			],
-			"runs": [
-				{
-					"id": "A",
-					"inputs": [
-						"r:r1",
-						"m:m1"
-					]
-				}
-			],
-			"candidates": [
-				{
-					"id": "cA",
-					"run": "A",
-					"evidence": [
-						"r:r1"
-					]
-				}
-			],
-			"items": [
-				{
-					"id": "iA",
-					"evidence": [
-						"r:r1"
-					],
-					"fromCandidate": "cA"
-				},
-				{
-					"id": "iK",
-					"evidence": [
-						"m:m1"
-					]
-				}
-			],
-			"externals": [
-				{
-					"id": "world:n1",
-					"dependsOn": [
-						"r:r1"
-					]
-				}
-			]
-		},
-		"forget": [
-			{
-				"type": "record",
-				"name": "r1"
-			}
-		]
-	},
-	"expect": {
-		"forgotten": {
-			"state_item": [
-				"iA"
-			],
-			"candidate": [
-				"cA"
-			],
-			"extraction_run": [
-				"A"
-			],
-			"external": [
-				"world:n1"
-			]
-		},
-		"kept": {
-			"state_item": [
-				"iK"
-			],
-			"candidate": [],
-			"extraction_run": [],
-			"external": []
-		},
-		"tombstonedSources": [
-			"r:r1"
-		],
-		"receipt": {
-			"external": "pending",
-			"completed": false,
-			"deletions": [
-				"world/n1:pending"
-			]
-		},
-		"valuesGone": [
-			"i:iA",
-			"c:cA",
-			"r:r1"
-		],
-		"valuesPresent": [
-			"i:iK"
-		],
-		"progressRemaining": null
-	}
+  "id": "L27-db-record-source-in-closure",
+  "fixtureFormat": 1,
+  "covers": [
+    "closure",
+    "FG1",
+    "S6"
+  ],
+  "kind": "forget-db",
+  "description": "Forgetting a record reaches the items and external derivatives that cite it (the record's source key is the start)",
+  "input": {
+    "graph": {
+      "records": [
+        "r1"
+      ],
+      "items": [
+        {
+          "id": "iA",
+          "evidence": [
+            "r:r1"
+          ]
+        },
+        {
+          "id": "iK",
+          "evidence": [
+            "m:m1"
+          ]
+        }
+      ],
+      "externals": [
+        {
+          "id": "world:n1",
+          "dependsOn": [
+            "r:r1"
+          ]
+        }
+      ]
+    },
+    "forget": [
+      {
+        "type": "record",
+        "name": "r1"
+      }
+    ]
+  },
+  "expect": {
+    "forgotten": {
+      "state_item": [
+        "iA"
+      ],
+      "external": [
+        "world:n1"
+      ]
+    },
+    "kept": {
+      "state_item": [
+        "iK"
+      ],
+      "external": []
+    },
+    "tombstonedSources": [
+      "r:r1"
+    ],
+    "receipt": {
+      "external": "pending",
+      "completed": false,
+      "deletions": [
+        "world/n1:pending"
+      ]
+    },
+    "valuesGone": [
+      "i:iA",
+      "r:r1"
+    ],
+    "valuesPresent": [
+      "i:iK"
+    ]
+  }
 }

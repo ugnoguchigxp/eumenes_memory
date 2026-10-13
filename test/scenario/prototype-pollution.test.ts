@@ -1,5 +1,5 @@
 /**
- * Object.prototype 汚染の回帰テスト（State / Extraction / Records / Lifecycle の主要入口）。
+ * Object.prototype 汚染の回帰テスト（State / Records / Lifecycle の主要入口）。
  *
  * parse 済みの plain object や、条件付き spread で作った内部オブジェクトは Object.prototype を継承する。
  * 省略可能キーの有無を `=== undefined` / `??` で読むと、プロトタイプに仕込まれた値を拾ってしまう。
@@ -9,46 +9,26 @@
  */
 import { describe, expect, test } from "bun:test";
 import { openTestStore } from "../support/store.ts";
-import { LIMITS } from "../../src/contracts/constants.ts";
 import { isMemoryContractError } from "../../src/contracts/errors.ts";
-import { parseSettleExtractionInput } from "../../src/domains/extraction/index.ts";
-import { evaluateAdmission } from "../../src/domains/state/index.ts";
-import { isQuotedSpan, quoteMatches } from "../../src/domains/state/index.ts";
+import { quoteMatches } from "../../src/domains/state/index.ts";
 import { parseAssertUserStateInput } from "../../src/domains/state/index.ts";
 import { applyStateTransition } from "../../src/domains/state/index.ts";
 import { stateValueEquals } from "../../src/domains/state/index.ts";
-import { isMemoryStoreError } from "../../src/infrastructure/sqlite/errors.ts";
 import type { TestStore } from "../support/store.ts";
 import type { AccessContext } from "../../src/contracts/types.ts";
 import type { MemoryDb } from "../../src/infrastructure/sqlite/db.ts";
-import { DEFAULT_ADMISSION_POLICY } from "../../src/domains/state/contracts/index.ts";
-import {
-	confirmCandidate,
-	listCandidates,
-	prepareExtraction,
-	settleExtraction,
-} from "../../src/domains/extraction/sqlite.ts";
 import {
 	applyForget,
 	planForget,
 	recordExternalDeletion,
 } from "../../src/domains/lifecycle/sqlite.ts";
-import {
-	captureRecord,
-	readRecord,
-	readRecordRange,
-	recordSourceStates,
-} from "../../src/domains/records/sqlite.ts";
-import { searchRecords } from "../../src/domains/recall/sqlite.ts";
+import { captureRecord, readRecord } from "../../src/domains/records/sqlite.ts";
 import {
 	assertUserState,
 	deactivateState,
-	editState,
 	listState,
 	reactivateState,
-	readMemorySnapshotPart,
 	retractState,
-	writeStateForCandidate,
 } from "../../src/domains/state/sqlite.ts";
 import {
 	ACCESS,
@@ -56,20 +36,10 @@ import {
 	SCOPE,
 	TEA,
 	assertInput,
-	editInput,
 	makeSpan,
-	makeSource,
 	targetInput,
 	value,
 } from "../../src/domains/state/testing.ts";
-import {
-	candidateOf,
-	current,
-	extSource,
-	prepareInput,
-	settleInput,
-} from "../../src/domains/extraction/testing.ts";
-
 /**
  * 仕込む省略可能キーと敵対的な値。型として有効で、読まれれば結果が変わる値にする。
  * （新しい省略可能キーを契約に足したら、ここにも足す。）
@@ -91,20 +61,12 @@ const HOSTILE: Readonly<Record<string, unknown>> = Object.freeze({
 	range: { startByte: 0, endByte: 1 },
 	representation: "evil",
 	content: "evil",
-	// Extraction
-	decision: "rejected",
-	editedValue: { text: "evil", polarity: "negated" },
-	keyHistory: { disputedMaxOrdinal: 99999, userRemoved: true },
-	// Records / Recall / Lifecycle
+	// Records / Lifecycle
 	revision: "evil",
-	runRef: { jobId: "evil", attempt: 1 },
 	providerRef: "evil",
-	withContent: true,
-	cursor: "evil",
 	externalId: "evil",
 	// 判別用の内部結果（`"reasonCode" in x` ではなく own で判定する）
 	reasonCode: "SOURCE_STALE",
-	// View v2
 	subject: "other:evil",
 	evidence: [],
 });
@@ -132,7 +94,6 @@ function dump(store: TestStore): string {
 		.query(
 			`SELECT name FROM sqlite_master
 			WHERE type = 'table' AND name LIKE 'memory\\_%' ESCAPE '\\'
-				AND name NOT LIKE 'memory\\_record\\_fts%' ESCAPE '\\'
 			ORDER BY name`,
 		)
 		.all() as { name: string }[];
@@ -207,21 +168,8 @@ const stateFlow: Flow = (store, log) => {
 		),
 	);
 	log(
-		"edit",
-		w((db) =>
-			editState(
-				db,
-				editInput(itemId, 1, {
-					value: value("緑茶が好き"),
-					evidence: [makeSpan(TEA, "紅茶が好き")],
-					sources: [TEA],
-				}),
-			),
-		),
-	);
-	log(
 		"deactivate",
-		w((db) => deactivateState(db, targetInput(itemId, 2))),
+		w((db) => deactivateState(db, targetInput(itemId, 1))),
 	);
 	log(
 		"list-after-deactivate",
@@ -231,7 +179,7 @@ const stateFlow: Flow = (store, log) => {
 	);
 	log(
 		"reactivate",
-		w((db) => reactivateState(db, targetInput(itemId, 3))),
+		w((db) => reactivateState(db, targetInput(itemId, 2))),
 	);
 	// replaces あり（CAS）。attributes つきの値は明示された場合だけ保存される
 	log(
@@ -243,7 +191,7 @@ const stateFlow: Flow = (store, log) => {
 					value: value("麦茶が好き", "affirmed", { strength: "high" }),
 					evidence: [makeSpan(TEA, "紅茶が好き")],
 					sources: [TEA],
-					replaces: { itemId, revision: 4 },
+					replaces: { itemId, revision: 3 },
 					validFromMs: 10,
 					validUntilMs: 20,
 				}),
@@ -290,148 +238,8 @@ const stateFlow: Flow = (store, log) => {
 		),
 	);
 	log(
-		"snapshot-part",
-		store.read((db) =>
-			readMemorySnapshotPart(db, {
-				contractVersion: 1,
-				access: ACCESS,
-				scopeKey: SCOPE,
-			}),
-		),
-	);
-	log(
 		"retract",
-		w((db) => retractState(db, targetInput(itemId, 5))),
-	);
-};
-
-// ---- Extraction ----
-
-const extractionFlow: Flow = (store, log) => {
-	const source = makeSource("m9", "私はコーヒーが好き。夜は紅茶が好き。", 5);
-	const prepared = store.write((db) =>
-		prepareExtraction(db, prepareInput("pj1", [extSource(source)])),
-	);
-	log("prepare", prepared);
-	if (prepared.status !== "ready") return;
-	const input = prepared.input;
-	const output = {
-		noChange: false,
-		candidates: [
-			candidateOf(input, "コーヒーが好き"),
-			candidateOf(input, "紅茶が好き", {
-				semanticKey: "evening-drink",
-				value: { text: "紅茶", polarity: "affirmed" },
-			}),
-			candidateOf(input, "夜は紅茶が好き", { modality: "hypothetical" }),
-		],
-	};
-	log(
-		"settle",
-		store.write((db) =>
-			settleExtraction(
-				db,
-				settleInput("pj1", output, [current(source)], {
-					...DEFAULT_ADMISSION_POLICY,
-					preference: "auto_admit",
-				}),
-			),
-		),
-	);
-	const pendingList = store.read((db) =>
-		listCandidates(db, { contractVersion: 1, access: ACCESS, scopeKey: SCOPE }),
-	);
-	log("candidates-default", pendingList);
-	log(
-		"candidates-rejected",
-		store.read((db) =>
-			listCandidates(db, {
-				contractVersion: 1,
-				access: ACCESS,
-				scopeKey: SCOPE,
-				decision: "rejected",
-			}),
-		),
-	);
-	// pending を作る（user_confirm の kind）。representation を持たない出典、2 件の候補
-	const { representation: _representation, ...second } = makeSource(
-		"m10",
-		"私は猫が好き。犬も好き。",
-		6,
-	);
-	const prepared2 = store.write((db) =>
-		prepareExtraction(db, prepareInput("pj2", [extSource(second)])),
-	);
-	log("prepare-bare-source", prepared2);
-	if (prepared2.status !== "ready") return;
-	log(
-		"settle-pending",
-		store.write((db) =>
-			settleExtraction(
-				db,
-				settleInput(
-					"pj2",
-					{
-						noChange: false,
-						candidates: [
-							candidateOf(prepared2.input, "猫が好き", {
-								semanticKey: "pet",
-								value: { text: "猫", polarity: "affirmed" },
-							}),
-							candidateOf(prepared2.input, "犬も好き", {
-								semanticKey: "pet2",
-								value: { text: "犬", polarity: "affirmed" },
-							}),
-						],
-					},
-					[current(second)],
-				),
-			),
-		),
-	);
-	// 本文を持たない現在状態（SourceState.content なし）: quote を検証できないので候補単位で却下される
-	const third = makeSource("m11", "私は海が好き。", 7);
-	const prepared3 = store.write((db) =>
-		prepareExtraction(db, prepareInput("pj3", [extSource(third)])),
-	);
-	if (prepared3.status === "ready") {
-		const { content: _content, ...withoutContent } = current(third);
-		log(
-			"settle-no-content",
-			store.write((db) =>
-				settleExtraction(
-					db,
-					settleInput(
-						"pj3",
-						{
-							noChange: false,
-							candidates: [candidateOf(prepared3.input, "海が好き")],
-						},
-						[withoutContent],
-					),
-				),
-			),
-		);
-	}
-	const pending = store.read((db) =>
-		listCandidates(db, { contractVersion: 1, access: ACCESS, scopeKey: SCOPE }),
-	);
-	const first = pending.status === "ok" ? pending.candidates[0] : undefined;
-	log("pending", pending);
-	if (first === undefined) return;
-	log(
-		"confirm",
-		store.write((db) =>
-			confirmCandidate(db, {
-				contractVersion: 1,
-				access: ACCESS,
-				scopeKey: SCOPE,
-				clock: { atMs: 3000 },
-				candidateId: first.candidateId,
-				action: "admit",
-				currentSources: [current(second)],
-			}),
-		),
+		w((db) => retractState(db, targetInput(itemId, 3))),
 	);
 };
 
@@ -475,42 +283,6 @@ const recordsFlow: Flow = (store, log) => {
 			}),
 		),
 	);
-	log(
-		"range",
-		store.read((db) =>
-			readRecordRange(db, {
-				contractVersion: 1,
-				access: RECORD_ACCESS,
-				scopeKey: "scope:a",
-				recordId: one.recordId,
-				revision: one.revision,
-				range: { startByte: 0, endByte: 9 },
-			}),
-		),
-	);
-	log(
-		"source-states",
-		store.read((db) =>
-			recordSourceStates(db, {
-				contractVersion: 1,
-				access: RECORD_ACCESS,
-				scopeKey: "scope:a",
-				refs: [one.ref],
-			}),
-		),
-	);
-	log(
-		"search",
-		store.read((db) =>
-			searchRecords(db, {
-				contractVersion: 1,
-				access: RECORD_ACCESS,
-				scopeKeys: ["scope:a"],
-				query: "body",
-				limit: 1,
-			}),
-		),
-	);
 	// Lifecycle: record の forget → 外部 provider の pending → externalId 省略の確認記録
 	const planned = store.read((db) =>
 		planForget(db, {
@@ -540,18 +312,6 @@ const recordsFlow: Flow = (store, log) => {
 				forgetId: receipt.forgetId,
 				providerRef: "provider-x",
 				state: "confirmed",
-			}),
-		),
-	);
-	const { representation: _representation, ...bareRef } = one.ref;
-	log(
-		"source-states-bare-ref",
-		store.read((db) =>
-			recordSourceStates(db, {
-				contractVersion: 1,
-				access: RECORD_ACCESS,
-				scopeKey: "scope:a",
-				refs: [bareRef],
 			}),
 		),
 	);
@@ -592,7 +352,7 @@ describe("Object.prototype pollution: sites that need a targeted hostile value",
 		).toBe("false");
 	});
 
-	test("quoteMatches / isQuotedSpan: a span without own range never matches or opens a quote", () => {
+	test("quoteMatches: a span without own range never matches", () => {
 		const content = "私はコーヒーが好き";
 		const noRange = {
 			source: {
@@ -607,11 +367,6 @@ describe("Object.prototype pollution: sites that need a targeted hostile value",
 		const range = { startByte: 6, endByte: 18 };
 		expect(
 			expectSameUnder("range", range, () => quoteMatches(content, noRange)),
-		).toBe("false");
-		expect(
-			expectSameUnder("range", { startByte: 100, endByte: 120 }, () =>
-				isQuotedSpan(`「${content}`, { ...noRange, quote: "x" }),
-			),
 		).toBe("false");
 	});
 
@@ -628,29 +383,17 @@ describe("Object.prototype pollution: sites that need a targeted hostile value",
 			evidenceOrdinal: 1,
 		};
 		const cause = { type: "user" as const, id: "u" };
-		const context = { atMs: 1, activeForKey: null };
-		const edit = { action: "edit" as const, expectedRevision: 1, cause };
+		const supersede = {
+			action: "supersede" as const,
+			expectedRevision: 1,
+			cause,
+		};
 		const assertion = {
 			action: "assert" as const,
 			expectedRevision: null,
 			cause,
 		};
-		expect(
-			expectSameUnder("value", { text: "evil", polarity: "affirmed" }, () =>
-				applyStateTransition(view, edit, context),
-			),
-		).toContain("INVALID_TRANSITION");
-		expect(
-			expectSameUnder("origin", "admitted_extraction", () =>
-				applyStateTransition(view, { ...edit, value: value("y") }, context),
-			),
-		).toContain("user_edited");
-		expect(
-			expectSameUnder("evidenceOrdinal", 99999, () =>
-				applyStateTransition(view, { ...edit, value: value("y") }, context),
-			),
-		).toContain('"evidenceOrdinal":1');
-		// 1 つだけ欠けた assert: 欠けたキーをプロトタイプから補われても INVALID_TRANSITION のまま
+		// 1 つだけ欠けた遷移: 欠けたキーをプロトタイプから補われても INVALID_TRANSITION のまま
 		const full = {
 			identity: {
 				itemId: "state:n",
@@ -659,72 +402,33 @@ describe("Object.prototype pollution: sites that need a targeted hostile value",
 				semanticKey: "drink",
 			},
 			value: value("z"),
-			origin: "admitted_extraction" as const,
+			origin: "agent_inferred" as const,
 			evidenceOrdinal: 3,
 		};
 		for (const key of Object.keys(full) as (keyof typeof full)[]) {
 			const { [key]: hostile, ...rest } = full;
 			expect(
 				expectSameUnder(key, hostile, () =>
-					applyStateTransition(null, { ...assertion, ...rest }, context),
+					applyStateTransition(
+						view,
+						{ ...supersede, ...rest },
+						{ atMs: 1, activeForKey: view },
+					),
+				),
+			).toContain("INVALID_TRANSITION");
+			expect(
+				expectSameUnder(key, hostile, () =>
+					applyStateTransition(
+						null,
+						{ ...assertion, ...rest },
+						{ atMs: 1, activeForKey: null },
+					),
 				),
 			).toContain("INVALID_TRANSITION");
 		}
-		// context.keyHistory は own のものだけ
-		const ext = {
-			action: "assert" as const,
-			expectedRevision: null,
-			identity: {
-				itemId: "state:n",
-				subject: "self" as const,
-				kind: "preference" as const,
-				semanticKey: "drink",
-			},
-			value: value("z"),
-			origin: "admitted_extraction" as const,
-			evidenceOrdinal: 3,
-			cause,
-		};
-		expect(
-			expectSameUnder(
-				"keyHistory",
-				{ disputedMaxOrdinal: 99, userRemoved: true },
-				() => applyStateTransition(null, ext, context),
-			),
-		).toContain('"status":"active"');
 	});
 
-	test("evaluateAdmission: keyHistory is read from own properties only", () => {
-		const source = makeSource("m", "私はコーヒーが好き", 5);
-		const span = makeSpan(source, "コーヒーが好き");
-		const decide = () =>
-			evaluateAdmission({
-				candidate: {
-					kind: "preference",
-					subject: "self",
-					semanticKey: "drink",
-					value: { text: "コーヒー", polarity: "affirmed" },
-					modality: "asserted",
-					temporal: "current",
-					evidence: [span],
-				},
-				principal: ACCESS.principal,
-				scopeKey: SCOPE,
-				inputSources: [{ ...source, role: "user" }],
-				currentSources: [source],
-				activeForKey: null,
-				policy: { ...DEFAULT_ADMISSION_POLICY, preference: "auto_admit" },
-			});
-		expect(
-			expectSameUnder(
-				"keyHistory",
-				{ disputedMaxOrdinal: 99, userRemoved: true },
-				decide,
-			),
-		).toBe('{"decision":"admitted"}');
-	});
-
-	test("input parse: an evidence span without own range is MISSING_KEY, a settle currentSource without content does not count toward the total", () => {
+	test("input parse: an evidence span without own range is MISSING_KEY", () => {
 		const bare = {
 			...assertInput(),
 			evidence: [
@@ -751,157 +455,15 @@ describe("Object.prototype pollution: sites that need a targeted hostile value",
 		expect(expectSameUnder("range", { startByte: 0, endByte: 3 }, codeOf)).toBe(
 			'"MISSING_KEY"',
 		);
-		const settle = settleInput("pj", { noChange: true, candidates: [] }, [
-			(() => {
-				const { content: _content, ...rest } = current(makeSource("m", "x", 1));
-				return rest;
-			})(),
-		]);
-		const parse = () => {
-			try {
-				parseSettleExtractionInput(settle);
-				return "ok";
-			} catch (error) {
-				return isMemoryContractError(error) ? error.code : String(error);
-			}
-		};
-		expect(
-			expectSameUnder(
-				"content",
-				"x".repeat(LIMITS.maxTotalSourceContentBytes + 1),
-				parse,
-			),
-		).toBe('"ok"');
-	});
-
-	test("writeStateForCandidate: evidence without own range is CORRUPT_ROW even if the prototype has one", () => {
-		// 呼び出しごとに新しい DB を開く（catch した例外で transaction が commit されて次の呼び出しに残らないように）。
-		const write = () => {
-			const store = openTestStore();
-			try {
-				return store.write((db) => {
-					try {
-						writeStateForCandidate(db, {
-							principal: ACCESS.principal,
-							scopeKey: SCOPE,
-							atMs: 1,
-							subject: "self",
-							kind: "preference",
-							semanticKey: "drink",
-							value: value("x"),
-							evidence: [
-								{
-									source: {
-										namespace: "conversation",
-										kind: "message",
-										id: "m1",
-										revision: COFFEE.revision,
-										digest: COFFEE.digest,
-									},
-								},
-							],
-							evidenceOrdinal: 1,
-							origin: "admitted_extraction",
-							candidateId: "cand:z",
-							replaces: null,
-						});
-						return "no error";
-					} catch (error) {
-						return isMemoryStoreError(error) ? error.code : String(error);
-					}
-				});
-			} finally {
-				store.close();
-			}
-		};
-		expect(expectSameUnder("range", { startByte: 0, endByte: 3 }, write)).toBe(
-			'"CORRUPT_ROW"',
-		);
-	});
-
-	test("settle: a current source without own content never supplies the quote body from the prototype", () => {
-		const run = (content: string | null) => {
-			const store = openTestStore();
-			try {
-				const source = makeSource("m11", "私は海が好き。", 7);
-				const prepared = store.write((db) =>
-					prepareExtraction(db, prepareInput("pj3", [extSource(source)])),
-				);
-				if (prepared.status !== "ready") throw new Error("not ready");
-				const { content: _content, ...withoutContent } = current(source);
-				const result = (): unknown =>
-					store.write((db) =>
-						settleExtraction(
-							db,
-							settleInput(
-								"pj3",
-								{
-									noChange: false,
-									candidates: [candidateOf(prepared.input, "海が好き")],
-								},
-								[withoutContent],
-								{ ...DEFAULT_ADMISSION_POLICY, preference: "auto_admit" },
-							),
-						),
-					);
-				return content === null
-					? JSON.stringify(result())
-					: withPrototype("content", content, () => JSON.stringify(result()));
-			} finally {
-				store.close();
-			}
-		};
-		const clean = run(null);
-		expect(clean).toBe(
-			'{"status":"applied","admitted":0,"pendingUser":0,"rejected":1}',
-		);
-		expect(run("私は海が好き。")).toBe(clean);
-	});
-
-	test("recordSourceStates: a ref without own representation is never treated as text via the prototype", () => {
-		const store = openTestStore();
-		try {
-			const captured = store.write((db) =>
-				captureRecord(db, {
-					contractVersion: 1,
-					access: RECORD_ACCESS,
-					scopeKey: "scope:a",
-					clock: { atMs: 1 },
-					origin: { namespace: "web", kind: "page", id: "p9" },
-					mediaType: "text/plain",
-					content: "body",
-					captureState: "complete",
-				}),
-			);
-			if (captured.status !== "captured") throw new Error("not captured");
-			const { representation: _representation, ...bareRef } = captured.ref;
-			const states = () =>
-				store.read((db) =>
-					recordSourceStates(db, {
-						contractVersion: 1,
-						access: RECORD_ACCESS,
-						scopeKey: "scope:a",
-						refs: [bareRef],
-					}),
-				);
-			const clean = expectSameUnder("representation", "text", states);
-			expect(clean).toContain('"status":"missing"');
-		} finally {
-			store.close();
-		}
 	});
 });
 
 describe("Object.prototype pollution does not change results", () => {
-	test("State: assert / edit / status changes / list / snapshot part", () => {
+	test("State: assert / status changes / list", () => {
 		expectInvariant(stateFlow);
 	});
 
-	test("Extraction: prepare / settle / list / confirm", () => {
-		expectInvariant(extractionFlow);
-	});
-
-	test("Records and Lifecycle: capture / read / range / sourceStates / search / forget / external deletion", () => {
+	test("Records and Lifecycle: capture / read / forget / external deletion", () => {
 		expectInvariant(recordsFlow);
 	});
 
@@ -915,7 +477,7 @@ describe("Object.prototype pollution does not change results", () => {
 		expect(polluted).toBe("all");
 	});
 
-	test("the hostile table covers every optional key of the State / Extraction / Records / Lifecycle inputs", () => {
+	test("the hostile table covers every optional key of the State / Records / Lifecycle inputs", () => {
 		for (const key of [
 			"attributes",
 			"validFromMs",
@@ -924,16 +486,11 @@ describe("Object.prototype pollution does not change results", () => {
 			"kinds",
 			"includeInactive",
 			"limit",
-			"decision",
-			"editedValue",
 			"representation",
 			"range",
 			"content",
 			"revision",
-			"runRef",
 			"providerRef",
-			"withContent",
-			"cursor",
 			"externalId",
 			"origin",
 			"evidenceOrdinal",

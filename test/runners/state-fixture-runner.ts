@@ -11,8 +11,6 @@
  *   `as`（新）で、新の identity は target と同じ。それ以外は `target`。
  * - `expect`: `{ ok: false, reasonCode }` または `{ ok: true, items: [{as, status, revision, valueText?, origin?}], events: [{as, action, from, to}] }`。
  *   `items` / `events` が空なら冪等（unchanged）。items と events は順序も比べる。
- * - runner は同 key の履歴から `context.keyHistory` も作る: `disputedMaxOrdinal` = 台帳の disputed の item の evidenceOrdinal の最大
- *   （なければ null）、`userRemoved` = origin が user_confirmed / user_edited の item が retracted / inactive で台帳にある。
  * - 各 step の後に不変条件を検査する: 同 (subject, kind, semanticKey) の active は高々 1 件、revision は減らない。
  * - `finalStatuses`（任意）: 最後の台帳の名前 → status。
  */
@@ -97,32 +95,10 @@ export function describeStateFixtures(api: StateFixtureApi): void {
 										item.kind === keyOf["kind"] &&
 										item.semanticKey === keyOf["semanticKey"],
 								) ?? null);
-					const sameKey = (item: Item): boolean =>
-						keyOf !== undefined &&
-						item.subject === keyOf["subject"] &&
-						item.kind === keyOf["kind"] &&
-						item.semanticKey === keyOf["semanticKey"];
-					const sameKeyItems = [...ledger.values()].filter(sameKey);
-					const disputedOrdinals = sameKeyItems
-						.filter((item) => item.status === "disputed")
-						.map((item) => item.evidenceOrdinal);
-					const keyHistory = {
-						disputedMaxOrdinal:
-							disputedOrdinals.length === 0
-								? null
-								: Math.max(...disputedOrdinals),
-						userRemoved: sameKeyItems.some(
-							(item) =>
-								(item.status === "retracted" || item.status === "inactive") &&
-								(item.origin === "user_confirmed" ||
-									item.origin === "user_edited"),
-						),
-					};
 					const result = asObj(
 						api.applyStateTransition(target ?? null, transition, {
 							atMs: step["atMs"] ?? 1000,
 							activeForKey,
-							keyHistory,
 						}),
 					);
 					const expected = asObj(step["expect"]);

@@ -5,15 +5,14 @@
  * planForget / applyForget / reconcileForgetJournal / getForgetReceipt は target `record` / `host_source` /
  * `state_item` / `scope` を扱う。`enabled`（Memory ON/OFF）に依存しない。
  *
- * 閉包: 起点（出典キー、または state_item / candidate / run / external の node）から `memory_dependency` を
+ * 閉包: 起点（出典キー、または state_item / external の node）から `memory_dependency` を
  * 再帰 CTE で辿った辺を、純粋な `computeClosure` に渡して求める。起点が次のとおり。
- * - record: その record の出典キー。host_source: その出典キー（引用されなかった入力も `input` 辺で届く）。
- * - state_item: その item と、その item の値の元になった候補（item → candidate の辺。候補も同じ値を持つため）。
- * - scope: scope の record の出典キー、scope の state_item / candidate / run / external（辺の scope_key が scope のもの）。
- *   scope が引用している record 以外の出典は、墓標だけ書く（以後その出典から抽出・採用しない）。
- * 閉包内の各行は apply で値を消す（state_item は `scrubStateItem`、candidate / run は `scrubCandidate` /
- * `scrubRun`、出典の進捗行は `scrubSourceProgress`）うえで墓標を書く。外部派生物（`external` 辺）と、
- * 外部へ送った record / run の `providerRef` は `memory_forget_external` に `pending` で登録する。
+ * - record: その record の出典キー。host_source: その出典キー。
+ * - state_item: その item。
+ * - scope: scope の record の出典キー、scope の state_item / external（辺の scope_key が scope のもの）。
+ *   scope が引用している record 以外の出典は、墓標だけ書く（以後その出典から採用しない）。
+ * 閉包内の各行は apply で値を消す（state_item は `scrubStateItem`）うえで墓標を書く。外部派生物（`external` 辺）と、
+ * 外部へ送った record の `providerRef` は `memory_forget_external` に `pending` で登録する。
  *
  * 限界: 物理消去（空き領域・WAL・OS のスナップショット）は保証しない。外部の確認状況は DB の中にだけあり、
  * 古い DB を復元して reconcile すると外部削除は `pending` に戻る（ホストが `recordExternalDeletion` をやり直す）。
@@ -84,22 +83,12 @@ import type { MemoryDb, SqlValue } from "../../../infrastructure/sqlite/db.ts";
 import { MemoryStoreError } from "../../../infrastructure/sqlite/errors.ts";
 import { ownValue } from "../../../contracts/own.ts";
 import {
-	listCandidateIdsInScope,
-	listRunIdsInScope,
-	runProviderRef,
-	scrubCandidate,
-	scrubRun,
-	scrubScopeProgress,
-	scrubSourceProgress,
-} from "../../extraction/sqlite.ts";
-import {
 	listRecordIdsInScope,
 	listRecordProviders,
 	recordIsLive,
 	recordOwnership,
 	scrubRecord,
 } from "../../records/sqlite.ts";
-import { bumpScopeRevision } from "../../../infrastructure/sqlite/scope-state.ts";
 import {
 	enterRead,
 	enterWrite,
@@ -237,11 +226,7 @@ function splitExternalNodeId(id: string): {
 
 // ---- forget の対象集合 ----
 
-type DerivedNodeType =
-	| "state_item"
-	| "candidate"
-	| "extraction_run"
-	| "external";
+type DerivedNodeType = "state_item" | "external";
 
 interface DerivedNode {
 	readonly type: DerivedNodeType;
@@ -266,16 +251,10 @@ interface ForgetSet {
 	readonly sources: readonly SourceRefToTombstone[];
 	/** 起点の派生行 + 閉包に入る派生行（重複なし、型 → id の順）。 */
 	readonly nodes: readonly DerivedNode[];
-	readonly scopeTargets: readonly string[];
 }
 
 function isDerivedType(type: string): type is DerivedNodeType {
-	return (
-		type === "state_item" ||
-		type === "candidate" ||
-		type === "extraction_run" ||
-		type === "external"
-	);
+	return type === "state_item" || type === "external";
 }
 
 function queryIds(
@@ -303,7 +282,6 @@ function resolveForgetSet(
 	const records = new Map<string, RecordRef>();
 	const sources = new Map<string, SourceRefToTombstone>();
 	const starts = new Map<string, DerivedNode>();
-	const scopeTargets: string[] = [];
 	const closureStarts: ClosureNodeRef[] = [];
 
 	const addStart = (node: DerivedNode): void => {
@@ -340,25 +318,9 @@ function resolveForgetSet(
 					id: target.id,
 					scopeKey: target.scopeKey,
 				});
-				// item の値の元になった候補も同じ値を持つので、候補も忘れる。
-				for (const candidateId of queryIds(
-					db,
-					`SELECT dependency_id FROM memory_dependency
-					WHERE principal = ? AND dependent_type = 'state_item' AND dependent_id = ?
-						AND dependency_type = 'candidate'`,
-					[principal, target.id],
-					"dependency_id",
-				)) {
-					addStart({
-						type: "candidate",
-						id: candidateId,
-						scopeKey: target.scopeKey,
-					});
-				}
 				break;
 			}
 			case "scope": {
-				scopeTargets.push(target.scopeKey);
 				for (const recordId of listRecordIdsInScope(
 					db,
 					principal,
@@ -375,22 +337,6 @@ function resolveForgetSet(
 				)) {
 					addStart({ type: "state_item", id, scopeKey: target.scopeKey });
 				}
-				for (const id of listCandidateIdsInScope(
-					db,
-					principal,
-					target.scopeKey,
-					createdBefore,
-				)) {
-					addStart({ type: "candidate", id, scopeKey: target.scopeKey });
-				}
-				for (const id of listRunIdsInScope(
-					db,
-					principal,
-					target.scopeKey,
-					createdBefore,
-				)) {
-					addStart({ type: "extraction_run", id, scopeKey: target.scopeKey });
-				}
 				// 外部派生物（辺に作成 seq がないため、再適用ではその forget が墓標を書いた分だけ）。
 				if (createdBefore === null) {
 					for (const id of queryIds(
@@ -404,7 +350,7 @@ function resolveForgetSet(
 					}
 				}
 				// scope が引用する host の出典のうち、他の scope の派生行が引用していないものは墓標だけ書く
-				// （以後その出典から抽出・採用しない）。他の scope が（まだ忘れていない行で）引用する出典は触らない（巻き込まない）。
+				// （以後その出典から採用しない）。他の scope が（まだ忘れていない行で）引用する出典は触らない（巻き込まない）。
 				// 再適用では、最初の適用が書いた墓標だけを対象にする（下の createdBefore の節）。
 				if (createdBefore === null) {
 					for (const sourceKey of queryIds(
@@ -480,7 +426,6 @@ function resolveForgetSet(
 		records: [...records.values()],
 		sources: [...sources.values()],
 		nodes: sortedNodes,
-		scopeTargets,
 	};
 }
 
@@ -571,18 +516,12 @@ export function planForget(
 	const counts: Record<string, number> = {
 		record: set.records.filter((ref) => recordIsLive(db, ref.recordId)).length,
 		state_item: 0,
-		candidate: 0,
-		extraction_run: 0,
 		external: 0,
 	};
 	const externalDependents: { providerRef: string; externalId: string }[] = [];
 	for (const node of set.nodes) {
 		if (!isTombstoned(db, node.type, node.id)) {
 			counts[node.type] = (counts[node.type] ?? 0) + 1;
-		}
-		if (node.type === "extraction_run") {
-			const providerRef = runProviderRef(db, principal, node.id);
-			if (providerRef !== null) providerRefs.add(providerRef);
 		}
 		if (node.type === "external") {
 			externalDependents.push(splitExternalNodeId(node.id));
@@ -693,7 +632,7 @@ function refreshForgetExternalState(db: MemoryDb, forgetId: string): void {
  *   一致しなければ `JOURNAL_ENTRY_INVALID`。scope target の再適用は、最初の適用より前に作られた行に限る
  *   （その後に作られた行を消さない）。
  * - それ以外（head の次でない新規、prevHash 不一致）は `JOURNAL_ENTRY_INVALID`。
- * 値の消去・索引削除・閉包の墓標・scope revision の更新は、墓標の有無に関係なく毎回行う。
+ * 値の消去・閉包の墓標は、墓標の有無に関係なく毎回行う。
  */
 function applyEntry(
 	db: MemoryDb,
@@ -733,19 +672,14 @@ function applyEntry(
 	}
 
 	const principal = entry.principal;
-	const scopes = new Set<string>(
-		entry.targets.map((target) => target.scopeKey),
-	);
 	// 閉包は apply 時点で再計算する（plan 後に増えた派生物も漏らさない）。
 	const set = resolveForgetSet(db, principal, entry, createdBefore);
-	const forgottenSources: string[] = [];
 
 	const providerRefs = new Set<string>();
 	for (const ref of set.records) {
 		const info = scrubRecord(db, principal, ref.scopeKey, ref.recordId);
 		for (const providerRef of info.providerRefs) providerRefs.add(providerRef);
 		const sourceKey = recordSourceKey(ref.recordId);
-		forgottenSources.push(sourceKey);
 		const newlyTombstoned = !isTombstoned(db, "record", ref.recordId);
 		insertTombstone(
 			db,
@@ -790,8 +724,6 @@ function applyEntry(
 		}
 	}
 	for (const source of set.sources) {
-		forgottenSources.push(source.sourceKey);
-		scopes.add(source.scopeKey);
 		const newlyTombstoned = !isTombstoned(db, "source", source.sourceKey);
 		insertTombstone(
 			db,
@@ -816,12 +748,6 @@ function applyEntry(
 			});
 		}
 	}
-	// 忘れた出典の進捗行（processed_revision 等）。以後の再 insert は trigger が拒否する。
-	scrubSourceProgress(db, principal, forgottenSources);
-	for (const scopeKey of set.scopeTargets) {
-		scrubScopeProgress(db, principal, scopeKey, createdBefore);
-	}
-
 	// 閉包内の派生行: 値を消し、墓標を書く。
 	for (const node of set.nodes) {
 		let scopeKey = node.scopeKey;
@@ -830,15 +756,7 @@ function applyEntry(
 			const scrubbed = scrubStateItem(db, principal, node.id, opSeq);
 			scopeKey = scrubbed.scopeKey ?? scopeKey;
 			transitioned = scrubbed.transitioned;
-		} else if (node.type === "candidate") {
-			const scrubbed = scrubCandidate(db, principal, node.id);
-			scopeKey = scrubbed.scopeKey ?? scopeKey;
-		} else if (node.type === "extraction_run") {
-			const scrubbed = scrubRun(db, principal, node.id, opSeq);
-			scopeKey = scrubbed.scopeKey ?? scopeKey;
-			if (scrubbed.providerRef !== null) providerRefs.add(scrubbed.providerRef);
 		}
-		scopes.add(scopeKey);
 		const newlyTombstoned = !isTombstoned(db, node.type, node.id);
 		insertTombstone(
 			db,
@@ -898,9 +816,6 @@ function applyEntry(
 		});
 	}
 	refreshForgetExternalState(db, entry.forgetId);
-	for (const scopeKey of [...scopes].sort()) {
-		bumpScopeRevision(db, principal, scopeKey);
-	}
 	return buildReceipt(db, entry.forgetId);
 }
 
@@ -1169,7 +1084,7 @@ function readExistingEdges(db: MemoryDb, nodeId: string): ExistingEdges | null {
 /**
  * 書き込み。外部ドメインの派生物を依存閉包に登録する（役割は常に `derived_from`、置き換え）。
  * 全件を検査してから書く（1 件でも拒否なら何も書かない）。忘却済み（墓標あり）の対象からは派生させない。
- * 登録は Memory 所有データを変えないので、scope revision・変更フィードには触れない。
+ * 登録は Memory 所有データを変えないので、変更フィードには触れない。
  */
 export function registerExternalDependents(
 	db: MemoryDb,

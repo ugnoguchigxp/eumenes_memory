@@ -81,11 +81,11 @@ function apply(s: TestStore, entry: ForgetJournalEntry) {
 
 function edge(
 	s: TestStore,
-	dependentType: "state_item" | "candidate" | "extraction_run" | "external",
+	dependentType: "state_item" | "external",
 	dependentId: string,
-	dependencyType: "source" | "state_item" | "candidate" | "extraction_run",
+	dependencyType: "source" | "state_item",
 	dependencyId: string,
-	role: "primary" | "support" | "input" | "derived_from" = "support",
+	role: "primary" | "support" | "derived_from" = "support",
 	scopeKey = "scope:a",
 	principal = "local:owner",
 ) {
@@ -305,28 +305,6 @@ describe("applyForget", () => {
 		).toEqual({ status: "ok", reapplied: 0 });
 		expect(read(later.recordId, "scope:a")).toBe("available");
 	});
-
-	test("every apply bumps the scope revision of the targets", () => {
-		const s = open();
-		const record = put(s, "o1");
-		const revision = () =>
-			s.writer
-				.query(
-					"SELECT revision FROM memory_scope_state WHERE scope_key = 'scope:a'",
-				)
-				.get();
-		expect(revision()).toEqual({ revision: 1 });
-		const planned = plan(s, {
-			type: "record",
-			recordId: record.recordId,
-			scopeKey: "scope:a",
-		});
-		if (planned.status !== "planned") throw new Error("unreachable");
-		apply(s, planned.plan.entry);
-		expect(revision()).toEqual({ revision: 2 });
-		apply(s, planned.plan.entry);
-		expect(revision()).toEqual({ revision: 3 });
-	});
 });
 
 describe("closure over memory_dependency and external pending/unverified (FG5, record part)", () => {
@@ -336,10 +314,7 @@ describe("closure over memory_dependency and external pending/unverified (FG5, r
 		const source = recordSourceKey(record.recordId);
 		const unrelated = put(s, "o2");
 		edge(s, "state_item", "item:1", "source", source, "primary");
-		edge(s, "candidate", "cand:1", "source", source, "support");
-		edge(s, "extraction_run", "run:1", "source", source, "input");
-		edge(s, "candidate", "cand:2", "extraction_run", "run:1", "derived_from");
-		edge(s, "state_item", "item:2", "candidate", "cand:2", "primary");
+		edge(s, "state_item", "item:2", "source", source, "support");
 		edge(s, "external", "world:n1", "source", source, "derived_from");
 		edge(s, "external", "world:n2", "state_item", "item:2", "derived_from");
 		// 他の principal の辺は辿らない
@@ -372,8 +347,6 @@ describe("closure over memory_dependency and external pending/unverified (FG5, r
 		expect(planned.plan.closure.counts).toEqual({
 			record: 1,
 			state_item: 2,
-			candidate: 2,
-			extraction_run: 1,
 			external: 2,
 		});
 		expect(planned.plan.externalProviders).toEqual(["larm"]);
@@ -400,12 +373,9 @@ describe("closure over memory_dependency and external pending/unverified (FG5, r
 			.all() as { t: string; i: string }[];
 		expect(tombstones.map((row) => `${row.t}:${row.i}`)).toEqual(
 			[
-				"candidate:cand:1",
-				"candidate:cand:2",
 				"external:world:n1",
 				"external:world:n2",
 				`record:${record.recordId}`,
-				"extraction_run:run:1",
 				`source:${source}`,
 				"state_item:item:1",
 				"state_item:item:2",

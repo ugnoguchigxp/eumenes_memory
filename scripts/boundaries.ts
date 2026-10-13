@@ -95,12 +95,6 @@ function isSql(path: string): boolean {
 	);
 }
 
-const COMPATIBILITY = new Set(
-	["records", "recall", "state", "extraction", "lifecycle", "parse-v2"].map(
-		(name) => `src/contracts/${name}.ts`,
-	),
-);
-
 export function checkBoundaries(root: string): string[] {
 	dependencyClosure(DOMAIN_NAMES); // Configuration itself must be acyclic.
 	const problems: string[] = [];
@@ -165,8 +159,6 @@ export function checkBoundaries(root: string): string[] {
 				fail(`Production code imports test helper ${target}`);
 			if (!test && !isSql(name) && isSql(target))
 				fail(`Pure code depends on persistence ${target}`);
-			if (own !== undefined && COMPATIBILITY.has(target))
-				fail(`Use the domain contract directly: ${target}`);
 			const targetOwner = ownerOf(target);
 			if (
 				own !== undefined &&

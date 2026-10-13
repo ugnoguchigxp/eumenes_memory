@@ -1,5 +1,5 @@
 /**
- * Lifecycle の S6 分（target host_source / state_item / scope の全閉包、ExternalDependent の登録、外部削除の記録）の
+ * Lifecycle（target host_source / state_item / scope の全閉包、ExternalDependent の登録、外部削除の記録）の
  * 単体試験。グラフは `test/runners/forget-support.ts` が実 SQLite に組み立てる。
  */
 import { afterEach, describe, expect, test } from "bun:test";
@@ -96,13 +96,11 @@ describe("registerExternalDependents", () => {
 		items: [{ id: "i1", evidence: ["m:m1"] }],
 	} as const;
 
-	test("registers, is idempotent, replaces the dependency set, and touches neither the scope revision nor the change feed", () => {
+	test("registers, is idempotent, replaces the dependency set, and does not touch the change feed", () => {
 		const s = open();
 		buildGraph(s, SIMPLE);
-		const revision = () =>
-			s.writer.query("SELECT * FROM memory_scope_state").all();
 		const feed = () => s.writer.query("SELECT * FROM memory_change").all();
-		const before = JSON.stringify([revision(), feed()]);
+		const before = JSON.stringify(feed());
 		expect(
 			register(s, [
 				{
@@ -153,7 +151,7 @@ describe("registerExternalDependents", () => {
 				)
 				.all(),
 		).toEqual([{ dependency_type: "source", dependency_id: messageKey("m2") }]);
-		expect(JSON.stringify([revision(), feed()])).toBe(before);
+		expect(JSON.stringify(feed())).toBe(before);
 	});
 
 	test("rejects tombstoned and missing dependencies without writing anything (all or nothing)", () => {
@@ -329,9 +327,7 @@ describe("planForget / applyForget for host_source, state_item and scope", () =>
 		const s = open();
 		const g = buildGraph(s, {
 			records: ["r1"],
-			runs: [{ id: "run1", inputs: ["m:m1"], provider: "larm" }],
-			candidates: [{ id: "c1", run: "run1", evidence: ["m:m1"] }],
-			items: [{ id: "i1", evidence: ["m:m1"], fromCandidate: "c1" }],
+			items: [{ id: "i1", evidence: ["m:m1"] }],
 			externals: [{ id: "world:n1", dependsOn: ["i:i1"] }],
 		});
 		const dump = () =>
@@ -371,12 +367,10 @@ describe("planForget / applyForget for host_source, state_item and scope", () =>
 		expect(dump()).toBe(before);
 	});
 
-	test("host_source: counts, providers and external derivatives are reported before apply; a source nothing depends on is still tombstoned", () => {
+	test("host_source: counts and external derivatives are reported before apply; a source nothing depends on is still tombstoned", () => {
 		const s = open();
 		buildGraph(s, {
-			runs: [{ id: "run1", inputs: ["m:m1"], provider: "larm" }],
-			candidates: [{ id: "c1", run: "run1", evidence: ["m:m1"] }],
-			items: [{ id: "i1", evidence: ["m:m1"], fromCandidate: "c1" }],
+			items: [{ id: "i1", evidence: ["m:m1"] }],
 			externals: [{ id: "world:n1", dependsOn: ["i:i1"] }],
 		});
 		const planned = s.read((db) =>
@@ -395,11 +389,9 @@ describe("planForget / applyForget for host_source, state_item and scope", () =>
 		expect(planned.plan.closure.counts).toEqual({
 			record: 0,
 			state_item: 1,
-			candidate: 1,
-			extraction_run: 1,
 			external: 1,
 		});
-		expect(planned.plan.externalProviders).toEqual(["larm"]);
+		expect(planned.plan.externalProviders).toEqual([]);
 		expect(planned.plan.externalDependents).toEqual([
 			{ providerRef: "world", externalId: "n1" },
 		]);
@@ -466,28 +458,18 @@ describe("planForget / applyForget for host_source, state_item and scope", () =>
 		const s = open();
 		buildGraph(s, {
 			records: ["r1"],
-			runs: [
-				{ id: "ra", inputs: ["m:only-a", "m:shared"], provider: "larm" },
-				{ id: "rb", scope: OTHER_SCOPE, inputs: ["m:shared", "m:only-b"] },
-			],
-			candidates: [
-				{ id: "ca", run: "ra", evidence: ["m:only-a"] },
-				{ id: "cb", scope: OTHER_SCOPE, run: "rb", evidence: ["m:only-b"] },
-			],
 			items: [
-				{ id: "ia", evidence: ["m:only-a"], fromCandidate: "ca" },
+				{ id: "ia", evidence: ["m:only-a", "m:shared"] },
 				{
 					id: "ib",
 					scope: OTHER_SCOPE,
-					evidence: ["m:only-b"],
-					fromCandidate: "cb",
+					evidence: ["m:shared", "m:only-b"],
 				},
 			],
 			externals: [
 				{ id: "world:na", dependsOn: ["i:ia"] },
 				{ id: "world:nb", scope: OTHER_SCOPE, dependsOn: ["i:ib"] },
 			],
-			progress: ["m:only-a", "m:shared"],
 		});
 		const { plan, receipt } = forgetRecord(s, {
 			type: "scope",
@@ -496,21 +478,13 @@ describe("planForget / applyForget for host_source, state_item and scope", () =>
 		expect(plan.closure.counts).toEqual({
 			record: 1,
 			state_item: 1,
-			candidate: 1,
-			extraction_run: 1,
 			external: 1,
 		});
 		expect(receipt.external).toBe("pending");
-		for (const secret of [
-			"SECRET-rec-r1",
-			"SECRET-item-ia",
-			"SECRET-cand-ca",
-		]) {
+		for (const secret of ["SECRET-rec-r1", "SECRET-item-ia"]) {
 			expect(tablesContain(s, secret)).toBe(false);
 		}
-		for (const secret of ["SECRET-item-ib", "SECRET-cand-cb"]) {
-			expect(tablesContain(s, secret)).toBe(true);
-		}
+		expect(tablesContain(s, "SECRET-item-ib")).toBe(true);
 		expect(tombstoneSet(s, "source")).toEqual(
 			new Set([
 				messageKey("only-a"),
@@ -523,9 +497,6 @@ describe("planForget / applyForget for host_source, state_item and scope", () =>
 			]),
 		);
 		expect(tombstoneSet(s, "external")).toEqual(new Set(["world:na"]));
-		expect(
-			s.writer.query("SELECT COUNT(*) AS n FROM memory_source_progress").get(),
-		).toEqual({ n: 0 });
 		expect(closureViolations(s)).toEqual([]);
 	});
 
@@ -589,11 +560,10 @@ describe("review findings", () => {
 	test("a source shared by two scopes is tombstoned by the second scope forget once the first scope's rows are gone", () => {
 		const s = open();
 		buildGraph(s, {
-			runs: [
-				{ id: "ra", inputs: ["m:shared"] },
-				{ id: "rb", scope: OTHER_SCOPE, inputs: ["m:shared"] },
+			items: [
+				{ id: "ia", evidence: ["m:shared"] },
+				{ id: "ib", scope: OTHER_SCOPE, evidence: ["m:shared"] },
 			],
-			progress: [],
 		});
 		forgetRecord(s, { type: "scope", scopeKey: SCOPE });
 		expect(tombstoneSet(s, "source")).toEqual(new Set());

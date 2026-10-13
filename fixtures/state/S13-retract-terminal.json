@@ -105,24 +105,6 @@
       }
     },
     {
-      "action": "edit",
-      "target": "a",
-      "expectedRevision": 2,
-      "value": {
-        "text": "紅茶",
-        "polarity": "affirmed"
-      },
-      "origin": "user_edited",
-      "cause": {
-        "type": "user",
-        "id": "owner"
-      },
-      "expect": {
-        "ok": false,
-        "reasonCode": "INVALID_TRANSITION"
-      }
-    },
-    {
       "action": "deactivate",
       "target": "a",
       "expectedRevision": 2,

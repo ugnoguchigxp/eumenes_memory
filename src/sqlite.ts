@@ -4,10 +4,10 @@
  * ホストが渡す `MemoryDb` に対する同期関数と、スキーマ定義（migrations）だけを提供する。
  * 起動手順と運用規則は `src/infrastructure/sqlite/README.md`、migration の追加手順は `src/infrastructure/sqlite/migrations/README.md`。
  *
- * 実装済み（S0〜S6）: `listMemoryChanges`、`latestMemoryChangeSeq`、`assertMemorySchema`、`migrations`、`MemoryStoreError`、Records / Recall / State /
- * Extraction / Lifecycle（`planForget` / `applyForget` / `reconcileForgetJournal` / `getForgetReceipt` / `recordExternalDeletion`）、
+ * 提供する関数: `listMemoryChanges` / `latestMemoryChangeSeq`、`assertMemorySchema`、`migrations`、`MemoryStoreError`、
+ * Records（`captureRecord` / `readRecord` と、再生成可能な資料の `retainRecord` ほか）、State（`assertUserState` / `listState` / `readStateFact` と状態遷移）、
+ * Lifecycle（`planForget` / `applyForget` / `reconcileForgetJournal` / `getForgetReceipt` / `recordExternalDeletion`）、
  * ExternalDependent の登録・解除。World / Consolidation は別ドメイン・別リポジトリ（接続部は ExternalDependent と変更フィードだけ）。
- * 到達段階は `spec/verification-status.md`。
  */
 export type {
 	MemoryDb,
@@ -30,31 +30,13 @@ export {
 } from "./infrastructure/sqlite/migrations/index.ts";
 
 export {
-	captureRecord,
-	deactivateRecord,
-	reactivateRecord,
-	readRecord,
-	readRecordRange,
-	recordSourceStates,
-} from "./domains/records/sqlite.ts";
-export { searchRecords } from "./domains/recall/sqlite.ts";
-export {
 	assertUserState,
 	deactivateState,
-	editState,
 	listState,
-	listStateScopes,
 	reactivateState,
-	readMemorySnapshotPart,
 	readStateFact,
 	retractState,
 } from "./domains/state/sqlite.ts";
-export {
-	confirmCandidate,
-	listCandidates,
-	prepareExtraction,
-	settleExtraction,
-} from "./domains/extraction/sqlite.ts";
 export {
 	applyForget,
 	getForgetReceipt,
@@ -74,14 +56,14 @@ export type * from "./contracts/common.ts";
 export type * from "./domains/records/contracts/index.ts";
 export type * from "./domains/records/contracts/retention.ts";
 export {
+	captureRecord,
+	readRecord,
 	retainRecord,
 	readRetainedRecord,
 	useRetainedRecord,
 	retainedRecordStats,
 	evictRetainedRecords,
 } from "./domains/records/sqlite.ts";
-export type * from "./domains/recall/contracts/index.ts";
 export type * from "./domains/state/contracts/index.ts";
-export type * from "./domains/extraction/contracts/index.ts";
 export type * from "./domains/lifecycle/contracts/index.ts";
 export type * from "./contracts/external.ts";

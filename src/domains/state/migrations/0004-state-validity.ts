@@ -1,5 +1,5 @@
 /**
- * State item の成立期間の精度と根拠（evolution-proposal「時間と適用範囲」）。
+ * State item の成立期間の精度と根拠。
  * `valid_from_ms` / `valid_until_ms` は従来どおり期間の境界（until は含まない）を持ち、ここは精度つきの日付
  * （`2026` / `2026-09` / `2026-09-03`）と根拠だけを足す。精度のない行は NULL のまま。forget は 3 列とも NULL にする。
  */

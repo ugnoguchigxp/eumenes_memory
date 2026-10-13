@@ -2,7 +2,7 @@
  * 0001 foundation: S1〜S6 が共有する土台（full-system-design §2.4）。
  * 規則: 1 回の exec で完結。BEGIN/COMMIT・PRAGMA・ホスト表への DDL/FK を含めない。
  * 版と hash の記録（`memory_schema_info` への INSERT）は `index.ts` が末尾に付ける。
- * 採用前は並べ替え・統合してよい（採用後は追記専用。`spec/verification-status.md` の凍結点を参照）。
+ * Eumenes の実 DB に適用済みのため、本文と順序を変えない（追記専用。手順は同ディレクトリの README）。
  *
  * JSON を含む列（`request_json`）は、本体が JSON 文字列として読み込まない（src の規則）。読む必要があれば
  * SQL の json_extract / json_each を使うか、列に分解して保存する。

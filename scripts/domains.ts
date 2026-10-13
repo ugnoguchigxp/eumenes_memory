@@ -1,34 +1,14 @@
 /** Domain ownership and permitted direct dependencies. Shared wire contracts stay in src/contracts. */
 export const DOMAINS = {
 	temporal: { dependencies: [], scenarios: [], fixtures: [] },
-	selection: {
-		dependencies: ["temporal", "state"],
-		scenarios: ["selection"],
-		fixtures: [],
-	},
 	records: { dependencies: [], scenarios: ["records"], fixtures: ["evidence"] },
-	recall: {
-		dependencies: ["records"],
-		scenarios: ["recall"],
-		fixtures: ["recall"],
-	},
 	state: {
-		dependencies: ["records", "recall", "temporal"],
-		scenarios: ["state-fixtures", "admission-fixtures"],
-		fixtures: ["state", "admission"],
-	},
-	extraction: {
-		dependencies: ["records", "state"],
-		scenarios: ["extraction", "state-input"],
-		fixtures: ["extraction"],
-	},
-	projection: {
-		dependencies: ["state", "recall"],
-		scenarios: ["view-v2"],
-		fixtures: ["build", "validate", "build-v2", "validate-v2"],
+		dependencies: ["records", "temporal"],
+		scenarios: ["state-fixtures", "state-input"],
+		fixtures: ["state"],
 	},
 	lifecycle: {
-		dependencies: ["records", "state", "extraction"],
+		dependencies: ["records", "state"],
 		scenarios: ["lifecycle", "forget"],
 		fixtures: ["lifecycle", "scenario"],
 	},

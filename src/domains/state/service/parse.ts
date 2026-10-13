@@ -41,11 +41,8 @@ import {
 } from "../contracts/index.ts";
 import type {
 	AssertUserStateInput,
-	EditStateInput,
 	HostSourceState,
 	ListStateInput,
-	ListStateScopesInput,
-	ReadMemorySnapshotPartInput,
 	ReadStateFactInput,
 	StateTargetInput,
 	StateValue,
@@ -429,47 +426,6 @@ function readValidity(value: unknown, path: string): ValidityPeriod {
 	return deepFreeze(period);
 }
 
-export function parseEditStateInput(value: unknown): EditStateInput {
-	const path = "$";
-	const record = readRecord(value, path);
-	checkKeys(record, path, [
-		...SCOPED_WRITE_KEYS,
-		"itemId",
-		"expectedRevision",
-		"value",
-		"evidence",
-		"sources",
-		"origin",
-	]);
-	const header = readWriteHeader(record, path);
-	return deepFreeze({
-		...header,
-		itemId: readIdentifier(
-			requiredField(record, path, "itemId"),
-			keyPath(path, "itemId"),
-			LIMITS.maxItemIdBytes,
-		),
-		expectedRevision: readRevision(
-			requiredField(record, path, "expectedRevision"),
-			keyPath(path, "expectedRevision"),
-		),
-		value: readStateValue(
-			requiredField(record, path, "value"),
-			keyPath(path, "value"),
-		),
-		evidence: readEvidence(
-			requiredField(record, path, "evidence"),
-			keyPath(path, "evidence"),
-		),
-		sources: readHostSources(
-			requiredField(record, path, "sources"),
-			keyPath(path, "sources"),
-		),
-		origin: readOrigin(record, path),
-	});
-}
-
-/** deactivate / reactivate / retract 共通。 */
 export function parseStateTargetInput(value: unknown): StateTargetInput {
 	const path = "$";
 	const record = readRecord(value, path);
@@ -537,15 +493,6 @@ export function parseListStateInput(value: unknown): ListStateInput {
 	});
 }
 
-export function parseReadSnapshotPartInput(
-	value: unknown,
-): ReadMemorySnapshotPartInput {
-	const path = "$";
-	const record = readRecord(value, path);
-	checkKeys(record, path, SCOPED_READ_KEYS);
-	return deepFreeze(readScopedHeader(record, path));
-}
-
 export function parseReadStateFactInput(value: unknown): ReadStateFactInput {
 	const path = "$";
 	const record = readRecord(value, path);
@@ -557,46 +504,5 @@ export function parseReadStateFactInput(value: unknown): ReadStateFactInput {
 			keyPath(path, "itemId"),
 			LIMITS.maxItemIdBytes,
 		),
-	});
-}
-
-export function parseListStateScopesInput(
-	value: unknown,
-): ListStateScopesInput {
-	const path = "$";
-	const record = readRecord(value, path);
-	checkKeys(record, path, [
-		"contractVersion",
-		"access",
-		"scopeKeys",
-		"includeInactive",
-	]);
-	const scopeKeys = readArray(
-		requiredField(record, path, "scopeKeys"),
-		keyPath(path, "scopeKeys"),
-		LIMITS_STATE.maxScopesPerRead,
-	).map((element, index) =>
-		readScopeKey(element, indexPath(keyPath(path, "scopeKeys"), index)),
-	);
-	if (scopeKeys.length === 0 || new Set(scopeKeys).size !== scopeKeys.length) {
-		return fail("INVALID_VALUE", keyPath(path, "scopeKeys"));
-	}
-	// 各 scope は単一 scope の parse を通し、header（版・access）の検査を共有する。
-	const flag = Object.hasOwn(record, "includeInactive")
-		? record["includeInactive"]
-		: undefined;
-	if (flag !== undefined && typeof flag !== "boolean") {
-		return fail("INVALID_TYPE", keyPath(path, "includeInactive"));
-	}
-	const first = parseListStateInput({
-		contractVersion: record["contractVersion"],
-		access: record["access"],
-		scopeKey: scopeKeys[0],
-	});
-	return deepFreeze({
-		contractVersion: first.contractVersion,
-		access: first.access,
-		scopeKeys,
-		...(flag === undefined ? {} : { includeInactive: flag }),
 	});
 }

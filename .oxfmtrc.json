@@ -21,7 +21,6 @@
 		"artifacts/**",
 		"coverage/**",
 		"verification-reports/**",
-		"eval/results/**",
 		".serena/**"
 	]
 }

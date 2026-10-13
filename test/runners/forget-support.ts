@@ -2,12 +2,11 @@
  * 忘却の閉包テスト用: 宣言的な依存グラフ（GraphSpec）から実 SQLite の Memory DB を組み立て、
  * 実装とは独立の oracle（素朴な BFS）で「forget 後に忘れられているはずの集合」を求める。
  *
- * 行は SQL で直接書く（State / Extraction の公開 API は本文と quote の検査を伴うため、グラフ形状を自由に
+ * 行は SQL で直接書く（State の公開 API は本文と quote の検査を伴うため、グラフ形状を自由に
  * 作れない）。外部派生物の登録は公開 API（registerExternalDependents）を使う。値は行ごとに一意の
  * `SECRET-…` 文字列にして、forget 後に memory_ 表のどこにも残らないことを検査できるようにする。
  *
- * 参照の書き方: `m:<name>` = 会話の出典（host_source）、`r:<name>` = Records の record、`i:<id>` = state item、
- * `c:<id>` = candidate、`run:<id>` = run。
+ * 参照の書き方: `m:<name>` = 会話の出典（host_source）、`r:<name>` = Records の record、`i:<id>` = state item。
  */
 import { createHash } from "node:crypto";
 import {
@@ -33,23 +32,6 @@ export interface ItemSpec {
 	readonly scope?: string;
 	/** 根拠の出典参照（`m:` / `r:`）。先頭が primary、残りが support。 */
 	readonly evidence: readonly string[];
-	/** 元になった候補（`c:` を除いた id）。 */
-	readonly fromCandidate?: string;
-}
-export interface CandidateSpec {
-	readonly id: string;
-	readonly scope?: string;
-	readonly run: string;
-	readonly evidence: readonly string[];
-}
-export interface RunSpec {
-	readonly id: string;
-	readonly scope?: string;
-	readonly inputs: readonly string[];
-	/** 見せた state item の id。 */
-	readonly shown?: readonly string[];
-	readonly provider?: string;
-	readonly stage?: "prepared" | "settled";
 }
 export interface ExternalSpec {
 	/** `<providerRef>:<externalId>`。 */
@@ -61,11 +43,7 @@ export interface ExternalSpec {
 export interface GraphSpec {
 	readonly records?: readonly string[];
 	readonly items?: readonly ItemSpec[];
-	readonly candidates?: readonly CandidateSpec[];
-	readonly runs?: readonly RunSpec[];
 	readonly externals?: readonly ExternalSpec[];
-	/** 進捗行を持つ出典参照（`m:` / `r:`）。 */
-	readonly progress?: readonly string[];
 }
 
 export type ForgetTargetSpec =
@@ -78,12 +56,7 @@ export function messageKey(name: string): string {
 	return JSON.stringify(["conversation", "message", name, "text"]);
 }
 
-export const DERIVED_TYPES = [
-	"state_item",
-	"candidate",
-	"extraction_run",
-	"external",
-] as const;
+export const DERIVED_TYPES = ["state_item", "external"] as const;
 export type DerivedType = (typeof DERIVED_TYPES)[number];
 
 export interface BuiltGraph {
@@ -93,13 +66,6 @@ export interface BuiltGraph {
 	sourceKeyOf(ref: string): string;
 	/** 値を持つ行の secret 文字列（id → secrets）。 */
 	readonly secrets: ReadonlyMap<string, readonly string[]>;
-}
-
-/** 進捗行の run_id: その出典を入力にした最初の run、なければ `run-p`。 */
-export function progressRun(spec: GraphSpec, ref: string): string {
-	return (
-		(spec.runs ?? []).find((run) => run.inputs.includes(ref))?.id ?? "run-p"
-	);
 }
 
 export function nextSeq(db: MemoryDb): number {
@@ -188,130 +154,6 @@ export function buildGraph(store: TestStore, spec: GraphSpec): BuiltGraph {
 	};
 
 	store.write((db) => {
-		for (const run of spec.runs ?? []) {
-			const scope = run.scope ?? SCOPE;
-			const stage = run.stage ?? "settled";
-			const seq = nextSeq(db);
-			db.query(
-				`INSERT INTO memory_extraction_run
-					(run_id, principal, scope_key, stage, input_digest, extractor_id, prompt_version,
-					 provider_ref, prepared_seq, settled_seq, outcome_code, output_digest)
-				VALUES (?, ?, ?, ?, ?, 'x', 'v1', ?, ?, ?, NULL, ?)`,
-			).run(
-				run.id,
-				PRINCIPAL,
-				scope,
-				stage,
-				digestOf(`in-${run.id}`),
-				run.provider ?? "",
-				seq,
-				stage === "prepared" ? null : seq,
-				stage === "prepared" ? null : digestOf(`out-${run.id}`),
-			);
-			for (const [idx, ref] of run.inputs.entries()) {
-				const parts = sourceParts(ref);
-				db.query(
-					`INSERT INTO memory_extraction_input
-						(run_id, idx, source_key, namespace, kind, source_id, representation, revision, digest, role, ordinal)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', ?)`,
-				).run(
-					run.id,
-					idx,
-					parts.key,
-					parts.namespace,
-					parts.kind,
-					parts.id,
-					parts.representation,
-					`sha256:${digestOf(`rev-${ref}`)}`,
-					digestOf(`dig-${ref}`),
-					idx,
-				);
-				insertEdge(
-					db,
-					scope,
-					"extraction_run",
-					run.id,
-					"source",
-					parts.key,
-					"input",
-				);
-			}
-			for (const itemId of run.shown ?? []) {
-				db.query(
-					"INSERT INTO memory_extraction_shown (run_id, item_id, revision) VALUES (?, ?, 1)",
-				).run(run.id, itemId);
-				insertEdge(
-					db,
-					scope,
-					"extraction_run",
-					run.id,
-					"state_item",
-					itemId,
-					"input",
-				);
-			}
-		}
-		for (const [index, candidate] of (spec.candidates ?? []).entries()) {
-			const scope = candidate.scope ?? SCOPE;
-			const value = addSecret(
-				`c:${candidate.id}`,
-				`SECRET-cand-${candidate.id}`,
-			);
-			db.query(
-				`INSERT INTO memory_candidate
-					(candidate_id, run_id, idx, principal, scope_key, kind, subject, semantic_key, value_text,
-					 polarity, modality, temporal, decision, reason_code, evidence_ordinal, created_seq)
-				VALUES (?, ?, ?, ?, ?, 'preference', 'self', ?, ?, 'affirmed', 'asserted', 'current',
-					'pending_user', NULL, 1, ?)`,
-			).run(
-				candidate.id,
-				candidate.run,
-				index,
-				PRINCIPAL,
-				scope,
-				`key-${candidate.id}`,
-				value,
-				nextSeq(db),
-			);
-			insertEdge(
-				db,
-				scope,
-				"candidate",
-				candidate.id,
-				"extraction_run",
-				candidate.run,
-				"derived_from",
-			);
-			for (const [idx, ref] of candidate.evidence.entries()) {
-				const parts = sourceParts(ref);
-				db.query(
-					`INSERT INTO memory_candidate_evidence
-						(candidate_id, idx, source_key, namespace, kind, source_id, representation, revision, digest,
-						 start_byte, end_byte, quote_digest)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 3, ?)`,
-				).run(
-					candidate.id,
-					idx,
-					parts.key,
-					parts.namespace,
-					parts.kind,
-					parts.id,
-					parts.representation,
-					`sha256:${digestOf(`rev-${ref}`)}`,
-					digestOf(`dig-${ref}`),
-					digestOf(`q-${candidate.id}-${idx}`),
-				);
-				insertEdge(
-					db,
-					scope,
-					"candidate",
-					candidate.id,
-					"source",
-					parts.key,
-					idx === 0 ? "primary" : "support",
-				);
-			}
-		}
 		for (const item of spec.items ?? []) {
 			const scope = item.scope ?? SCOPE;
 			const value = addSecret(`i:${item.id}`, `SECRET-item-${item.id}`);
@@ -357,33 +199,7 @@ export function buildGraph(store: TestStore, spec: GraphSpec): BuiltGraph {
 				`INSERT INTO memory_state_event
 					(event_seq, item_id, principal, scope_key, action, from_revision, to_revision, cause_type, cause_id, at_ms)
 				VALUES (?, ?, ?, ?, 'assert', NULL, 1, ?, ?, 7)`,
-			).run(
-				nextSeq(db),
-				item.id,
-				PRINCIPAL,
-				scope,
-				item.fromCandidate === undefined ? "user" : "candidate",
-				item.fromCandidate ?? PRINCIPAL,
-			);
-			if (item.fromCandidate !== undefined) {
-				insertEdge(
-					db,
-					scope,
-					"state_item",
-					item.id,
-					"candidate",
-					item.fromCandidate,
-					"derived_from",
-				);
-			}
-		}
-		for (const ref of spec.progress ?? []) {
-			const parts = sourceParts(ref);
-			db.query(
-				`INSERT INTO memory_source_progress
-					(principal, scope_key, source_key, processed_revision, stage, run_id, seq)
-				VALUES (?, ?, ?, 'sha256:x', 'extracted', ?, ?)`,
-			).run(PRINCIPAL, SCOPE, parts.key, progressRun(spec, ref), nextSeq(db));
+			).run(nextSeq(db), item.id, PRINCIPAL, scope, "user", PRINCIPAL);
 		}
 	});
 
@@ -448,8 +264,6 @@ export function toForgetTarget(graph: BuiltGraph, target: ForgetTargetSpec) {
 
 export interface Expected {
 	readonly state_item: ReadonlySet<string>;
-	readonly candidate: ReadonlySet<string>;
-	readonly extraction_run: ReadonlySet<string>;
 	readonly external: ReadonlySet<string>;
 	/** 墓標 `source` が書かれる出典キー（record の出典を含む）。 */
 	readonly sources: ReadonlySet<string>;
@@ -487,8 +301,6 @@ export function expectedForgotten(
 		);
 	return {
 		state_item: pick("state_item"),
-		candidate: pick("candidate"),
-		extraction_run: pick("extraction_run"),
 		external: pick("external"),
 		sources,
 		records,
@@ -514,33 +326,9 @@ function expectedOne(
 		type: "source",
 		id: graph.sourceKeyOf(ref),
 	});
-	for (const run of spec.runs ?? []) {
-		for (const ref of run.inputs)
-			link({ type: "extraction_run", id: run.id }, src(ref));
-		for (const itemId of run.shown ?? []) {
-			link(
-				{ type: "extraction_run", id: run.id },
-				{ type: "state_item", id: itemId },
-			);
-		}
-	}
-	for (const candidate of spec.candidates ?? []) {
-		link(
-			{ type: "candidate", id: candidate.id },
-			{ type: "extraction_run", id: candidate.run },
-		);
-		for (const ref of candidate.evidence)
-			link({ type: "candidate", id: candidate.id }, src(ref));
-	}
 	for (const item of spec.items ?? []) {
 		for (const ref of item.evidence)
 			link({ type: "state_item", id: item.id }, src(ref));
-		if (item.fromCandidate !== undefined) {
-			link(
-				{ type: "state_item", id: item.id },
-				{ type: "candidate", id: item.fromCandidate },
-			);
-		}
 	}
 	for (const external of spec.externals ?? []) {
 		for (const ref of external.dependsOn) {
@@ -570,11 +358,6 @@ function expectedOne(
 			starts.push({ type: "source", id: sourceKey });
 		} else if (target.type === "state_item") {
 			starts.push({ type: "state_item", id: target.id });
-			for (const item of spec.items ?? []) {
-				if (item.id === target.id && item.fromCandidate !== undefined) {
-					starts.push({ type: "candidate", id: item.fromCandidate });
-				}
-			}
 		} else {
 			const inScope = (scope: string | undefined) =>
 				(scope ?? SCOPE) === target.scope;
@@ -603,12 +386,6 @@ function expectedOne(
 			for (const item of spec.items ?? []) {
 				cite(item.scope, item.evidence, `state_item|${item.id}`);
 			}
-			for (const candidate of spec.candidates ?? []) {
-				cite(candidate.scope, candidate.evidence, `candidate|${candidate.id}`);
-			}
-			for (const run of spec.runs ?? []) {
-				cite(run.scope, run.inputs, `extraction_run|${run.id}`);
-			}
 			for (const external of spec.externals ?? []) {
 				cite(external.scope, external.dependsOn, `external|${external.id}`);
 			}
@@ -629,16 +406,6 @@ function expectedOne(
 			for (const item of spec.items ?? []) {
 				if (inScope(item.scope))
 					starts.push({ type: "state_item", id: item.id });
-			}
-			for (const candidate of spec.candidates ?? []) {
-				if (inScope(candidate.scope)) {
-					starts.push({ type: "candidate", id: candidate.id });
-				}
-			}
-			for (const run of spec.runs ?? []) {
-				if (inScope(run.scope)) {
-					starts.push({ type: "extraction_run", id: run.id });
-				}
 			}
 			for (const external of spec.externals ?? []) {
 				if (inScope(external.scope)) {
@@ -667,8 +434,6 @@ function expectedOne(
 		);
 	return {
 		state_item: pick("state_item"),
-		candidate: pick("candidate"),
-		extraction_run: pick("extraction_run"),
 		external: pick("external"),
 		sources,
 		records,
@@ -677,7 +442,7 @@ function expectedOne(
 
 // ---- 観測 ----
 
-/** 派生行（state_item / candidate / run / progress / 付随表）の行を ID ごとの文字列にする（閉包外の不変検査用）。 */
+/** 派生行（state_item と付随表）の行を ID ごとの文字列にする（閉包外の不変検査用）。 */
 export function derivedRowsById(store: TestStore): Map<string, string> {
 	const out = new Map<string, string>();
 	const grab = (type: string, id: string, sql: string, ...params: string[]) => {
@@ -713,56 +478,6 @@ export function derivedRowsById(store: TestStore): Map<string, string> {
 			id,
 			"SELECT * FROM memory_state_event WHERE item_id = ?",
 			id,
-		);
-	}
-	for (const row of store.writer
-		.query("SELECT candidate_id FROM memory_candidate")
-		.all() as { candidate_id: string }[]) {
-		const id = row.candidate_id;
-		grab(
-			"candidate",
-			id,
-			"SELECT * FROM memory_candidate WHERE candidate_id = ?",
-			id,
-		);
-		grab(
-			"candidate.evidence",
-			id,
-			"SELECT * FROM memory_candidate_evidence WHERE candidate_id = ?",
-			id,
-		);
-	}
-	for (const row of store.writer
-		.query("SELECT run_id FROM memory_extraction_run")
-		.all() as { run_id: string }[]) {
-		const id = row.run_id;
-		grab(
-			"extraction_run",
-			id,
-			"SELECT * FROM memory_extraction_run WHERE run_id = ?",
-			id,
-		);
-		grab(
-			"run.input",
-			id,
-			"SELECT * FROM memory_extraction_input WHERE run_id = ?",
-			id,
-		);
-		grab(
-			"run.shown",
-			id,
-			"SELECT * FROM memory_extraction_shown WHERE run_id = ?",
-			id,
-		);
-	}
-	for (const row of store.writer
-		.query("SELECT source_key FROM memory_source_progress")
-		.all() as { source_key: string }[]) {
-		grab(
-			"progress",
-			row.source_key,
-			"SELECT * FROM memory_source_progress WHERE source_key = ?",
-			row.source_key,
 		);
 	}
 	return out;

@@ -68,15 +68,12 @@ function lcg(seed: number): () => number {
 const ACTIONS: readonly StateTransitionAction[] = [
 	"assert",
 	"supersede",
-	"edit",
 	"deactivate",
 	"reactivate",
 	"activate",
-	"dispute",
 	"retract",
-	"invalidate",
 ];
-const TERMINAL = new Set(["retracted", "invalidated"]);
+const TERMINAL = new Set(["retracted"]);
 
 describe("reducer invariants over random transition sequences", () => {
 	for (const seed of [1, 7, 42, 2026, 99991]) {
@@ -124,7 +121,7 @@ describe("reducer invariants over random transition sequences", () => {
 				const origin: StateOrigin = pick([
 					"user_confirmed",
 					"user_edited",
-					"admitted_extraction",
+					"agent_inferred",
 				]);
 				const expectedRevision =
 					action === "assert"
@@ -202,7 +199,7 @@ describe("reducer invariants over random transition sequences", () => {
 	}
 });
 
-// ---- レビュー B: supersede の guard、origin の昇格、同 key の履歴 ----
+// ---- supersede の guard と origin の昇格 ----
 
 function view(overrides: Partial<StateItemView> = {}): StateItemView {
 	return {
@@ -234,7 +231,7 @@ function request(
 		expectedRevision: null,
 		identity: IDENTITY,
 		value: { text: "紅茶", polarity: "affirmed" },
-		origin: "admitted_extraction",
+		origin: "agent_inferred",
 		evidenceOrdinal: 9,
 		cause: CAUSE,
 		...overrides,
@@ -288,7 +285,7 @@ describe("origin promotion", () => {
 			value: { text: "コーヒー", polarity: "affirmed" },
 		});
 
-	test("assert / supersede / edit with the same value raise an extraction item to the user origin, once", () => {
+	test("assert / supersede with the same value raise a legacy extraction item to the user origin, once", () => {
 		const current = view();
 		const context = { atMs: 7, activeForKey: current };
 		const promoted = applyStateTransition(
@@ -319,22 +316,6 @@ describe("origin promotion", () => {
 		).toMatchObject({
 			ok: true,
 			items: [{ origin: "user_edited", revision: 2 }],
-		});
-		expect(
-			applyStateTransition(
-				current,
-				{
-					action: "edit",
-					expectedRevision: 1,
-					value: { text: "コーヒー", polarity: "affirmed" },
-					origin: "user_edited",
-					cause: CAUSE,
-				},
-				context,
-			),
-		).toMatchObject({
-			ok: true,
-			items: [{ origin: "user_edited", revision: 2, evidenceOrdinal: 5 }],
 		});
 		// 既に user 由来なら変化なし／抽出由来の同値は変化なし
 		const userItem = view({ origin: "user_confirmed" });
@@ -370,134 +351,6 @@ describe("origin promotion", () => {
 	});
 });
 
-describe("key history", () => {
-	const extraction = (ordinal: number) =>
-		request({ origin: "admitted_extraction", evidenceOrdinal: ordinal });
-	const history = (disputedMaxOrdinal: number | null, userRemoved = false) => ({
-		disputedMaxOrdinal,
-		userRemoved,
-	});
-
-	test("without an active item: older than the disputed maximum is OLDER_EVIDENCE; equal or newer joins the dispute", () => {
-		const context = (h: ReturnType<typeof history>) => ({
-			atMs: 3,
-			activeForKey: null,
-			keyHistory: h,
-		});
-		expect(
-			applyStateTransition(null, extraction(4), context(history(5))),
-		).toEqual({
-			ok: false,
-			reasonCode: "OLDER_EVIDENCE",
-		});
-		const joined = applyStateTransition(
-			null,
-			extraction(5),
-			context(history(5)),
-		);
-		expect(joined).toMatchObject({
-			ok: true,
-			items: [{ itemId: "item:new", status: "disputed", revision: 2 }],
-			events: [
-				{
-					itemId: "item:new",
-					action: "assert",
-					fromRevision: null,
-					toRevision: 1,
-				},
-				{
-					itemId: "item:new",
-					action: "dispute",
-					fromRevision: 1,
-					toRevision: 2,
-				},
-			],
-		});
-		expect(
-			applyStateTransition(null, extraction(9), context(history(5))),
-		).toMatchObject({
-			ok: true,
-			items: [{ status: "disputed" }],
-		});
-		// 履歴なし（省略 / disputed なし）は従来どおり active
-		expect(
-			applyStateTransition(null, extraction(1), {
-				atMs: 3,
-				activeForKey: null,
-			}),
-		).toMatchObject({
-			ok: true,
-			items: [{ status: "active" }],
-		});
-		expect(
-			applyStateTransition(null, extraction(1), context(history(null))),
-		).toMatchObject({
-			ok: true,
-			items: [{ status: "active" }],
-		});
-	});
-
-	test("explicit (user) writes ignore the history", () => {
-		const context = {
-			atMs: 3,
-			activeForKey: null,
-			keyHistory: history(5, true),
-		};
-		expect(
-			applyStateTransition(
-				null,
-				request({ origin: "user_confirmed", evidenceOrdinal: 1 }),
-				context,
-			),
-		).toMatchObject({ ok: true, items: [{ status: "active" }] });
-	});
-
-	test("a user-removed key is not revived by an extraction write, with or without an active item", () => {
-		const removed = history(null, true);
-		expect(
-			applyStateTransition(null, extraction(9), {
-				atMs: 3,
-				activeForKey: null,
-				keyHistory: removed,
-			}),
-		).toEqual({ ok: false, reasonCode: "INVALID_TRANSITION" });
-		const current = view({ origin: "user_confirmed" });
-		expect(
-			applyStateTransition(
-				current,
-				request({
-					action: "supersede",
-					expectedRevision: 1,
-					origin: "admitted_extraction",
-					evidenceOrdinal: 9,
-				}),
-				{ atMs: 3, activeForKey: current, keyHistory: removed },
-			),
-		).toEqual({ ok: false, reasonCode: "INVALID_TRANSITION" });
-	});
-
-	test("with an active item: older than the disputed maximum is OLDER_EVIDENCE even if newer than the active item", () => {
-		const active = view({ evidenceOrdinal: 3 });
-		expect(
-			applyStateTransition(null, extraction(6), {
-				atMs: 3,
-				activeForKey: active,
-				keyHistory: history(8),
-			}),
-		).toEqual({ ok: false, reasonCode: "OLDER_EVIDENCE" });
-		expect(
-			applyStateTransition(null, extraction(9), {
-				atMs: 3,
-				activeForKey: active,
-				keyHistory: history(8),
-			}),
-		).toMatchObject({
-			ok: true,
-			items: [{ status: "superseded" }, { status: "active" }],
-		});
-	});
-});
-
 describe("agent_inferred origin", () => {
 	const inferred = (overrides: Partial<StateTransitionRequest> = {}) =>
 		request({ origin: "agent_inferred", evidenceOrdinal: 1, ...overrides });
@@ -525,19 +378,6 @@ describe("agent_inferred origin", () => {
 				activeForKey: current,
 			}),
 		).toEqual({ ok: false, reasonCode: "ACTIVE_EXISTS" });
-	});
-
-	test("agent_inferred ignores the key history like any explicit write", () => {
-		expect(
-			applyStateTransition(null, inferred(), {
-				atMs: 1,
-				activeForKey: null,
-				keyHistory: { disputedMaxOrdinal: 9, userRemoved: true },
-			}),
-		).toMatchObject({
-			ok: true,
-			items: [{ status: "active", origin: "agent_inferred" }],
-		});
 	});
 
 	test("a user write of the same value promotes an agent_inferred item; a later agent write never relabels", () => {
@@ -571,7 +411,7 @@ describe("agent_inferred origin", () => {
 		).toEqual({ ok: true, items: [], events: [] });
 	});
 
-	test("a user write of a different value replaces an agent_inferred item (supersede and edit)", () => {
+	test("a user write of a different value replaces an agent_inferred item", () => {
 		const current = view({ origin: "agent_inferred", evidenceOrdinal: 99 });
 		expect(
 			applyStateTransition(
@@ -591,42 +431,5 @@ describe("agent_inferred origin", () => {
 				{ status: "active", origin: "user_confirmed" },
 			],
 		});
-		expect(
-			applyStateTransition(
-				current,
-				request({
-					action: "edit",
-					expectedRevision: 1,
-					origin: "user_confirmed",
-					evidenceOrdinal: 1,
-				}),
-				{ atMs: 2, activeForKey: current },
-			),
-		).toMatchObject({
-			ok: true,
-			items: [{ revision: 2, origin: "user_confirmed" }],
-		});
-	});
-
-	test("an extraction write supersedes an agent_inferred item by the evidence order (no user protection)", () => {
-		const current = view({ origin: "agent_inferred", evidenceOrdinal: 5 });
-		expect(
-			applyStateTransition(null, request({ evidenceOrdinal: 9 }), {
-				atMs: 2,
-				activeForKey: current,
-			}),
-		).toMatchObject({
-			ok: true,
-			items: [
-				{ status: "superseded" },
-				{ status: "active", origin: "admitted_extraction" },
-			],
-		});
-		expect(
-			applyStateTransition(null, request({ evidenceOrdinal: 3 }), {
-				atMs: 2,
-				activeForKey: current,
-			}),
-		).toEqual({ ok: false, reasonCode: "OLDER_EVIDENCE" });
 	});
 });

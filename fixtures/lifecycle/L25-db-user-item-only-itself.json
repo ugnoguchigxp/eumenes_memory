@@ -1,65 +1,60 @@
 {
-	"id": "L25-db-user-item-only-itself",
-	"fixtureFormat": 1,
-	"covers": [
-		"closure",
-		"S6"
-	],
-	"kind": "forget-db",
-	"description": "A user-asserted item has no upstream candidate: forgetting it forgets only itself and what depends on it; with no run and no provider the receipt is complete at once",
-	"input": {
-		"graph": {
-			"items": [
-				{
-					"id": "iU",
-					"evidence": [
-						"m:m1"
-					]
-				},
-				{
-					"id": "iV",
-					"evidence": [
-						"m:m1"
-					]
-				}
-			]
-		},
-		"forget": [
-			{
-				"type": "state_item",
-				"id": "iU"
-			}
-		]
-	},
-	"expect": {
-		"forgotten": {
-			"state_item": [
-				"iU"
-			],
-			"candidate": [],
-			"extraction_run": [],
-			"external": []
-		},
-		"kept": {
-			"state_item": [
-				"iV"
-			],
-			"candidate": [],
-			"extraction_run": [],
-			"external": []
-		},
-		"tombstonedSources": [],
-		"receipt": {
-			"external": "none",
-			"completed": true,
-			"deletions": []
-		},
-		"valuesGone": [
-			"i:iU"
-		],
-		"valuesPresent": [
-			"i:iV"
-		],
-		"progressRemaining": null
-	}
+  "id": "L25-db-user-item-only-itself",
+  "fixtureFormat": 1,
+  "covers": [
+    "closure",
+    "S6"
+  ],
+  "kind": "forget-db",
+  "description": "Forgetting an item forgets only itself and what depends on it; with no provider and no external derivative the receipt is complete at once",
+  "input": {
+    "graph": {
+      "items": [
+        {
+          "id": "iU",
+          "evidence": [
+            "m:m1"
+          ]
+        },
+        {
+          "id": "iV",
+          "evidence": [
+            "m:m1"
+          ]
+        }
+      ]
+    },
+    "forget": [
+      {
+        "type": "state_item",
+        "id": "iU"
+      }
+    ]
+  },
+  "expect": {
+    "forgotten": {
+      "state_item": [
+        "iU"
+      ],
+      "external": []
+    },
+    "kept": {
+      "state_item": [
+        "iV"
+      ],
+      "external": []
+    },
+    "tombstonedSources": [],
+    "receipt": {
+      "external": "none",
+      "completed": true,
+      "deletions": []
+    },
+    "valuesGone": [
+      "i:iU"
+    ],
+    "valuesPresent": [
+      "i:iV"
+    ]
+  }
 }

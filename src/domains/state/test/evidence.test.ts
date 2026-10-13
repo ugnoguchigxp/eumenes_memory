@@ -5,7 +5,6 @@ import type { HostSourceState } from "../contracts/index.ts";
 import {
 	checkEvidence,
 	evidenceOrdinalOf,
-	isQuotedSpan,
 	quoteMatches,
 } from "../service/evidence.ts";
 
@@ -129,30 +128,5 @@ describe("checkEvidence order and rules", () => {
 				evidence: [span(a, "aaa"), span(source("c", "c"), "c")],
 			}),
 		).toBeNull();
-	});
-});
-
-describe("isQuotedSpan", () => {
-	test.each([
-		["母は「私はコーヒー」と言った", "私はコーヒー", true],
-		["母は『私はコーヒー』と言った", "私はコーヒー", true],
-		["母は“I like coffee”と言った", "I like coffee", true],
-		['He said "I like coffee" ok', "I like coffee", true],
-		["「閉じた」あと私はコーヒー", "私はコーヒー", false],
-		["私はコーヒーが好き", "私はコーヒー", false],
-		["私は「コーヒーが好き」", "「コーヒーが好き」", true],
-		['He said "x" then I like coffee', "I like coffee", false],
-		// quote 自身が両端を ASCII の二重引用符で囲む（range の開始位置の手前に未閉じの引用符はない）
-		['He said "I like coffee" ok', '"I like coffee"', true],
-		// 1 文字だけの " は囲みではない
-		['a " b', '"', false],
-		["私は『コーヒー』が好き", "『コーヒー』", true],
-		["私は“コーヒー”が好き", "“コーヒー”", true],
-		// 開きと閉じが対応しない
-		["私は「コーヒー』が好き", "「コーヒー』", false],
-		["私は「コーヒー”が好き", "「コーヒー”", false],
-	])("%s / %s", (content, quote, expected) => {
-		const m = source("m", content);
-		expect(isQuotedSpan(content, span(m, quote))).toBe(expected);
 	});
 });

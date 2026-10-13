@@ -3,7 +3,6 @@ import { MemoryContractError } from "../../../contracts/errors.ts";
 import { appendMemoryChange, listMemoryChanges } from "../changes.ts";
 import { addDependency } from "../dependency.ts";
 import type { MemoryStoreError } from "../errors.ts";
-import { bumpScopeRevision, readScopeRevision } from "../scope-state.ts";
 import { enterWrite } from "../session.ts";
 import { isTombstoned } from "../tombstone.ts";
 import { openTestStore } from "../../../../test/support/store.ts";
@@ -57,22 +56,6 @@ function listInput(
 		...overrides,
 	};
 }
-
-describe("scope revision", () => {
-	test("starts at 0 and increments per bump, per (principal, scope)", () => {
-		const s = open();
-		expect(readScopeRevision(s.writer, "p", "s")).toBe(0);
-		expect(
-			s.write((db) => [
-				bumpScopeRevision(db, "p", "s"),
-				bumpScopeRevision(db, "p", "s"),
-			]),
-		).toEqual([1, 2]);
-		expect(s.write((db) => bumpScopeRevision(db, "p", "other"))).toBe(1);
-		expect(s.write((db) => bumpScopeRevision(db, "q", "s"))).toBe(1);
-		expect(s.read((db) => readScopeRevision(db, "p", "s"))).toBe(2);
-	});
-});
 
 describe("dependency and tombstone helpers", () => {
 	test("addDependency is idempotent and validates enumerations via CHECK", () => {

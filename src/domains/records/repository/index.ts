@@ -1,14 +1,12 @@
 /**
- * Records の永続 API（S1）。契約は `src/domains/records/contracts/index.ts`。
+ * Records の永続 API。契約は `src/domains/records/contracts/index.ts`。
  *
  * 規則:
  * - 読み出しは status 列に加えて墓標の不存在を必須条件にする（`record` と `source` の両方。二重化、設計書 §2.5-1）。
  *   status を `active` に戻した（古い行を復元した）DB でも、墓標があれば forgotten として扱う。
  * - 他の principal / scope の record は `missing`（forgotten かどうかも漏らさない）。scope が許可外なら
  *   読み出しは `not_permitted`、作成系は `blocked`。
- * - 全文索引 `memory_record_fts` は現在 revision の本文だけをアプリが維持する（ASCII を小文字へ畳んだ本文）。
- *   FTS5 が使えない環境では capture が `FTS_UNAVAILABLE` になる（検索は LIKE にフォールバックする）。
- * - 書き込みは `enterWrite` 済みの write transaction 内、変更ごとに scope revision と変更フィードを更新する。
+ * - 書き込みは `enterWrite` 済みの write transaction 内、変更ごとに変更フィードを更新する。
  */
 import { utf8ByteLength } from "../../../canonical/utf8.ts";
 import type { MissingStatus } from "../../../contracts/common.ts";
@@ -18,33 +16,22 @@ import type {
 	CaptureRecordInput,
 	CaptureRecordResult,
 	ReadRecordInput,
-	ReadRecordRangeInput,
-	ReadRecordRangeResult,
 	ReadRecordResult,
 	RecordCaptureState,
 	RecordMeta,
 	RecordMediaType,
-	RecordSourceStatesInput,
-	RecordSourceStatesResult,
 	RecordStatus,
-	RecordStatusChangeInput,
-	RecordStatusChangeResult,
 } from "../contracts/index.ts";
-import type { SourceState, SourceStatus } from "../../../contracts/types.ts";
+
 import { parseCaptureRecordInput } from "../service/parse.ts";
-import {
-	parseReadRecordInput,
-	parseReadRecordRangeInput,
-	parseRecordSourceStatesInput,
-	parseRecordStatusChangeInput,
-} from "../service/parse.ts";
+import { parseReadRecordInput } from "../service/parse.ts";
 import {
 	contentRevision,
 	recordIdOf,
 	recordSourceKey,
 	recordSourceRef,
 } from "../service/identity.ts";
-import { sliceUtf8Range } from "../service/range.ts";
+
 import { appendMemoryChange } from "../../../infrastructure/sqlite/changes.ts";
 import {
 	guarded,
@@ -54,7 +41,6 @@ import {
 } from "../../../infrastructure/sqlite/db.ts";
 import type { MemoryDb, SqlValue } from "../../../infrastructure/sqlite/db.ts";
 import { MemoryStoreError } from "../../../infrastructure/sqlite/errors.ts";
-import { bumpScopeRevision } from "../../../infrastructure/sqlite/scope-state.ts";
 import {
 	enterRead,
 	enterWrite,
@@ -183,7 +169,7 @@ type Lookup =
 	| { readonly found: false; readonly status: MissingStatus };
 
 /**
- * record の参照規則（read / range / sourceStates / deactivate で共通）。
+ * record の参照規則。
  * scope 許可外 → not_permitted、墓標あり（record / source のどちらでも）→ forgotten、
  * 他 principal・他 scope・無し → missing、行が forgotten → forgotten。
  */
@@ -219,54 +205,6 @@ function lookupRecord(
 	}
 	if (row.status === "forgotten") return { found: false, status: "forgotten" };
 	return { found: true, row };
-}
-
-// ---- 全文索引（現在 revision のみ。ASCII を小文字へ畳んだ本文）----
-
-function isFtsMissing(error: unknown): boolean {
-	return (
-		error instanceof Error &&
-		(error.message.includes("memory_record_fts") ||
-			error.message.includes("fts5"))
-	);
-}
-
-function foldForIndex(content: string): string {
-	return content.replace(/[A-Z]/g, (char) =>
-		String.fromCharCode(char.charCodeAt(0) + 0x20),
-	);
-}
-
-/** 既存の行を消してから入れる（rowid の重複を作らない）。FTS が使えなければ `FTS_UNAVAILABLE`。 */
-function ftsReplace(db: MemoryDb, rowid: number, content: string): void {
-	try {
-		db.query("DELETE FROM memory_record_fts WHERE rowid = ?").run(rowid);
-		db.query("INSERT INTO memory_record_fts (rowid, body) VALUES (?, ?)").run(
-			rowid,
-			foldForIndex(content),
-		);
-	} catch (error) {
-		if (isFtsMissing(error)) throw new MemoryStoreError("FTS_UNAVAILABLE");
-		throw error;
-	}
-}
-
-function ftsDelete(db: MemoryDb, rowid: number): void {
-	try {
-		db.query("DELETE FROM memory_record_fts WHERE rowid = ?").run(rowid);
-	} catch (error) {
-		if (isFtsMissing(error)) throw new MemoryStoreError("FTS_UNAVAILABLE");
-		throw error;
-	}
-}
-
-/** 忘却では索引表が無くても進める（索引に残るものが無い）。 */
-function ftsDeleteForForget(db: MemoryDb, rowid: number): void {
-	try {
-		db.query("DELETE FROM memory_record_fts WHERE rowid = ?").run(rowid);
-	} catch (error) {
-		if (!isFtsMissing(error)) throw error;
-	}
 }
 
 // ---- capture ----
@@ -341,17 +279,9 @@ export function captureRecord(
 		changedStatus = existing.status === "inactive" ? "inactive" : "active";
 		if (existing.currentRevision !== revision) {
 			created = true;
-			const previous = selectRevisionRow(
-				db,
-				recordId,
-				existing.currentRevision,
-			);
-			if (previous !== null) ftsDelete(db, previous.bodyRowid);
 			const known = selectRevisionRow(db, recordId, revision);
 			if (known === null) {
 				insertRevision(db, recordId, revision, digest, input.content, seq);
-			} else {
-				ftsReplace(db, known.bodyRowid, input.content);
 			}
 			guarded(() =>
 				db
@@ -378,7 +308,6 @@ export function captureRecord(
 	}
 
 	if (created || metaChanged) {
-		bumpScopeRevision(db, principal, input.scopeKey);
 		appendMemoryChange(db, {
 			principal,
 			scopeKey: input.scopeKey,
@@ -400,7 +329,7 @@ export function captureRecord(
 	};
 }
 
-/** 本文・revision 行・索引を追加する（現在 revision として索引する）。 */
+/** 本文と revision 行を追加する。 */
 function insertRevision(
 	db: MemoryDb,
 	recordId: string,
@@ -427,7 +356,6 @@ function insertRevision(
 			)
 			.run(recordId, revision, digest, utf8ByteLength(content), bodyRowid, seq),
 	);
-	ftsReplace(db, bodyRowid, content);
 }
 
 // ---- 読み出し ----
@@ -451,7 +379,7 @@ function toMeta(db: MemoryDb, row: RecordRow): RecordMeta | null {
 }
 
 /**
- * 読み取り。inactive の record も読める（deactivate は可逆で本文を保持する）。
+ * 読み取り。inactive の record も読める。
  * 複数文の読み出しの一貫性はホストの read transaction に依存する。
  */
 export function readRecord(
@@ -484,158 +412,7 @@ export function readRecord(
 	};
 }
 
-/** 読み取り。範囲は最大 64 KiB、両端は UTF-8 のコードポイント境界。 */
-export function readRecordRange(
-	db: MemoryDb,
-	rawInput: ReadRecordRangeInput,
-): ReadRecordRangeResult {
-	const input = parseReadRecordRangeInput(rawInput);
-	enterRead(db);
-	const found = lookupRecord(
-		db,
-		input.access.principal,
-		input.access.scopeKeys,
-		input.scopeKey,
-		input.recordId,
-	);
-	if (!found.found) return { status: found.status };
-	const revisionRow = selectRevisionRow(db, found.row.recordId, input.revision);
-	if (revisionRow === null) return { status: "missing" };
-	const content = selectBodyContent(db, revisionRow.bodyRowid);
-	if (content === null) throw new MemoryStoreError("CORRUPT_ROW");
-	const slice = sliceUtf8Range(content, input.range);
-	if (slice.status === "invalid_range") {
-		return { status: "invalid_range", reasonCode: slice.reasonCode };
-	}
-	return { status: "available", text: slice.text, digest: slice.digest };
-}
-
-/**
- * 読み取り（View 用の出典状態）。`refs` と同じ順序・同じ件数で返す。
- * forgotten → `forgotten`、無い／他 principal・scope／inactive／scope 許可外 → `missing`、
- * revision か digest が current と異なる → `changed`、それ以外 → `available`。
- * `available` / `changed` は current の revision・digest を、それ以外は ref の値をそのまま返す。
- */
-export function recordSourceStates(
-	db: MemoryDb,
-	rawInput: RecordSourceStatesInput,
-): RecordSourceStatesResult {
-	const input = parseRecordSourceStatesInput(rawInput);
-	enterRead(db);
-	const principal = input.access.principal;
-	const states: SourceState[] = [];
-	for (const ref of input.refs) {
-		const representation = ownValue(ref, "representation");
-		const echo = (status: SourceStatus): SourceState => ({
-			namespace: ref.namespace,
-			kind: ref.kind,
-			id: ref.id,
-			...(representation === undefined ? {} : { representation }),
-			revision: ref.revision,
-			digest: ref.digest,
-			principal,
-			scopeKey: input.scopeKey,
-			status,
-		});
-		if (
-			representation !== "text" ||
-			!input.access.scopeKeys.includes(input.scopeKey)
-		) {
-			states.push(echo("missing"));
-			continue;
-		}
-		const found = lookupRecord(
-			db,
-			principal,
-			input.access.scopeKeys,
-			input.scopeKey,
-			ref.id,
-		);
-		if (!found.found) {
-			states.push(echo(found.status === "forgotten" ? "forgotten" : "missing"));
-			continue;
-		}
-		if (found.row.status !== "active") {
-			states.push(echo("missing"));
-			continue;
-		}
-		const current = selectRevisionRow(db, ref.id, found.row.currentRevision);
-		if (current === null) throw new MemoryStoreError("CORRUPT_ROW");
-		const available =
-			current.revision === ref.revision && current.digest === ref.digest;
-		const content =
-			available && ownValue(input, "withContent") === true
-				? selectBodyContent(db, current.bodyRowid)
-				: null;
-		states.push({
-			...echo(available ? "available" : "changed"),
-			revision: current.revision,
-			digest: current.digest,
-			...(content === null ? {} : { content }),
-		});
-	}
-	return states;
-}
-
-// ---- deactivate / reactivate（可逆。墓標・ジャーナル・ForgetReceipt を作らない）----
-
-function changeStatus(
-	db: MemoryDb,
-	rawInput: RecordStatusChangeInput,
-	target: RecordStatus,
-): RecordStatusChangeResult {
-	const input = parseRecordStatusChangeInput(rawInput);
-	const seq = enterWrite(db);
-	const principal = input.access.principal;
-	const found = lookupRecord(
-		db,
-		principal,
-		input.access.scopeKeys,
-		input.scopeKey,
-		input.recordId,
-	);
-	if (!found.found) return { status: found.status };
-	if (found.row.status === target) {
-		return { status: "unchanged", recordStatus: target };
-	}
-	guarded(() =>
-		db
-			.query(
-				"UPDATE memory_record SET status = ?, updated_seq = ? WHERE record_id = ?",
-			)
-			.run(target, seq, input.recordId),
-	);
-	bumpScopeRevision(db, principal, input.scopeKey);
-	appendMemoryChange(db, {
-		principal,
-		scopeKey: input.scopeKey,
-		atMs: input.clock.atMs,
-		targetType: "record",
-		targetId: input.recordId,
-		revision: found.row.currentRevision,
-		status: target,
-		forgetId: null,
-	});
-	return { status: "changed", recordStatus: target };
-}
-
-/** 書き込み。可逆（本文を保持する）。 */
-export function deactivateRecord(
-	db: MemoryDb,
-	input: RecordStatusChangeInput,
-): RecordStatusChangeResult {
-	return changeStatus(db, input, "inactive");
-}
-
-/** 書き込み。 */
-export function reactivateRecord(
-	db: MemoryDb,
-	input: RecordStatusChangeInput,
-): RecordStatusChangeResult {
-	return changeStatus(db, input, "active");
-}
-
-// ---- 忘却の実体（lifecycle.ts が呼ぶ内部部品。`./sqlite` からは公開しない）----
+// ---- 忘却の実体（lifecycle が呼ぶ内部部品。`./sqlite` からは公開しない）----
 
 /** scope 内の record_id（昇順）。`createdBefore` を渡すとその seq より前に作られたものだけ。 */
 export function listRecordIdsInScope(
@@ -688,9 +465,9 @@ export function recordIsLive(db: MemoryDb, recordId: string): boolean {
 }
 
 /**
- * record の本文（全 revision）・revision 行・索引行・外部送付記録を消し、行を殻（status forgotten、
+ * record の本文（全 revision）・revision 行・外部送付記録を消し、行を殻（status forgotten、
  * origin と revision を空）にする。冪等で、行が無い・既に forgotten でも何度でも呼べる。
- * 墓標・変更フィード・scope revision は呼び出し側が書く。
+ * 墓標・変更フィードは呼び出し側が書く。
  */
 export function scrubRecord(
 	db: MemoryDb,
@@ -702,14 +479,6 @@ export function scrubRecord(
 	const owned =
 		row !== null && row.principal === principal && row.scopeKey === scopeKey;
 	const providerRefs = listRecordProviders(db, recordId);
-	const bodyRows = guarded(() =>
-		db
-			.query("SELECT rowid FROM memory_record_body WHERE record_id = ?")
-			.all(recordId),
-	);
-	for (const bodyRow of bodyRows) {
-		ftsDeleteForForget(db, readInteger(readRow(bodyRow), "rowid"));
-	}
 	guarded(() => {
 		db.query("DELETE FROM memory_record_body WHERE record_id = ?").run(
 			recordId,

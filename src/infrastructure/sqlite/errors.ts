@@ -17,10 +17,6 @@ export const STORE_ERROR_CODES = Object.freeze([
 	"TOMBSTONED",
 	/** applyForget に渡された entry がジャーナルの連鎖／DB の記録と合わない。 */
 	"JOURNAL_ENTRY_INVALID",
-	/** `fts5` が使えない環境（検索は LIKE のみになる）。 */
-	"FTS_UNAVAILABLE",
-	/** 契約は確定しているが実装が後続スライスの担当（S0 の stub）。 */
-	"NOT_IMPLEMENTED",
 ] as const);
 
 export type StoreErrorCode = (typeof STORE_ERROR_CODES)[number];
@@ -49,9 +45,4 @@ export function isMemoryStoreError(value: unknown): value is MemoryStoreError {
 		typeof candidate["code"] === "string" &&
 		(STORE_ERROR_CODES as readonly string[]).includes(candidate["code"])
 	);
-}
-
-/** S0 の stub 用。契約（型）は確定しているが、実装は担当スライスが置き換える。 */
-export function notImplemented(): never {
-	throw new MemoryStoreError("NOT_IMPLEMENTED");
 }

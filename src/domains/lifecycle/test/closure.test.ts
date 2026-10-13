@@ -25,41 +25,32 @@ function edge(
 const START: ClosureNodeRef = { type: "source", id: "s0" };
 
 describe("computeClosure", () => {
-	test("follows dependency to dependent transitively, including uncited inputs", () => {
+	test("follows dependency to dependent transitively", () => {
 		const edges = [
-			edge("extraction_run", "run1", "source", "s0"), // 入力として張られた辺（引用されたか否かに依らない）
-			edge("candidate", "c1", "extraction_run", "run1"),
-			edge("candidate", "c2", "extraction_run", "run1"),
-			edge("state_item", "i1", "candidate", "c1"),
-			edge("external", "p:e1", "state_item", "i1"),
+			edge("state_item", "i1", "source", "s0"),
+			edge("state_item", "i2", "state_item", "i1"),
+			edge("external", "p:e1", "state_item", "i2"),
 			edge("state_item", "iX", "source", "other"), // 無関係
 		];
 		const closure = computeClosure(edges, [START]);
 		expect(closure.nodes.map((n) => `${n.type}:${n.id}`)).toEqual([
-			"candidate:c1",
-			"candidate:c2",
 			"external:p:e1",
-			"extraction_run:run1",
 			"state_item:i1",
+			"state_item:i2",
 		]);
-		expect(closure.counts).toEqual({
-			candidate: 2,
-			external: 1,
-			extraction_run: 1,
-			state_item: 1,
-		});
+		expect(closure.counts).toEqual({ external: 1, state_item: 2 });
 	});
 
 	test("terminates on cycles and never returns the start nodes", () => {
 		const edges = [
-			edge("candidate", "c1", "extraction_run", "run1"),
-			edge("extraction_run", "run1", "candidate", "c1"),
-			edge("extraction_run", "run1", "source", "s0"),
+			edge("state_item", "i1", "state_item", "i2"),
+			edge("state_item", "i2", "state_item", "i1"),
+			edge("state_item", "i1", "source", "s0"),
 		];
 		const closure = computeClosure(edges, [START]);
 		expect(closure.nodes.map((n) => `${n.type}:${n.id}`)).toEqual([
-			"candidate:c1",
-			"extraction_run:run1",
+			"state_item:i1",
+			"state_item:i2",
 		]);
 	});
 
@@ -70,15 +61,11 @@ describe("computeClosure", () => {
 			return state / 4294967296;
 		};
 		const edges: ClosureEdge[] = [];
-		const types: DependentNodeType[] = [
-			"state_item",
-			"candidate",
-			"extraction_run",
-		];
+		const types: DependentNodeType[] = ["state_item", "external"];
 		for (let index = 0; index < 60; index += 1) {
-			const type = types[Math.floor(random() * 3)] as DependentNodeType;
+			const type = types[Math.floor(random() * 2)] as DependentNodeType;
 			const parentType = (
-				index % 5 === 0 ? "source" : types[Math.floor(random() * 3)]
+				index % 5 === 0 ? "source" : "state_item"
 			) as DependencyNodeType;
 			const parentId =
 				parentType === "source" ? "s0" : `n${Math.floor(random() * 20)}`;

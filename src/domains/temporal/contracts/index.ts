@@ -1,5 +1,5 @@
 /**
- * 時間の扱い（evolution-proposal「時間と適用範囲」）。知った時点（recordedAtMs）、成立した期間（ValidityPeriod）、
+ * 時間の扱い。知った時点（recordedAtMs）、成立した期間（ValidityPeriod）、
  * 記録順序（seq。ここでは扱わない）は別の軸。時刻はすべてホストが渡す（本体は現在時刻を持たない）。
  *
  * - 精度つきの日付: 「9月から」は `{ precision: "month", year, month: 9 }`。日が不明なら 9 月 1 日という確定日を作らない。
@@ -40,33 +40,5 @@ export const VALIDITY_CLASSES = Object.freeze([
 	"unknown",
 ] as const);
 export type ValidityClass = (typeof VALIDITY_CLASSES)[number];
-
-/** 照会する時点。`current` は `atMs` 時点の現在、`at` は過去（または未来）の対象時点。 */
-export type TimeQuery =
-	| { readonly mode: "current"; readonly atMs: number }
-	| {
-			readonly mode: "at";
-			readonly atMs: number;
-			readonly targetMs: number;
-			/**
-			 * `known_then`（既定）: 当時すでに記録されていたものだけ。`valid_then`: 当時成立していたもの（後から知った
-			 * 「9月からZed」も9月の状態として返す）。
-			 */
-			readonly basis?: "known_then" | "valid_then";
-	  };
-
-export interface TimedEntry {
-	/** 記録した時点（ホスト時計）。「当時知っていたか」の判定に使う。 */
-	readonly recordedAtMs: number;
-	readonly period?: ValidityPeriod;
-}
-
-export interface TimeEvaluation {
-	readonly validity: ValidityClass;
-	/** 照会時点より後に記録された（`at` 照会で当時は知られていない）。 */
-	readonly recordedAfterTarget: boolean;
-	/** 期間が月・年精度のため境界が粗い。 */
-	readonly coarse: boolean;
-}
 
 export type TemporalReason = "INVALID_DATE" | "INVALID_PERIOD" | "INVALID_TIME";

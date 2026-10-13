@@ -11,15 +11,9 @@ import {
 import type {
 	CaptureRecordInput,
 	ReadRecordInput,
-	ReadRecordRangeInput,
-	RecordSourceStatesInput,
-	RecordStatusChangeInput,
 } from "../contracts/index.ts";
 import { CONTRACT_VERSIONS } from "../../../contracts/versions.ts";
-import {
-	readAccessContext,
-	readSourceRef,
-} from "../../../contracts/parse-input.ts";
+import { readAccessContext } from "../../../contracts/parse-input.ts";
 import {
 	readContractVersion,
 	readHostClock,
@@ -28,22 +22,17 @@ import {
 import {
 	checkKeys,
 	fail,
-	indexPath,
 	keyPath,
-	readArray,
-	readBoolean,
 	readEnum,
 	readIdentifier,
 	readNameToken,
 	readRecord,
-	readSafeInteger,
 	readText,
 	requiredField,
 	type Rec,
 } from "../../../contracts/reader.ts";
 import { LIMITS } from "../../../contracts/constants.ts";
-import type { ByteRange } from "../../../contracts/types.ts";
-import type { RunRef } from "../../../contracts/common.ts";
+
 import { isRecordId } from "./identity.ts";
 
 const PATH = "$";
@@ -71,24 +60,6 @@ function readHeader(record: Rec) {
 	return { contractVersion, access, scopeKey };
 }
 
-function readRunRef(value: unknown, path: string): RunRef {
-	const record = readRecord(value, path);
-	checkKeys(record, path, ["jobId", "attempt"]);
-	return {
-		jobId: readIdentifier(
-			requiredField(record, path, "jobId"),
-			keyPath(path, "jobId"),
-			256,
-		),
-		attempt: readSafeInteger(
-			requiredField(record, path, "attempt"),
-			keyPath(path, "attempt"),
-			0,
-			Number.MAX_SAFE_INTEGER,
-		),
-	};
-}
-
 export function parseCaptureRecordInput(value: unknown): CaptureRecordInput {
 	const record = readRecord(value, PATH);
 	checkKeys(record, PATH, [
@@ -100,7 +71,6 @@ export function parseCaptureRecordInput(value: unknown): CaptureRecordInput {
 		"mediaType",
 		"content",
 		"captureState",
-		"runRef",
 		"providerRef",
 	]);
 	const header = readHeader(record);
@@ -140,16 +110,13 @@ export function parseCaptureRecordInput(value: unknown): CaptureRecordInput {
 		LIMITS_RECORDS.maxContentBytes,
 		true,
 	);
-	// NUL を含む本文は検索（LIKE / FTS）の結果を戦略間で一致させられないので受けない。
+	// NUL を含む本文は受けない。
 	if (content.includes("\u0000")) return fail("INVALID_STRING", contentPath);
 	const captureState = readEnum(
 		requiredField(record, PATH, "captureState"),
 		keyPath(PATH, "captureState"),
 		RECORD_CAPTURE_STATES,
 	);
-	const runRef = Object.hasOwn(record, "runRef")
-		? readRunRef(record["runRef"], keyPath(PATH, "runRef"))
-		: undefined;
 	const providerRef = Object.hasOwn(record, "providerRef")
 		? readNameToken(
 				record["providerRef"],
@@ -164,7 +131,6 @@ export function parseCaptureRecordInput(value: unknown): CaptureRecordInput {
 		mediaType,
 		content,
 		captureState,
-		...(runRef === undefined ? {} : { runRef }),
 		...(providerRef === undefined ? {} : { providerRef }),
 	});
 }
@@ -195,110 +161,4 @@ export function parseReadRecordInput(value: unknown): ReadRecordInput {
 		recordId,
 		...(revision === undefined ? {} : { revision }),
 	});
-}
-
-function readByteRange(value: unknown, path: string): ByteRange {
-	const record = readRecord(value, path);
-	checkKeys(record, path, ["startByte", "endByte"]);
-	const startByte = readSafeInteger(
-		requiredField(record, path, "startByte"),
-		keyPath(path, "startByte"),
-		0,
-		LIMITS.maxSourceContentBytes,
-	);
-	const endByte = readSafeInteger(
-		requiredField(record, path, "endByte"),
-		keyPath(path, "endByte"),
-		0,
-		LIMITS.maxSourceContentBytes,
-	);
-	if (startByte >= endByte) return fail("INVALID_RANGE", path);
-	return { startByte, endByte };
-}
-
-export function parseReadRecordRangeInput(
-	value: unknown,
-): ReadRecordRangeInput {
-	const record = readRecord(value, PATH);
-	checkKeys(record, PATH, [
-		"contractVersion",
-		"access",
-		"scopeKey",
-		"recordId",
-		"revision",
-		"range",
-	]);
-	const header = readHeader(record);
-	const recordId = readRecordId(
-		requiredField(record, PATH, "recordId"),
-		keyPath(PATH, "recordId"),
-	);
-	const revision = readIdentifier(
-		requiredField(record, PATH, "revision"),
-		keyPath(PATH, "revision"),
-		LIMITS.maxRevisionBytes,
-	);
-	const range = readByteRange(
-		requiredField(record, PATH, "range"),
-		keyPath(PATH, "range"),
-	);
-	return deepFreeze({ ...header, recordId, revision, range });
-}
-
-export function parseRecordSourceStatesInput(
-	value: unknown,
-): RecordSourceStatesInput {
-	const record = readRecord(value, PATH);
-	checkKeys(record, PATH, [
-		"contractVersion",
-		"access",
-		"scopeKey",
-		"refs",
-		"withContent",
-	]);
-	const header = readHeader(record);
-	const refsPath = keyPath(PATH, "refs");
-	const refs = readArray(
-		requiredField(record, PATH, "refs"),
-		refsPath,
-		LIMITS_RECORDS.maxSourceStateRefs,
-	).map((element, index) => {
-		const path = indexPath(refsPath, index);
-		const ref = readSourceRef(element, path);
-		if (ref.namespace !== "memory" || ref.kind !== "record") {
-			return fail("INVALID_VALUE", path);
-		}
-		return ref;
-	});
-	const withContent = Object.hasOwn(record, "withContent")
-		? readBoolean(record["withContent"], keyPath(PATH, "withContent"))
-		: undefined;
-	return deepFreeze({
-		...header,
-		refs,
-		...(withContent === undefined ? {} : { withContent }),
-	});
-}
-
-export function parseRecordStatusChangeInput(
-	value: unknown,
-): RecordStatusChangeInput {
-	const record = readRecord(value, PATH);
-	checkKeys(record, PATH, [
-		"contractVersion",
-		"access",
-		"scopeKey",
-		"clock",
-		"recordId",
-	]);
-	const header = readHeader(record);
-	const clock = readHostClock(
-		requiredField(record, PATH, "clock"),
-		keyPath(PATH, "clock"),
-	);
-	const recordId = readRecordId(
-		requiredField(record, PATH, "recordId"),
-		keyPath(PATH, "recordId"),
-	);
-	return deepFreeze({ ...header, clock, recordId });
 }

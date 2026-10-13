@@ -138,25 +138,6 @@ export function readNameToken(
 	return text;
 }
 
-/** item ID: 識別子規則 + "<名前トークン>:<非空>"。 */
-export function readItemId(
-	value: unknown,
-	path: string,
-	maxBytes: number,
-	maxNamespaceBytes: number,
-): string {
-	const text = readIdentifier(value, path, maxBytes);
-	const colon = text.indexOf(":");
-	if (colon <= 0 || colon === text.length - 1) {
-		return fail("INVALID_ID_FORMAT", path);
-	}
-	const namespace = text.slice(0, colon);
-	if (!NAME_TOKEN.test(namespace) || namespace.length > maxNamespaceBytes) {
-		return fail("INVALID_ID_FORMAT", path);
-	}
-	return text;
-}
-
 /** 本文: lone surrogate なし。改行・タブ等の制御文字は許可。 */
 export function readText(
 	value: unknown,
@@ -184,11 +165,6 @@ export function readSafeInteger(
 		return fail("INVALID_INTEGER", path);
 	}
 	return value === 0 ? 0 : value;
-}
-
-export function readBoolean(value: unknown, path: string): boolean {
-	if (typeof value !== "boolean") return fail("INVALID_TYPE", path);
-	return value;
 }
 
 export function readEnum<T extends string>(

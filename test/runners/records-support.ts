@@ -1,5 +1,5 @@
 /**
- * Records / Recall / Forget のシナリオ・fixture 実行で共通に使う部品。公開面（"eumenes-memory/sqlite"）の
+ * Records / Forget のシナリオ・fixture 実行で共通に使う部品。公開面（"eumenes-memory/sqlite"）の
  * 関数と、テスト用 Writer だけを使う。
  */
 import {
@@ -135,13 +135,13 @@ export function reconcile(
 	);
 }
 
-/** memory_ 表（seq・FTS の影表を除く）の全行を、比較可能な文字列にする。 */
+/** memory_ 表（seq を除く）の全行を、比較可能な文字列にする。 */
 export function dumpTables(store: TestStore): string {
 	const tables = store.writer
 		.query(
 			`SELECT name FROM sqlite_master
 			WHERE type = 'table' AND name LIKE 'memory\\_%' ESCAPE '\\'
-				AND name NOT LIKE 'memory\\_record\\_fts%' ESCAPE '\\' AND name <> 'memory_seq'
+				AND name <> 'memory_seq'
 			ORDER BY name`,
 		)
 		.all() as { name: string }[];
@@ -152,7 +152,7 @@ export function dumpTables(store: TestStore): string {
 	return JSON.stringify(out);
 }
 
-/** memory_ 表のどこかに文字列 `needle` が残っているか（全文索引の影表も含める）。 */
+/** memory_ 表のどこかに文字列 `needle` が残っているか。 */
 export function tablesContain(store: TestStore, needle: string): boolean {
 	const tables = store.writer
 		.query(

@@ -2,16 +2,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { isMemoryContractError } from "../../../contracts/errors.ts";
 import type { AccessContext } from "../../../contracts/types.ts";
 import { recordIdOf, recordSourceRef } from "../service/identity.ts";
-import {
-	captureRecord,
-	deactivateRecord,
-	reactivateRecord,
-	readRecord,
-	readRecordRange,
-	recordSourceStates,
-} from "../repository/index.ts";
+import { captureRecord, readRecord } from "../repository/index.ts";
 import { listMemoryChanges } from "../../../infrastructure/sqlite/changes.ts";
-import { readScopeRevision } from "../../../infrastructure/sqlite/scope-state.ts";
 import { openTestStore } from "../../../../test/support/store.ts";
 import type { TestStore } from "../../../../test/support/store.ts";
 
@@ -165,13 +157,10 @@ describe("captureRecord", () => {
 		expect(() => s.read((db) => captureRecord(db, capture()))).toThrow();
 	});
 
-	test("bumps the scope revision and appends to the change feed (no body)", () => {
+	test("appends to the change feed (no body)", () => {
 		const s = open();
 		s.write((db) => captureRecord(db, capture()));
 		s.write((db) => captureRecord(db, capture())); // 変化なし
-		expect(readScopeRevision(s.writer, "local:owner", "conversation:a")).toBe(
-			1,
-		);
 		const feed = s.read((db) =>
 			listMemoryChanges(db, {
 				contractVersion: 1,
@@ -192,7 +181,7 @@ describe("captureRecord", () => {
 	});
 });
 
-describe("readRecord / readRecordRange / recordSourceStates", () => {
+describe("readRecord", () => {
 	test("scope isolation: other scope is not_permitted, other principal and unknown id are missing", () => {
 		const s = open();
 		s.write((db) => captureRecord(db, capture()));
@@ -228,175 +217,6 @@ describe("readRecord / readRecordRange / recordSourceStates", () => {
 					access: ACCESS,
 					scopeKey: "conversation:a",
 				}),
-			),
-		).toEqual({ status: "missing" });
-	});
-
-	test("range reads: char boundary, digest and limits", () => {
-		const s = open();
-		s.write((db) => captureRecord(db, capture({ content: "ab食😀c" })));
-		const result = s.write((db) =>
-			captureRecord(db, capture({ content: "ab食😀c" })),
-		);
-		if (result.status !== "captured") throw new Error("unreachable");
-		const range = (startByte: number, endByte: number) =>
-			s.read((db) =>
-				readRecordRange(db, {
-					contractVersion: 1,
-					access: ACCESS,
-					scopeKey: "conversation:a",
-					recordId: result.recordId,
-					revision: result.revision,
-					range: { startByte, endByte },
-				}),
-			);
-		// a(1) b(1) 食(3) 😀(4) c(1) = 10 bytes
-		expect(range(2, 5)).toMatchObject({ status: "available", text: "食" });
-		expect(range(5, 9)).toMatchObject({ status: "available", text: "😀" });
-		expect(range(2, 4)).toEqual({
-			status: "invalid_range",
-			reasonCode: "SOURCE_RANGE_NOT_CHAR_BOUNDARY",
-		});
-		expect(range(5, 7)).toEqual({
-			status: "invalid_range",
-			reasonCode: "SOURCE_RANGE_NOT_CHAR_BOUNDARY",
-		});
-		expect(range(0, 11)).toEqual({
-			status: "invalid_range",
-			reasonCode: "SOURCE_RANGE_OUT_OF_BOUNDS",
-		});
-		expect(range(0, 10)).toMatchObject({
-			status: "available",
-			text: "ab食😀c",
-		});
-	});
-
-	test("recordSourceStates: available / changed / missing / inactive, same order and count", () => {
-		const s = open();
-		const first = s.write((db) => captureRecord(db, capture()));
-		if (first.status !== "captured") throw new Error("unreachable");
-		const states = (
-			refs: ReturnType<typeof recordSourceRef>[],
-			withContent = false,
-		) =>
-			s.read((db) =>
-				recordSourceStates(db, {
-					contractVersion: 1,
-					access: ACCESS,
-					scopeKey: "conversation:a",
-					refs,
-					withContent,
-				}),
-			);
-		const ref = first.ref;
-		const missingRef = recordSourceRef(id("none"), "sha256:x", "0".repeat(64));
-		const out = states([ref, missingRef, ref], true);
-		expect(out.map((state) => state.status)).toEqual([
-			"available",
-			"missing",
-			"available",
-		]);
-		expect(out[0]).toMatchObject({
-			content: "hello world",
-			principal: "local:owner",
-			scopeKey: "conversation:a",
-		});
-		expect(out[1]?.content).toBeUndefined();
-		// 内容が変わると changed（current の revision / digest を返す）
-		const next = s.write((db) =>
-			captureRecord(db, capture({ content: "changed" })),
-		);
-		if (next.status !== "captured") throw new Error("unreachable");
-		expect(states([ref])[0]).toMatchObject({
-			status: "changed",
-			revision: next.revision,
-			digest: next.digest,
-		});
-		// inactive は missing
-		s.write((db) =>
-			deactivateRecord(db, {
-				contractVersion: 1,
-				access: ACCESS,
-				scopeKey: "conversation:a",
-				clock: CLOCK,
-				recordId: first.recordId,
-			}),
-		);
-		expect(states([next.ref])[0]?.status).toBe("missing");
-	});
-
-	test("refs outside Records are rejected", () => {
-		const s = open();
-		expect(() =>
-			s.read((db) =>
-				recordSourceStates(db, {
-					contractVersion: 1,
-					access: ACCESS,
-					scopeKey: "conversation:a",
-					refs: [
-						{
-							namespace: "conversation",
-							kind: "message",
-							id: "m1",
-							representation: "text",
-							revision: "1",
-							digest: "0".repeat(64),
-						},
-					],
-				}),
-			),
-		).toThrow();
-	});
-});
-
-describe("deactivate / reactivate (reversible, not forgetting)", () => {
-	test("keeps content, creates no tombstone, and reverses", () => {
-		const s = open();
-		const first = s.write((db) => captureRecord(db, capture()));
-		if (first.status !== "captured") throw new Error("unreachable");
-		const change = {
-			contractVersion: 1,
-			access: ACCESS,
-			scopeKey: "conversation:a",
-			clock: CLOCK,
-			recordId: first.recordId,
-		} as const;
-		expect(s.write((db) => deactivateRecord(db, change))).toEqual({
-			status: "changed",
-			recordStatus: "inactive",
-		});
-		expect(s.write((db) => deactivateRecord(db, change))).toEqual({
-			status: "unchanged",
-			recordStatus: "inactive",
-		});
-		const read = () =>
-			s.read((db) =>
-				readRecord(db, {
-					contractVersion: 1,
-					access: ACCESS,
-					scopeKey: "conversation:a",
-					recordId: first.recordId,
-				}),
-			);
-		expect(read()).toMatchObject({
-			status: "available",
-			content: "hello world",
-			record: { status: "inactive" },
-		});
-		expect(
-			s.writer.query("SELECT COUNT(*) AS n FROM memory_tombstone").get(),
-		).toEqual({ n: 0 });
-		expect(
-			s.writer.query("SELECT COUNT(*) AS n FROM memory_forget").get(),
-		).toEqual({ n: 0 });
-		expect(s.write((db) => reactivateRecord(db, change))).toEqual({
-			status: "changed",
-			recordStatus: "active",
-		});
-		expect(read()).toMatchObject({ record: { status: "active" } });
-		expect(
-			s.write((db) =>
-				reactivateRecord(db, { ...change, recordId: id("nothing") }),
 			),
 		).toEqual({ status: "missing" });
 	});

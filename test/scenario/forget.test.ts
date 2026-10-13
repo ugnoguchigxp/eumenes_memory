@@ -6,18 +6,12 @@ import { afterEach, describe, expect, test } from "bun:test";
 import {
 	applyForget,
 	captureRecord,
-	deactivateRecord,
 	getForgetReceipt,
 	isMemoryStoreError,
 	listMemoryChanges,
 	planForget,
-	reactivateRecord,
-	readRecordRange,
-	recordSourceStates,
-	searchRecords,
 } from "eumenes-memory/sqlite";
 import type { ForgetJournalEntry, MemoryDb } from "eumenes-memory/sqlite";
-import { searchRecordsWithStrategy } from "../../src/domains/recall/sqlite.ts";
 import {
 	buildJournalEntry,
 	isSelfConsistent,
@@ -46,52 +40,12 @@ function open(options?: Parameters<typeof openTestStore>[0]): TestStore {
 
 const SECRET = "SECRET-BODY-1f9c 食べ物の記録 😀";
 
-function searchAll(store: TestStore, query: string, scopeKeys = ["scope:a"]) {
-	return store.read((db) =>
-		searchRecords(db, {
-			contractVersion: 1,
-			access: accessFor(),
-			scopeKeys,
-			query,
-			limit: 50,
-		}),
-	);
-}
-
-function visible(
-	store: TestStore,
-	recordId: string,
-	ref: ReturnType<typeof capture>,
-) {
-	return {
-		read: store.read((db) => readOf(db, recordId)).status,
-		range: store.read((db) =>
-			readRecordRange(db, {
-				contractVersion: 1,
-				access: accessFor(),
-				scopeKey: "scope:a",
-				recordId,
-				revision: ref.revision,
-				range: { startByte: 0, endByte: 3 },
-			}),
-		).status,
-		search: (() => {
-			const result = searchAll(store, "SECRET-BODY");
-			return result.status === "ok" ? result.hits.length : -1;
-		})(),
-		states: store.read((db) =>
-			recordSourceStates(db, {
-				contractVersion: 1,
-				access: accessFor(),
-				scopeKey: "scope:a",
-				refs: [ref.ref],
-			}),
-		)[0]?.status,
-	};
+function visible(store: TestStore, recordId: string) {
+	return { read: store.read((db) => readOf(db, recordId)).status };
 }
 
 describe("FG1: forgetting a record", () => {
-	test("read / range / search / sourceStates no longer show it; body, index and revisions are gone", () => {
+	test("read no longer shows it; body and revisions are gone", () => {
 		const store = open();
 		const target = capture(store, { origin: "o1", content: SECRET });
 		const other = capture(store, {
@@ -101,11 +55,7 @@ describe("FG1: forgetting a record", () => {
 		});
 		const second = capture(store, { origin: "o1", content: `${SECRET} v2` });
 		expect(second.recordId).toBe(target.recordId);
-		expect(visible(store, target.recordId, target)).toMatchObject({
-			read: "available",
-			range: "available",
-			search: 1,
-		});
+		expect(visible(store, target.recordId)).toEqual({ read: "available" });
 		expect(tablesContain(store, "SECRET-BODY")).toBe(true);
 
 		const { plan, receipt } = forgetRecord(store, {
@@ -117,8 +67,6 @@ describe("FG1: forgetting a record", () => {
 		expect(plan.closure.counts).toEqual({
 			record: 1,
 			state_item: 0,
-			candidate: 0,
-			extraction_run: 0,
 			external: 0,
 		});
 		expect(receipt).toMatchObject({
@@ -128,13 +76,8 @@ describe("FG1: forgetting a record", () => {
 			externalDeletions: [],
 		});
 
-		expect(visible(store, target.recordId, target)).toEqual({
-			read: "forgotten",
-			range: "forgotten",
-			search: 0,
-			states: "forgotten",
-		});
-		// 全 revision の本文・索引が消えている
+		expect(visible(store, target.recordId)).toEqual({ read: "forgotten" });
+		// 全 revision の本文が消えている
 		expect(tablesContain(store, "SECRET-BODY")).toBe(false);
 		expect(
 			store.writer
@@ -143,16 +86,6 @@ describe("FG1: forgetting a record", () => {
 				)
 				.get(target.recordId),
 		).toEqual({ n: 0 });
-		expect(
-			store.writer
-				.query(
-					"SELECT COUNT(*) AS n FROM memory_record_fts WHERE memory_record_fts MATCH '\"SEC\"'",
-				)
-				.get(),
-		).toEqual({ n: 0 });
-		expect(
-			store.writer.query("SELECT COUNT(*) AS n FROM memory_record_fts").get(),
-		).toEqual({ n: 1 }); // other の分
 		// 墓標 (record と source)、journal head、receipt
 		expect(
 			store.writer
@@ -206,7 +139,7 @@ describe("FG1: forgetting a record", () => {
 		["only the record tombstone", ["source"]],
 		["only the source tombstone", ["record"]],
 	] as const)(
-		"status, revision, body and index restored by hand cannot bring the record back (%s)",
+		"status, revision and body restored by hand cannot bring the record back (%s)",
 		(_name, dropped) => {
 			const store = open();
 			const target = capture(store, { origin: "o1", content: SECRET });
@@ -230,37 +163,12 @@ describe("FG1: forgetting a record", () => {
 			store.writer
 				.query("INSERT INTO memory_record_revision VALUES (?, ?, ?, 1, 1, 1)")
 				.run(target.recordId, target.revision, target.digest);
-			store.writer
-				.query("INSERT INTO memory_record_fts (rowid, body) VALUES (1, ?)")
-				.run(SECRET.toLowerCase());
 			for (const type of dropped) {
 				store.writer
 					.query("DELETE FROM memory_tombstone WHERE target_type = ?")
 					.run(type);
 			}
-			expect(visible(store, target.recordId, target)).toMatchObject({
-				read: "forgotten",
-				search: 0,
-				states: "forgotten",
-			});
-			// 索引に戻した行があっても、どちらの戦略でも検索に出ない
-			for (const strategy of ["like", "fts"] as const) {
-				expect(
-					store.read((db) =>
-						searchRecordsWithStrategy(
-							db,
-							{
-								contractVersion: 1,
-								access: accessFor(),
-								scopeKeys: ["scope:a"],
-								query: "SECRET-BODY",
-								limit: 5,
-							},
-							strategy,
-						),
-					),
-				).toMatchObject({ status: "ok", hits: [] });
-			}
+			expect(visible(store, target.recordId)).toEqual({ read: "forgotten" });
 		},
 	);
 
@@ -308,39 +216,6 @@ describe("FG1: forgetting a record", () => {
 		expect(store.read((db) => readOf(db, target.recordId)).status).toBe(
 			"forgotten",
 		);
-		expect(searchAll(store, "SECRET")).toMatchObject({ hits: [] });
-	});
-});
-
-describe("FG6: deactivate is reversible and is not forgetting", () => {
-	test("body kept, no tombstone, no receipt, reactivate brings it back", () => {
-		const store = open();
-		const target = capture(store, { origin: "o1", content: SECRET });
-		const change = {
-			contractVersion: 1,
-			access: accessFor(),
-			scopeKey: "scope:a",
-			clock: { atMs: 5 },
-			recordId: target.recordId,
-		} as const;
-		store.write((db) => deactivateRecord(db, change));
-		expect(searchAll(store, "SECRET-BODY")).toMatchObject({ hits: [] });
-		expect(store.read((db) => readOf(db, target.recordId))).toMatchObject({
-			status: "available",
-			content: SECRET,
-		});
-		expect(tablesContain(store, "SECRET-BODY")).toBe(true);
-		for (const table of [
-			"memory_tombstone",
-			"memory_forget",
-			"memory_forget_external",
-		]) {
-			expect(
-				store.writer.query(`SELECT COUNT(*) AS n FROM ${table}`).get(),
-			).toEqual({ n: 0 });
-		}
-		store.write((db) => reactivateRecord(db, change));
-		expect(searchAll(store, "SECRET-BODY")).toMatchObject({ hits: [{}] });
 	});
 });
 
@@ -418,19 +293,13 @@ describe("FG7 / F03: restore an old DB, reconcile with the latest journal", () =
 		expect(restored.read((db) => readOf(db, gone.recordId)).status).toBe(
 			"available",
 		);
-		expect(searchAll(restored, "SECRET-BODY").status).toBe("ok");
 
 		expect(reconcile(restored, journal)).toEqual({
 			status: "ok",
 			reapplied: 2,
 			feedResyncRequired: true,
 		});
-		expect(visible(restored, gone.recordId, gone)).toEqual({
-			read: "forgotten",
-			range: "forgotten",
-			search: 0,
-			states: "forgotten",
-		});
+		expect(visible(restored, gone.recordId)).toEqual({ read: "forgotten" });
 		expect(
 			restored.read((db) => readOf(db, goneB.recordId, "scope:b")).status,
 		).toBe("forgotten");
@@ -439,13 +308,6 @@ describe("FG7 / F03: restore an old DB, reconcile with the latest journal", () =
 			content: "kept body text",
 		});
 		expect(tablesContain(restored, "SECRET-BODY")).toBe(false);
-		expect(
-			restored.writer
-				.query(
-					"SELECT COUNT(*) AS n FROM memory_record_fts WHERE memory_record_fts MATCH '\"SECRET\"'",
-				)
-				.get(),
-		).toEqual({ n: 0 });
 		expect(
 			restored.writer
 				.query(
@@ -490,7 +352,7 @@ describe("FG7 / F03: restore an old DB, reconcile with the latest journal", () =
 			local: "applied",
 			external: "pending",
 		});
-		expect(visible(restored, gone.recordId, gone).read).toBe("forgotten");
+		expect(visible(restored, gone.recordId).read).toBe("forgotten");
 	});
 
 	test("a partially restored DB (journal head ahead of records) is still fixed by replaying every entry", () => {

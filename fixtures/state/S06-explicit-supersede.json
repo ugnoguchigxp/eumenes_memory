@@ -8,7 +8,7 @@
   "provenance": [
     "本設計 §3.5",
     "SAAA 28616e61ce5fe853383d4af6ec14e5b5d542c076 crates/personal-state-core/src/reducer.rs:476-495",
-    "明示操作は根拠の新旧を比べない（verification-status §6-6）"
+    "明示操作は根拠の新旧を比べない（full-system-design §3.5）"
   ],
   "steps": [
     {

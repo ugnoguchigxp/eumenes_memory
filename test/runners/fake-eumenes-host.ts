@@ -1,17 +1,16 @@
 /**
  * Eumenes の模擬ホスト（テスト専用）。実 Eumenes に触れず、ホストが Memory に渡す入力と運用の形を再現する。
  *
- * 再現するもの（Eumenes の構成を README の対応表と persistence-design に合わせた想定）:
+ * 再現するもの:
  * - 会話 message（追加・編集・削除）と、その SourceState（revision = "sha256:" + digest、編集で changed、削除で missing）。
- * - 直列の書き込みキュー（`store.write` は 1 本ずつ）。モデル呼び出し（execute）はキューの外で非同期に走る。
- * - 抽出 job: prepare → execute（遅延中に会話が変わりうる）→ settle の 3 段。
- * - 対話: View v2 を build → 回答生成（非同期）→ 採用 transaction で `validateMemoryViewV2` を読み直しで行う。
+ * - 直列の書き込みキュー（`store.write` は 1 本ずつ）。
+ * - ユーザーの明示操作（`assertUserState`）で State を書く。
  * - 忘却: plan → ジャーナルへ fsync 追記 → apply。途中でクラッシュする点も作れる。
  * - 起動手順: migration の部分列検査 → `assertMemorySchema` → ジャーナル検証 → reconcile。失敗したら Memory を止める。
  * - 再起動と、古い DB の復元。
  *
- * これは H（ホスト結合）段階の証明ではない。実 Eumenes の Writer / queue とは別物で、想定した形を決定的に試す道具。
- * モデルは使わない（ExtractorPort は呼び出し側が渡す）。ネットワーク・実時間・乱数を使わない。
+ * これは実 Eumenes の Writer / queue とは別物で、想定した形を決定的に試す道具。
+ * ネットワーク・実時間・乱数を使わない。
  */
 import { createHash } from "node:crypto";
 import {
@@ -27,33 +26,23 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-	buildMemoryViewV2,
-	composeSnapshotV2,
-	validateMemoryViewV2,
-	verifyForgetJournal,
-} from "eumenes-memory";
+import { verifyForgetJournal } from "eumenes-memory";
 import type {
 	AccessContext,
-	ExtractionInput,
-	ExtractorPort,
-	MemoryViewV2,
-	SnapshotV2,
+	EvidenceSpan,
+	HostSourceState,
 	SourceState,
+	StateValue,
 } from "eumenes-memory";
 import {
 	applyForget,
 	assertMemorySchema,
+	assertUserState,
 	checkHostMigrations,
-	confirmCandidate,
-	listCandidates,
 	listState,
 	migrations,
 	planForget,
-	prepareExtraction,
-	readMemorySnapshotPart,
 	reconcileForgetJournal,
-	settleExtraction,
 } from "eumenes-memory/sqlite";
 import type { ForgetJournalEntry } from "eumenes-memory/sqlite";
 import { openTestStore } from "../support/store.ts";
@@ -75,24 +64,6 @@ export const HOST_MIGRATIONS: readonly string[] = [
 	...migrations,
 ];
 
-export type AutoPolicy = "auto" | "confirm";
-const POLICY = {
-	auto: {
-		preference: "auto_admit",
-		personal_fact: "auto_admit",
-		constraint: "auto_admit",
-		habit: "auto_admit",
-		other_person_note: "user_confirm",
-	},
-	confirm: {
-		preference: "user_confirm",
-		personal_fact: "user_confirm",
-		constraint: "user_confirm",
-		habit: "user_confirm",
-		other_person_note: "user_confirm",
-	},
-} as const;
-
 function sha256(text: string): string {
 	return createHash("sha256").update(text, "utf8").digest("hex");
 }
@@ -113,8 +84,6 @@ interface StoredMessage {
 export class FakeConversation {
 	private readonly messages = new Map<string, StoredMessage>();
 	private nextOrdinal = 1;
-	/** Continuity の revision の代わり（会話が変わるたびに増える不透明な値）。 */
-	private version = 0;
 
 	add(role: MessageRole, text: string): string {
 		const id = `m${this.nextOrdinal}`;
@@ -126,22 +95,15 @@ export class FakeConversation {
 			deleted: false,
 		});
 		this.nextOrdinal += 1;
-		this.version += 1;
 		return id;
 	}
 
 	edit(id: string, text: string): void {
 		this.require(id).text = text;
-		this.version += 1;
 	}
 
 	remove(id: string): void {
 		this.require(id).deleted = true;
-		this.version += 1;
-	}
-
-	get revision(): string {
-		return String(this.version);
 	}
 
 	/** 現在の状態。編集後は revision / digest が変わる（呼び出し側が保持する ref との比較で changed になる）。 */
@@ -162,17 +124,14 @@ export class FakeConversation {
 		};
 	}
 
-	/** prepare に渡す入力（順位と role つき）。 */
-	source(id: string): SourceState & {
-		readonly ordinal: number;
-		readonly role: MessageRole;
-	} {
+	/** `assertUserState` に渡す入力出典（順位つき）。 */
+	source(id: string): HostSourceState {
 		const message = this.require(id);
-		return { ...this.state(id), ordinal: message.ordinal, role: message.role };
-	}
-
-	allIds(): string[] {
-		return [...this.messages.keys()];
+		return {
+			...this.state(id),
+			content: message.text,
+			ordinal: message.ordinal,
+		};
 	}
 
 	private require(id: string): StoredMessage {
@@ -220,19 +179,6 @@ export class FakeJournalFile {
 export type StartupStatus =
 	| { readonly status: "ready"; readonly reapplied: number }
 	| { readonly status: "disabled"; readonly reason: string };
-
-export type ExtractOutcome =
-	| { readonly status: "applied"; readonly result: unknown }
-	| { readonly status: "skipped"; readonly reason: string };
-
-export type DialogueOutcome =
-	| {
-			readonly status: "adopted";
-			readonly reply: string;
-			readonly view: MemoryViewV2;
-	  }
-	| { readonly status: "rejected"; readonly reasonCode: string }
-	| { readonly status: "memory_off"; readonly reason: string };
 
 export interface FakeHostOptions {
 	/** 既存の DB ファイルを開く（復元・再起動用）。 */
@@ -321,93 +267,45 @@ export class FakeEumenesHost {
 		return run;
 	}
 
-	// ---- 抽出 ----
+	// ---- State ----
 
-	/**
-	 * 抽出 job。prepare と settle はキュー内の別 transaction、execute はキューの外。
-	 * `during` は execute の最中（settle 前）に会話を変えるための差し込み口。
-	 */
-	async extract(args: {
-		readonly jobId: string;
-		readonly messageIds: readonly string[];
-		readonly extractor: ExtractorPort;
-		readonly policy?: AutoPolicy;
-		readonly during?: () => void;
-		readonly attempt?: number;
-	}): Promise<ExtractOutcome> {
-		if (!this.memoryOn) return { status: "skipped", reason: "memory_off" };
-		const attempt = args.attempt ?? 1;
-		const prepared = await this.enqueue(() =>
+	/** message の全文を根拠にして、ユーザーの明示操作で State を書く。 */
+	async assertFact(args: {
+		readonly messageId: string;
+		readonly semanticKey: string;
+		readonly value: StateValue;
+	}) {
+		if (!this.memoryOn) return { status: "skipped" as const };
+		const source = this.conversation.source(args.messageId);
+		const quote = source.content;
+		const evidence: EvidenceSpan = {
+			source: {
+				namespace: source.namespace,
+				kind: source.kind,
+				id: source.id,
+				...(source.representation === undefined
+					? {}
+					: { representation: source.representation }),
+				revision: source.revision,
+				digest: source.digest,
+				range: { startByte: 0, endByte: Buffer.byteLength(quote, "utf8") },
+			},
+			quote,
+		};
+		return await this.enqueue(() =>
 			this.store.write((db) =>
-				prepareExtraction(db, {
+				assertUserState(db, {
 					contractVersion: 1,
 					access: HOST_ACCESS,
 					scopeKey: HOST_SCOPE,
 					clock: { atMs: this.tick() },
-					run: { jobId: args.jobId, attempt },
-					enabled: true,
-					sources: args.messageIds.map((id) =>
-						this.conversation.source(id),
-					) as never,
-					profile: {
-						extractorId: "fake",
-						promptVersion: "fake-1",
-						providerRef: "fake-provider",
-					},
-					maxInputBytes: 65536,
-				}),
-			),
-		);
-		if (prepared.status !== "ready") {
-			return { status: "skipped", reason: `prepare:${prepared.status}` };
-		}
-		const input: ExtractionInput = prepared.input;
-		const output = await args.extractor(input, new AbortController().signal);
-		args.during?.();
-		const result = await this.enqueue(() =>
-			this.store.write((db) =>
-				settleExtraction(db, {
-					contractVersion: 1,
-					access: HOST_ACCESS,
-					scopeKey: HOST_SCOPE,
-					clock: { atMs: this.tick() },
-					run: { jobId: args.jobId, attempt },
-					output,
-					currentSources: args.messageIds.map((id) =>
-						this.conversation.state(id),
-					) as never,
-					policy: POLICY[args.policy ?? "confirm"],
-				}),
-			),
-		);
-		return { status: "applied", result };
-	}
-
-	listPending() {
-		const listed = this.store.read((db) =>
-			listCandidates(db, {
-				contractVersion: 1,
-				access: HOST_ACCESS,
-				scopeKey: HOST_SCOPE,
-			}),
-		);
-		if (listed.status !== "ok") throw new Error(`list: ${listed.status}`);
-		return listed.candidates;
-	}
-
-	confirm(candidateId: string, action: "admit" | "reject") {
-		return this.enqueue(() =>
-			this.store.write((db) =>
-				confirmCandidate(db, {
-					contractVersion: 1,
-					access: HOST_ACCESS,
-					scopeKey: HOST_SCOPE,
-					clock: { atMs: this.tick() },
-					candidateId,
-					action,
-					currentSources: this.conversation
-						.allIds()
-						.map((id) => this.conversation.state(id)) as never,
+					kind: "preference",
+					subject: "self",
+					semanticKey: args.semanticKey,
+					value: args.value,
+					evidence: [evidence],
+					sources: [source],
+					origin: "user_confirmed",
 				}),
 			),
 		);
@@ -424,80 +322,6 @@ export class FakeEumenesHost {
 		);
 		if (listed.status !== "ok") throw new Error(`list: ${listed.status}`);
 		return listed.items;
-	}
-
-	// ---- 対話 ----
-
-	/** 1 つの read transaction で Memory 部品と会話の出典状態を読み、snapshot に合成する。 */
-	snapshot(): SnapshotV2 {
-		return this.store.read((db) => {
-			const part = readMemorySnapshotPart(db, {
-				contractVersion: 1,
-				access: HOST_ACCESS,
-				scopeKey: HOST_SCOPE,
-			});
-			if (part.status !== "ok") throw new Error(`snapshot: ${part.status}`);
-			const messageIds = new Set<string>();
-			for (const item of part.items) {
-				for (const dependency of item.dependencies) {
-					if (dependency.namespace === "conversation")
-						messageIds.add(dependency.id);
-				}
-			}
-			return composeSnapshotV2({
-				principal: HOST_PRINCIPAL,
-				scopeKey: HOST_SCOPE,
-				policyRevision: "1",
-				complete: true,
-				continuity: {
-					revision: this.conversation.revision,
-					items: [],
-					sources: [...messageIds].map((id) => this.conversation.state(id)),
-				},
-				memory: part,
-			});
-		});
-	}
-
-	buildView(): MemoryViewV2 {
-		return buildMemoryViewV2({
-			schemaVersion: 2,
-			access: HOST_ACCESS,
-			snapshot: this.snapshot(),
-			maxBytes: 16_384,
-			enabled: this.memoryOn,
-		});
-	}
-
-	/**
-	 * 対話 1 ターン。view を作り、回答を生成し（非同期。この間に状態が変わりうる）、
-	 * 採用 transaction で読み直した最新状態に対して再検証する。
-	 */
-	async dialogue(args: {
-		readonly reply: (view: MemoryViewV2) => string | Promise<string>;
-		readonly during?: () => void | Promise<void>;
-	}): Promise<DialogueOutcome> {
-		if (!this.memoryOn) {
-			return {
-				status: "memory_off",
-				reason: this.startup.status === "disabled" ? this.startup.reason : "",
-			};
-		}
-		const view = this.buildView();
-		const reply = await args.reply(view);
-		await args.during?.();
-		return await this.enqueue(() =>
-			this.store.read(() => {
-				const validated = validateMemoryViewV2(view, {
-					schemaVersion: 2,
-					access: HOST_ACCESS,
-					snapshot: this.snapshot(),
-				});
-				return validated.status === "valid"
-					? { status: "adopted" as const, reply, view }
-					: { status: "rejected" as const, reasonCode: validated.reasonCode };
-			}),
-		);
 	}
 
 	// ---- 忘却 ----

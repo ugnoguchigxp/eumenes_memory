@@ -28,7 +28,7 @@ describe("migration 0002 records", () => {
 		expect(checkList("status")).toEqual([...RECORD_STATUSES, "forgotten"]);
 	});
 
-	test("creates the tables, the FTS5 table and the no-resurrection triggers", () => {
+	test("creates the tables and the no-resurrection triggers; the full-text index is gone", () => {
 		store = openTestStore();
 		const db = (store as TestStore).writer;
 		const names = (type: string) =>
@@ -43,7 +43,6 @@ describe("migration 0002 records", () => {
 			expect.arrayContaining([
 				"memory_record",
 				"memory_record_body",
-				"memory_record_fts",
 				"memory_record_provider",
 				"memory_record_revision",
 			]),
@@ -53,13 +52,7 @@ describe("migration 0002 records", () => {
 			"memory_record_no_resurrection",
 			"memory_record_revision_no_resurrection",
 		]);
-		expect(
-			store.writer
-				.query("SELECT sql FROM sqlite_master WHERE name = 'memory_record_fts'")
-				.get(),
-		).toMatchObject({
-			sql: expect.stringContaining("contentless_delete"),
-		});
+		expect(names("table")).not.toContain("memory_record_fts");
 	});
 
 	test("the SQL body avoids transaction-control keywords the store hygiene check looks for", () => {

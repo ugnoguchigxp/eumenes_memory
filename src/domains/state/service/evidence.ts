@@ -1,8 +1,8 @@
 /**
- * 根拠（EvidenceSpan）の検査。純粋。Admission（Extraction）と State の明示操作が共有する。
+ * 根拠（EvidenceSpan）の検査。純粋。State の明示操作が使う。
  *
- * 検査の順（Admission 規則表の上から評価に合わせる。`ADMISSION_REASON_CODES` の順序）:
- * 1. QUOTE_MISMATCH: run 入力（本文つき出典）に見つかった evidence について、range が文字境界内に収まり、
+ * 検査の順:
+ * 1. QUOTE_MISMATCH: 入力（本文つき出典）に見つかった evidence について、range が文字境界内に収まり、
  *    range の bytes が quote の UTF-8 と完全に一致すること。入力に無い出典の quote は検査できないので次へ送る。
  * 2. EVIDENCE_NOT_IN_INPUT: evidence の出典が入力にない（SourceKey・revision・digest・principal・scope が一致しない）。
  * 3. SOURCE_STALE: 出典の現在状態が available でない、または revision / digest が入力と違う（forgotten・版変更）。
@@ -21,14 +21,14 @@ export type EvidenceFailure =
 	| "EVIDENCE_NOT_IN_INPUT"
 	| "SOURCE_STALE";
 
-/** 本文つきの入力出典（`HostSourceState` / `ExtractionSource` の共通部分）。 */
+/** 本文つきの入力出典。 */
 export type EvidenceInputSource = HostSourceState;
 
 export interface EvidenceCheckInput {
 	readonly principal: string;
 	readonly scopeKey: string;
 	readonly evidence: readonly EvidenceSpan[];
-	/** モデル／ホストが実際に見た本文つきの出典。 */
+	/** ホストが実際に見た本文つきの出典。 */
 	readonly inputSources: readonly EvidenceInputSource[];
 	/** 検査時点の出典の現在状態。明示操作では `inputSources` と同じ。 */
 	readonly currentSources: readonly SourceState[];
@@ -155,81 +155,4 @@ export function evidenceOrdinalOf(
 		if (best === null || source.ordinal > best) best = source.ordinal;
 	}
 	return best;
-}
-
-// ---- 括弧内の引用（MODALITY_QUOTED の判定）----
-
-/** 開き括弧の UTF-8 と、対応する閉じ括弧。 */
-const QUOTATION_PAIRS: readonly {
-	readonly open: readonly number[];
-	readonly close: readonly number[];
-}[] = [
-	{ open: [0xe3, 0x80, 0x8c], close: [0xe3, 0x80, 0x8d] }, // 「 」
-	{ open: [0xe3, 0x80, 0x8e], close: [0xe3, 0x80, 0x8f] }, // 『 』
-	{ open: [0xe2, 0x80, 0x9c], close: [0xe2, 0x80, 0x9d] }, // “ ”
-];
-const ASCII_DOUBLE_QUOTE = 0x22;
-
-function startsWithBytes(
-	bytes: Uint8Array,
-	at: number,
-	pattern: readonly number[],
-): boolean {
-	return pattern.every((byte, offset) => bytes[at + offset] === byte);
-}
-
-/**
- * quote が括弧（「」『』“” と ASCII の二重引用符）の中にあるか。次のどちらかなら true（保守的に pending_user へ送る側）:
- * (a) quote 自身が開き括弧で始まり対応する閉じ括弧で終わる、(b) 出典本文で range の開始位置が未閉じの開き括弧の内側
- * （ASCII の二重引用符は出現回数の偶奇）。本文の bytes を走査するだけで、文字列にデコードしない。
- */
-export function isQuotedSpan(content: string, span: EvidenceSpan): boolean {
-	const quote = encodeUtf8(span.quote);
-	for (const pair of QUOTATION_PAIRS) {
-		if (
-			quote.length >= pair.open.length + pair.close.length &&
-			startsWithBytes(quote, 0, pair.open) &&
-			startsWithBytes(quote, quote.length - pair.close.length, pair.close)
-		) {
-			return true;
-		}
-	}
-	if (
-		quote.length >= 2 &&
-		quote[0] === ASCII_DOUBLE_QUOTE &&
-		quote[quote.length - 1] === ASCII_DOUBLE_QUOTE
-	) {
-		return true;
-	}
-	const range = ownValue(span.source, "range");
-	if (range === undefined) return false;
-	const bytes = encodeUtf8(content);
-	let depth = 0;
-	let asciiOpen = false;
-	let at = 0;
-	while (at < range.startByte && at < bytes.length) {
-		if (bytes[at] === ASCII_DOUBLE_QUOTE) {
-			asciiOpen = !asciiOpen;
-			at += 1;
-			continue;
-		}
-		const opened = QUOTATION_PAIRS.find((pair) =>
-			startsWithBytes(bytes, at, pair.open),
-		);
-		if (opened !== undefined) {
-			depth += 1;
-			at += opened.open.length;
-			continue;
-		}
-		const closed = QUOTATION_PAIRS.find((pair) =>
-			startsWithBytes(bytes, at, pair.close),
-		);
-		if (closed !== undefined) {
-			depth = Math.max(0, depth - 1);
-			at += closed.close.length;
-			continue;
-		}
-		at += 1;
-	}
-	return depth > 0 || asciiOpen;
 }

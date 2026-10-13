@@ -5,29 +5,23 @@ import { sourceKey } from "../../../contracts/source-key.ts";
 import {
 	assertUserState,
 	deactivateState,
-	editState,
 	listState,
-	listStateScopes,
 	reactivateState,
-	readMemorySnapshotPart,
+	readStateFact,
 	retractState,
 	scrubStateItem,
-	writeStateForCandidate,
 } from "../repository/index.ts";
 import type { MemoryDb } from "../../../infrastructure/sqlite/db.ts";
 import { listMemoryChanges } from "../../../infrastructure/sqlite/changes.ts";
-import { readScopeRevision } from "../../../infrastructure/sqlite/scope-state.ts";
 import { openTestStore } from "../../../../test/support/store.ts";
 import type { TestStore } from "../../../../test/support/store.ts";
 import {
 	ACCESS,
 	COFFEE,
-	OLD,
 	OTHER_SCOPE,
 	SCOPE,
 	TEA,
 	assertInput,
-	editInput,
 	makeSource,
 	makeSpan,
 	targetInput,
@@ -56,12 +50,8 @@ function count(db: MemoryDb, sql: string): number {
 	return (db.query(sql).get() as { n: number }).n;
 }
 
-function scopeRevision(s: TestStore, scopeKey = SCOPE): number {
-	return s.read((db) => readScopeRevision(db, ACCESS.principal, scopeKey));
-}
-
 describe("assertUserState", () => {
-	test("creates an active item with evidence, dependency edge, event, scope revision and change feed", () => {
+	test("creates an active item with evidence, dependency edge, event and change feed", () => {
 		const s = open();
 		const item = applied(s.write((db) => assertUserState(db, assertInput())));
 		expect(item.itemId).toMatch(/^state:[0-9a-f]{64}$/);
@@ -113,7 +103,6 @@ describe("assertUserState", () => {
 				at_ms: 1000,
 			},
 		]);
-		expect(scopeRevision(s)).toBe(1);
 		const feed = s.read((db) =>
 			listMemoryChanges(db, {
 				contractVersion: 1,
@@ -176,7 +165,6 @@ describe("assertUserState", () => {
 			s.writer,
 			"SELECT count(*) AS n FROM memory_state_event",
 		);
-		const revisionBefore = scopeRevision(s);
 		const again = s.write((db) =>
 			assertUserState(db, assertInput({ clock: { atMs: 9999 } })),
 		);
@@ -187,7 +175,6 @@ describe("assertUserState", () => {
 		expect(
 			count(s.writer, "SELECT count(*) AS n FROM memory_state_event"),
 		).toBe(eventsBefore);
-		expect(scopeRevision(s)).toBe(revisionBefore);
 		expect(count(s.writer, "SELECT count(*) AS n FROM memory_state_item")).toBe(
 			1,
 		);
@@ -196,7 +183,6 @@ describe("assertUserState", () => {
 	test("a different value for an existing key is ACTIVE_EXISTS and writes nothing", () => {
 		const s = open();
 		applied(s.write((db) => assertUserState(db, assertInput())));
-		const revision = scopeRevision(s);
 		const result = s.write((db) =>
 			assertUserState(
 				db,
@@ -208,7 +194,6 @@ describe("assertUserState", () => {
 			),
 		);
 		expect(result).toEqual({ status: "rejected", reasonCode: "ACTIVE_EXISTS" });
-		expect(scopeRevision(s)).toBe(revision);
 		expect(count(s.writer, "SELECT count(*) AS n FROM memory_state_item")).toBe(
 			1,
 		);
@@ -395,7 +380,6 @@ describe("assertUserState", () => {
 		expect(count(s.writer, "SELECT count(*) AS n FROM memory_state_item")).toBe(
 			0,
 		);
-		expect(scopeRevision(s)).toBe(0);
 	});
 
 	test("a source with a tombstone cannot be used as evidence (source key, and Memory records by id)", () => {
@@ -494,78 +478,10 @@ describe("write entry checks", () => {
 	});
 });
 
-describe("edit / deactivate / reactivate / retract", () => {
+describe("deactivate / reactivate / retract", () => {
 	function seeded(s: TestStore): StateItem {
 		return applied(s.write((db) => assertUserState(db, assertInput())));
 	}
-
-	test("editState changes value and evidence, bumps revision, and is idempotent for the same value", () => {
-		const s = open();
-		const item = seeded(s);
-		const edited = applied(
-			s.write((db) =>
-				editState(
-					db,
-					editInput(item.itemId, 1, {
-						value: value("紅茶が好き", "affirmed", { a: "1" }),
-					}),
-				),
-			),
-		);
-		expect(edited).toMatchObject({
-			revision: 2,
-			origin: "user_edited",
-			status: "active",
-			evidenceOrdinal: 8,
-		});
-		expect(edited.value).toEqual({
-			text: "紅茶が好き",
-			polarity: "affirmed",
-			attributes: { a: "1" },
-		});
-		expect(edited.evidence.map((e) => e.id)).toEqual(["m2"]);
-		const edges = s.writer
-			.query(
-				"SELECT dependency_id FROM memory_dependency WHERE dependent_id = ? ORDER BY dependency_id",
-			)
-			.all(item.itemId);
-		expect(edges).toHaveLength(2); // 古い辺は残す
-		const revision = scopeRevision(s);
-		const again = s.write((db) =>
-			editState(
-				db,
-				editInput(item.itemId, 2, {
-					value: value("紅茶が好き", "affirmed", { a: "1" }),
-				}),
-			),
-		);
-		expect(again.status).toBe("unchanged");
-		expect(scopeRevision(s)).toBe(revision);
-		expect(
-			s.write((db) =>
-				editState(db, editInput(item.itemId, 1, { value: value("緑茶") })),
-			),
-		).toEqual({ status: "rejected", reasonCode: "STALE_REVISION" });
-	});
-
-	test("editState rejects unusable evidence and missing items", () => {
-		const s = open();
-		const item = seeded(s);
-		expect(
-			s.write((db) =>
-				editState(
-					db,
-					editInput(item.itemId, 1, {
-						evidence: [makeSpan(OLD, "緑茶が好き")],
-						sources: [TEA],
-					}),
-				),
-			),
-		).toEqual({ status: "rejected", reasonCode: "EVIDENCE_NOT_IN_INPUT" });
-		expect(s.write((db) => editState(db, editInput("state:nope", 1)))).toEqual({
-			status: "missing",
-		});
-	});
 
 	test("deactivate then reactivate is reversible and never touches tombstone / forget tables", () => {
 		const s = open();
@@ -725,13 +641,10 @@ describe("edit / deactivate / reactivate / retract", () => {
 		).toEqual({
 			status: "forgotten",
 		});
-		expect(s.write((db) => editState(db, editInput(item.itemId, 1)))).toEqual({
-			status: "forgotten",
-		});
 	});
 });
 
-describe("listState / readMemorySnapshotPart", () => {
+describe("listState", () => {
 	function seed(s: TestStore): {
 		coffee: StateItem;
 		note: StateItem;
@@ -860,14 +773,6 @@ describe("listState / readMemorySnapshotPart", () => {
 		expect(
 			listed.status === "ok" && listed.items.map((i) => i.semanticKey),
 		).toEqual(["drink"]); // note のみ
-		const part = s.read((db) =>
-			readMemorySnapshotPart(db, {
-				contractVersion: 1,
-				access: ACCESS,
-				scopeKey: SCOPE,
-			}),
-		);
-		expect(part.status === "ok" && part.items).toEqual([]);
 	});
 
 	test("the list query uses the scope index (no table scan)", () => {
@@ -882,61 +787,6 @@ describe("listState / readMemorySnapshotPart", () => {
 		const text = plan.map((row) => row.detail).join("\n");
 		expect(text).toContain("memory_state_item_by_scope");
 		expect(text).not.toMatch(/SCAN memory_state_item/);
-	});
-
-	test("snapshot part: active self items only, view-ready shape, negated prefix, revision", () => {
-		const s = open();
-		const { coffee, habit } = seed(s);
-		const part = s.read((db) =>
-			readMemorySnapshotPart(db, {
-				contractVersion: 1,
-				access: ACCESS,
-				scopeKey: SCOPE,
-			}),
-		);
-		expect(part.status).toBe("ok");
-		if (part.status !== "ok") return;
-		expect(part.memoryRevision).toBe("3");
-		expect(part.items.map((i) => i.id)).toEqual([coffee.itemId, habit.itemId]);
-		expect(part.items[0]).toMatchObject({
-			revision: "1",
-			kind: "preference",
-			text: "コーヒーが好き",
-			status: "active",
-			origin: "user_confirmed",
-			subject: "self",
-			primarySource: {
-				namespace: "conversation",
-				id: "m1",
-				range: { startByte: 6, endByte: 27 },
-			},
-		});
-		expect(part.items[1]?.text).toBe("NOT: 朝は走らない");
-		expect(part.sources).toEqual([]); // 会話 source はホストが入れる
-		const blocked = s.read((db) =>
-			readMemorySnapshotPart(db, {
-				contractVersion: 1,
-				access: { ...ACCESS, scopeKeys: [] as never },
-				scopeKey: SCOPE,
-			}),
-		);
-		expect(blocked.status).toBe("blocked");
-	});
-
-	test("deactivated, disputed and superseded items do not enter the snapshot", () => {
-		const s = open();
-		const { coffee } = seed(s);
-		s.write((db) => deactivateState(db, targetInput(coffee.itemId, 1)));
-		const part = s.read((db) =>
-			readMemorySnapshotPart(db, {
-				contractVersion: 1,
-				access: ACCESS,
-				scopeKey: SCOPE,
-			}),
-		);
-		expect(part.status === "ok" && part.items.map((i) => i.kind)).toEqual([
-			"habit",
-		]);
 	});
 });
 
@@ -966,29 +816,21 @@ describe("persistence", () => {
 	});
 });
 
-// ---- レビュー B: origin の昇格と、同 key の履歴（disputed / ユーザーが消したもの）----
+// ---- origin の昇格 ----
 
-function candidateWrite(
-	text: string,
-	ordinal: number,
-	source = COFFEE,
-	quote = "コーヒーが好き",
-	candidateId = `cand:${text}`,
-): Parameters<typeof writeStateForCandidate>[1] {
-	return {
-		principal: ACCESS.principal,
-		scopeKey: SCOPE,
-		atMs: 500,
-		subject: "self",
-		kind: "preference",
-		semanticKey: "drink",
-		value: value(text),
-		evidence: [makeSpan(source, quote)],
-		evidenceOrdinal: ordinal,
-		origin: "admitted_extraction",
-		candidateId,
-		replaces: null,
-	};
+/** 抽出が書いた item（origin `admitted_extraction`）を、既存 DB の行として作る。 */
+function seedLegacyExtracted(s: TestStore): string {
+	const item = applied(
+		s.write((db) =>
+			assertUserState(db, assertInput({ origin: "agent_inferred" })),
+		),
+	);
+	s.writer
+		.query(
+			"UPDATE memory_state_item SET origin = 'admitted_extraction' WHERE item_id = ?",
+		)
+		.run(item.itemId);
+	return item.itemId;
 }
 
 function eventActions(s: TestStore, itemId: string): string[] {
@@ -1001,19 +843,12 @@ function eventActions(s: TestStore, itemId: string): string[] {
 	).map((row) => row.action);
 }
 
-describe("same-value confirmation promotes an extraction item to a user origin", () => {
-	function seedExtracted(s: TestStore): string {
-		const written = s.write((db) =>
-			writeStateForCandidate(db, candidateWrite("コーヒーが好き", 5)),
-		);
-		if (written.status !== "applied") throw new Error("setup");
-		return written.itemId;
-	}
+describe("same-value confirmation promotes a legacy extraction or inferred item to a user origin", () => {
+	const seedExtracted = seedLegacyExtracted;
 
 	test("assertUserState with the same value: applied, value unchanged, origin user_confirmed, revision + 1, an edit event, one feed row", () => {
 		const s = open();
 		const itemId = seedExtracted(s);
-		const before = scopeRevision(s);
 		const feedBefore = s.read((db) =>
 			listMemoryChanges(db, {
 				contractVersion: 1,
@@ -1034,7 +869,6 @@ describe("same-value confirmation promotes an extraction item to a user origin",
 		});
 		expect(item.value).toEqual(value("コーヒーが好き"));
 		expect(eventActions(s, itemId)).toEqual(["assert", "edit"]);
-		expect(scopeRevision(s)).toBe(before + 1);
 		const feedAfter = s.read((db) =>
 			listMemoryChanges(db, {
 				contractVersion: 1,
@@ -1053,7 +887,7 @@ describe("same-value confirmation promotes an extraction item to a user origin",
 		expect(eventActions(s, itemId)).toEqual(["assert", "edit"]);
 	});
 
-	test("user_edited counts too; an extraction write of the same value never demotes", () => {
+	test("user_edited counts too; a later inferred write of the same value never demotes", () => {
 		const s = open();
 		const itemId = seedExtracted(s);
 		const edited = applied(
@@ -1067,9 +901,9 @@ describe("same-value confirmation promotes an extraction item to a user origin",
 			revision: 2,
 		});
 		const again = s.write((db) =>
-			writeStateForCandidate(db, candidateWrite("コーヒーが好き", 99)),
+			assertUserState(db, assertInput({ origin: "agent_inferred" })),
 		);
-		expect(again).toEqual({ status: "unchanged", itemId });
+		expect(again).toMatchObject({ status: "unchanged" });
 		expect(
 			s.writer
 				.query(
@@ -1081,50 +915,6 @@ describe("same-value confirmation promotes an extraction item to a user origin",
 		expect(
 			s.write((db) =>
 				assertUserState(db, assertInput({ origin: "user_confirmed" })),
-			).status,
-		).toBe("unchanged");
-	});
-
-	test("editState with the same value promotes without replacing the evidence", () => {
-		const s = open();
-		const itemId = seedExtracted(s);
-		const evidenceBefore = s.writer
-			.query(
-				"SELECT source_key, start_byte, end_byte FROM memory_state_evidence WHERE item_id = ?",
-			)
-			.all(itemId);
-		const result = s.write((db) =>
-			editState(
-				db,
-				editInput(itemId, 1, {
-					value: value("コーヒーが好き"),
-					evidence: [makeSpan(TEA, "紅茶が好き")],
-					sources: [TEA],
-				}),
-			),
-		);
-		expect(applied(result)).toMatchObject({
-			origin: "user_edited",
-			revision: 2,
-		});
-		expect(
-			s.writer
-				.query(
-					"SELECT source_key, start_byte, end_byte FROM memory_state_evidence WHERE item_id = ?",
-				)
-				.all(itemId),
-		).toEqual(evidenceBefore);
-		// 値が同じ user 由来の item への同値 edit は冪等のまま
-		expect(
-			s.write((db) =>
-				editState(
-					db,
-					editInput(itemId, 2, {
-						value: value("コーヒーが好き"),
-						evidence: [makeSpan(TEA, "紅茶が好き")],
-						sources: [TEA],
-					}),
-				),
 			).status,
 		).toBe("unchanged");
 	});
@@ -1147,210 +937,6 @@ describe("same-value confirmation promotes an extraction item to a user origin",
 			revision: 2,
 		});
 		expect(count_(s, "SELECT COUNT(*) AS n FROM memory_state_item")).toBe(1);
-	});
-});
-
-describe("key history: disputed and user-removed items", () => {
-	function dispute(s: TestStore): void {
-		const first = s.write((db) =>
-			writeStateForCandidate(db, candidateWrite("コーヒーが好き", 5)),
-		);
-		const second = s.write((db) =>
-			writeStateForCandidate(
-				db,
-				candidateWrite("紅茶が好き", 5, TEA, "紅茶が好き"),
-			),
-		);
-		expect(first.status).toBe("applied");
-		expect(second.status).toBe("applied");
-		expect(
-			s.writer
-				.query("SELECT status FROM memory_state_item ORDER BY created_seq")
-				.all(),
-		).toEqual([{ status: "disputed" }, { status: "disputed" }]);
-	}
-
-	test("a write older than the newest disputed item is OLDER_EVIDENCE and writes nothing (reviewer repro t2)", () => {
-		const s = open();
-		dispute(s);
-		const before = count_(s, "SELECT COUNT(*) AS n FROM memory_state_item");
-		const eventsBefore = count_(
-			s,
-			"SELECT COUNT(*) AS n FROM memory_state_event",
-		);
-		const older = s.write((db) =>
-			writeStateForCandidate(
-				db,
-				candidateWrite("緑茶が好き", 1, OLD, "緑茶が好き"),
-			),
-		);
-		expect(older).toEqual({ status: "rejected", reasonCode: "OLDER_EVIDENCE" });
-		expect(count_(s, "SELECT COUNT(*) AS n FROM memory_state_item")).toBe(
-			before,
-		);
-		expect(count_(s, "SELECT COUNT(*) AS n FROM memory_state_event")).toBe(
-			eventsBefore,
-		);
-		expect(
-			count_(
-				s,
-				"SELECT COUNT(*) AS n FROM memory_state_item WHERE status = 'active'",
-			),
-		).toBe(0);
-	});
-
-	test("an equal or newer write joins the dispute instead of resolving it: no active item appears", () => {
-		const s = open();
-		dispute(s);
-		for (const [text, ordinal] of [
-			["麦茶が好き", 5],
-			["烏龍茶が好き", 9],
-		] as const) {
-			const written = s.write((db) =>
-				writeStateForCandidate(
-					db,
-					candidateWrite(text, ordinal, OLD, "緑茶が好き", `cand:${text}`),
-				),
-			);
-			expect(written.status).toBe("applied");
-		}
-		expect(
-			s.writer
-				.query(
-					"SELECT status, COUNT(*) AS n FROM memory_state_item GROUP BY status",
-				)
-				.all(),
-		).toEqual([{ status: "disputed", n: 4 }]);
-		const listed = s.read((db) =>
-			listState(db, { contractVersion: 1, access: ACCESS, scopeKey: SCOPE }),
-		);
-		expect(listed.status === "ok" && listed.items).toEqual([]);
-	});
-
-	test("an explicit user assertion is not bound by the dispute and creates a new active item", () => {
-		const s = open();
-		dispute(s);
-		const item = applied(
-			s.write((db) =>
-				assertUserState(
-					db,
-					assertInput({
-						value: value("ほうじ茶が好き"),
-						evidence: [makeSpan(OLD, "緑茶が好き")],
-						sources: [OLD],
-					}),
-				),
-			),
-		);
-		expect(item.status).toBe("active");
-	});
-
-	test("a user-confirmed item that the user deactivated or retracted is not revived by an extraction write", () => {
-		for (const remove of [deactivateState, retractState]) {
-			const s = open();
-			const item = applied(s.write((db) => assertUserState(db, assertInput())));
-			s.write((db) => remove(db, targetInput(item.itemId, 1)));
-			const result = s.write((db) =>
-				writeStateForCandidate(
-					db,
-					candidateWrite("紅茶が好き", 9, TEA, "紅茶が好き"),
-				),
-			);
-			expect(result).toEqual({
-				status: "rejected",
-				reasonCode: "INVALID_TRANSITION",
-			});
-			expect(count_(s, "SELECT COUNT(*) AS n FROM memory_state_item")).toBe(1);
-			s.close();
-			store = undefined;
-		}
-	});
-
-	test("a user stop of an extraction-origin item blocks later extraction as well (protection follows the user's act, not the origin)", () => {
-		const s = open();
-		const written = s.write((db) =>
-			writeStateForCandidate(db, candidateWrite("コーヒーが好き", 5)),
-		);
-		if (written.status !== "applied") throw new Error("setup");
-		s.write((db) => retractState(db, targetInput(written.itemId, 1)));
-		const result = s.write((db) =>
-			writeStateForCandidate(
-				db,
-				candidateWrite("紅茶が好き", 9, TEA, "紅茶が好き"),
-			),
-		);
-		expect(result).toEqual({
-			status: "rejected",
-			reasonCode: "INVALID_TRANSITION",
-		});
-	});
-
-	test("a tombstoned item is not history (even if its row still carries the key)", () => {
-		const s = open();
-		const item = applied(s.write((db) => assertUserState(db, assertInput())));
-		s.write((db) => retractState(db, targetInput(item.itemId, 1)));
-		s.writer
-			.query(
-				"INSERT INTO memory_tombstone (target_type, target_id, principal, scope_key, forget_id, seq, journal_seq) VALUES ('state_item', ?, 'p', 's', 'f', 1, 1)",
-			)
-			.run(item.itemId);
-		const result = s.write((db) =>
-			writeStateForCandidate(
-				db,
-				candidateWrite("紅茶が好き", 9, TEA, "紅茶が好き"),
-			),
-		);
-		expect(result.status).toBe("applied");
-	});
-
-	test("history is per key: another key, kind or subject is unaffected, and forgotten items are not history", () => {
-		const s = open();
-		const item = applied(s.write((db) => assertUserState(db, assertInput())));
-		s.write((db) => retractState(db, targetInput(item.itemId, 1)));
-		const otherKey = s.write((db) =>
-			writeStateForCandidate(db, {
-				...candidateWrite("紅茶が好き", 9, TEA, "紅茶が好き"),
-				semanticKey: "snack",
-			}),
-		);
-		expect(otherKey.status).toBe("applied");
-		const otherKind = s.write((db) =>
-			writeStateForCandidate(db, {
-				...candidateWrite(
-					"紅茶が好き",
-					9,
-					TEA,
-					"紅茶が好き",
-					"cand:other-kind",
-				),
-				kind: "habit",
-			}),
-		);
-		expect(otherKind.status).toBe("applied");
-	});
-});
-
-describe("editState and write operations check the scope permission", () => {
-	test("editState on a scope outside access.scopeKeys is blocked and writes nothing", () => {
-		const s = open();
-		const item = applied(s.write((db) => assertUserState(db, assertInput())));
-		const result = s.write((db) =>
-			editState(
-				db,
-				editInput(item.itemId, 1, {
-					access: { ...ACCESS, scopeKeys: [OTHER_SCOPE] },
-				}),
-			),
-		);
-		expect(result).toEqual({
-			status: "blocked",
-			reasonCode: "SCOPE_NOT_PERMITTED",
-		});
-		expect(
-			s.writer
-				.query("SELECT revision, value_text FROM memory_state_item")
-				.get(),
-		).toEqual({ revision: 1, value_text: "コーヒーが好き" });
 	});
 });
 
@@ -1491,119 +1077,157 @@ describe("validity precision", () => {
 	});
 });
 
-describe("listStateScopes (multi-scope explicit read)", () => {
-	const COMMON = "user:common";
-	const PROJECT = "project:a";
-	const multi = {
-		...ACCESS,
-		scopeKeys: [COMMON, PROJECT, "project:b"],
-	};
-	const input = (scopeKeys: readonly string[], access = multi) => ({
-		contractVersion: 1 as const,
-		access,
-		scopeKeys,
+describe("rows written by older versions stay readable and follow the remaining transitions", () => {
+	/** 現在の API が書かない status を、既存 DB の行として直接作る。 */
+	function setStatus(s: TestStore, itemId: string, status: string): void {
+		s.writer
+			.query("UPDATE memory_state_item SET status = ? WHERE item_id = ?")
+			.run(status, itemId);
+	}
+	function seed(s: TestStore, status: string): StateItem {
+		const item = applied(s.write((db) => assertUserState(db, assertInput())));
+		setStatus(s, item.itemId, status);
+		return item;
+	}
+	function statusOf(s: TestStore, itemId: string): unknown {
+		return s.writer
+			.query("SELECT status, revision FROM memory_state_item WHERE item_id = ?")
+			.get(itemId);
+	}
+
+	test("reactivateState turns a disputed item into the active one (event `activate`)", () => {
+		const s = open();
+		const item = seed(s, "disputed");
+		const result = s.write((db) =>
+			reactivateState(db, targetInput(item.itemId, 1)),
+		);
+		expect(applied(result)).toMatchObject({ status: "active", revision: 2 });
+		expect(
+			s.writer
+				.query(
+					"SELECT action FROM memory_state_event WHERE item_id = ? ORDER BY event_seq",
+				)
+				.all(item.itemId),
+		).toEqual([{ action: "assert" }, { action: "activate" }]);
 	});
-	const writeIn = (s: TestStore, scopeKey: string, key: string) =>
-		applied(
+
+	test("reactivateState on a disputed item is ACTIVE_EXISTS while another item holds the key", () => {
+		const s = open();
+		const item = seed(s, "disputed");
+		applied(s.write((db) => assertUserState(db, assertInput())));
+		const result = s.write((db) =>
+			reactivateState(db, targetInput(item.itemId, 1)),
+		);
+		expect(result).toEqual({ status: "rejected", reasonCode: "ACTIVE_EXISTS" });
+		expect(statusOf(s, item.itemId)).toEqual({
+			status: "disputed",
+			revision: 1,
+		});
+	});
+
+	test("retractState retracts a disputed item", () => {
+		const s = open();
+		const item = seed(s, "disputed");
+		const result = s.write((db) =>
+			retractState(db, targetInput(item.itemId, 1)),
+		);
+		expect(applied(result)).toMatchObject({ status: "retracted", revision: 2 });
+	});
+
+	test.each([
+		["deactivateState", deactivateState],
+		["reactivateState", reactivateState],
+		["retractState", retractState],
+	] as const)(
+		"%s on an invalidated item is INVALID_TRANSITION and writes nothing",
+		(_name, operation) => {
+			const s = open();
+			const item = seed(s, "invalidated");
+			const events = count(
+				s.writer,
+				"SELECT count(*) AS n FROM memory_state_event",
+			);
+			const result = s.write((db) =>
+				operation(db, targetInput(item.itemId, 1)),
+			);
+			expect(result).toEqual({
+				status: "rejected",
+				reasonCode: "INVALID_TRANSITION",
+			});
+			expect(statusOf(s, item.itemId)).toEqual({
+				status: "invalidated",
+				revision: 1,
+			});
+			expect(
+				count(s.writer, "SELECT count(*) AS n FROM memory_state_event"),
+			).toBe(events);
+		},
+	);
+
+	test("listState(includeInactive) and readStateFact read admitted_extraction, disputed and invalidated rows", () => {
+		const s = open();
+		const first = seed(s, "invalidated");
+		const second = applied(
 			s.write((db) =>
-				assertUserState(db, {
-					...assertInput({ semanticKey: key }),
-					access: multi,
-					scopeKey,
-					sources: [
-						makeSource("m1", "私はコーヒーが好きです。", 5, {}, scopeKey),
-					],
-					evidence: [
-						makeSpan(
-							makeSource("m1", "私はコーヒーが好きです。", 5, {}, scopeKey),
-							"コーヒーが好き",
-						),
-					],
-				}),
+				assertUserState(db, assertInput({ origin: "agent_inferred" })),
 			),
 		);
-
-	test("returns each authorized scope with its own revision and never mixes scopes", () => {
-		const s = open();
-		writeIn(s, COMMON, "k1");
-		writeIn(s, PROJECT, "k2");
-		writeIn(s, PROJECT, "k3");
-		const result = s.read((db) =>
-			listStateScopes(db, input([COMMON, PROJECT])),
-		);
-		if (result.status !== "ok") throw new Error("blocked");
-		expect(result.scopes.map((x) => [x.scopeKey, x.items.length])).toEqual([
-			[COMMON, 1],
-			[PROJECT, 2],
-		]);
-		expect(result.scopes[0]?.revision).not.toBe(result.scopes[1]?.revision);
-		expect(
-			result.scopes.every((x) =>
-				x.items.every((i) => i.scopeKey === x.scopeKey),
+		s.writer
+			.query(
+				"UPDATE memory_state_item SET origin = 'admitted_extraction' WHERE item_id = ?",
+			)
+			.run(second.itemId);
+		const third = applied(
+			s.write((db) =>
+				assertUserState(
+					db,
+					assertInput({
+						value: value("紅茶が好き"),
+						evidence: [makeSpan(TEA, "紅茶が好き")],
+						sources: [TEA],
+						replaces: { itemId: second.itemId, revision: 1 },
+					}),
+				),
 			),
-		).toBe(true);
-	});
+		);
+		setStatus(s, second.itemId, "disputed");
 
-	test("one unauthorized scope blocks the whole read; duplicates and empty lists are invalid", () => {
-		const s = open();
-		writeIn(s, COMMON, "k1");
+		const listed = s.read((db) =>
+			listState(db, {
+				contractVersion: 1,
+				access: ACCESS,
+				scopeKey: SCOPE,
+				includeInactive: true,
+			}),
+		);
+		expect(listed.status).toBe("ok");
+		if (listed.status !== "ok") return;
+		const byId = new Map(listed.items.map((item) => [item.itemId, item]));
+		expect(byId.get(first.itemId)).toMatchObject({ status: "invalidated" });
+		expect(byId.get(second.itemId)).toMatchObject({
+			status: "disputed",
+			origin: "admitted_extraction",
+		});
+		expect(byId.get(third.itemId)).toMatchObject({ status: "active" });
+		// 既定（active のみ）の一覧には出ない。
+		const activeOnly = s.read((db) =>
+			listState(db, { contractVersion: 1, access: ACCESS, scopeKey: SCOPE }),
+		);
 		expect(
-			s.read((db) => listStateScopes(db, input([COMMON, "project:secret"]))),
-		).toEqual({ status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" });
-		for (const bad of [[], [COMMON, COMMON]]) {
-			expect(() => s.read((db) => listStateScopes(db, input(bad)))).toThrow(
-				MemoryContractError,
-			);
-		}
-	});
+			activeOnly.status === "ok" && activeOnly.items.map((i) => i.itemId),
+		).toEqual([third.itemId]);
 
-	test("a revision only moves for the scope that changed", () => {
-		const s = open();
-		writeIn(s, COMMON, "k1");
-		writeIn(s, PROJECT, "k2");
-		const before = s.read((db) =>
-			listStateScopes(db, input([COMMON, PROJECT])),
+		const fact = s.read((db) =>
+			readStateFact(db, {
+				contractVersion: 1,
+				access: ACCESS,
+				scopeKey: SCOPE,
+				itemId: third.itemId,
+			}),
 		);
-		writeIn(s, PROJECT, "k3");
-		const after = s.read((db) => listStateScopes(db, input([COMMON, PROJECT])));
-		if (before.status !== "ok" || after.status !== "ok") throw new Error("x");
-		expect(after.scopes[0]?.revision).toBe(before.scopes[0]?.revision);
-		expect(after.scopes[1]?.revision).not.toBe(before.scopes[1]?.revision);
-	});
-});
-
-describe("listStateScopes truncation", () => {
-	test("reports truncated only when more items exist than the per-scope limit", () => {
-		const s = open();
-		const insert = s.writer.query(
-			`INSERT INTO memory_state_item (item_id, principal, scope_key, subject, kind, semantic_key, status, revision,
-				value_text, polarity, origin, evidence_ordinal, created_seq, updated_seq)
-			VALUES (?, ?, ?, 'self', 'preference', ?, 'active', 1, 'v', 'affirmed', 'user_confirmed', 0, ?, ?)`,
-		);
-		s.writer.transaction(() => {
-			for (let i = 0; i < 1000; i++)
-				insert.run(
-					`state:${i}`,
-					ACCESS.principal,
-					SCOPE,
-					`k${i}`,
-					i + 1,
-					i + 1,
-				);
-		})();
-		const read = () =>
-			s.read((db) =>
-				listStateScopes(db, {
-					contractVersion: 1,
-					access: ACCESS,
-					scopeKeys: [SCOPE],
-				}),
-			);
-		const exact = read();
-		expect(exact.status === "ok" && exact.scopes[0]?.truncated).toBe(false);
-		insert.run("state:1000", ACCESS.principal, SCOPE, "k1000", 1001, 1001);
-		const over = read();
-		expect(over.status === "ok" && over.scopes[0]?.truncated).toBe(true);
-		expect(over.status === "ok" && over.scopes[0]?.items).toHaveLength(1000);
+		expect(fact).toMatchObject({
+			status: "ok",
+			itemIds: [first.itemId, second.itemId, third.itemId],
+		});
 	});
 });

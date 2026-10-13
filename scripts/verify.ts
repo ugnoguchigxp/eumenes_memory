@@ -1,4 +1,4 @@
-/** Read-only checks with dependency closure, fixed-source evidence and timings. Live model evaluation is separate. */
+/** Read-only checks with dependency closure, fixed-source evidence and timings. */
 import { createHash, randomUUID } from "node:crypto";
 import {
 	mkdirSync,
@@ -32,7 +32,7 @@ export function parseVerifyArgs(raw: readonly string[]): VerifyMode {
 export function sourceHash(root: string): string {
 	const hash = createHash("sha256");
 	const generated =
-		/^(?:node_modules|\.git|\.serena|\.claude|dist|artifacts|coverage|verification-reports|eval\/results)\//;
+		/^(?:node_modules|\.git|\.serena|\.claude|dist|artifacts|coverage|verification-reports)\//;
 	const files = walkFiles(root)
 		.filter((path) => !generated.test(relative(root, path)))
 		.filter(
@@ -135,10 +135,6 @@ export async function verify(root: string, mode: VerifyMode): Promise<number> {
 				name: "typecheck:eumenes-compat",
 				run: () =>
 					spawn([bin("tsc"), "--noEmit", "-p", "tsconfig.compat.json"]),
-			},
-			{
-				name: "typecheck:eval",
-				run: () => spawn([bin("tsc"), "--noEmit", "-p", "eval/tsconfig.json"]),
 			},
 			{ name: "test", run: () => spawn([process.execPath, "test", ...tests]) },
 			...(mode.mode === "domain"

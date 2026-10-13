@@ -73,58 +73,6 @@
         "ok": false,
         "reasonCode": "STALE_REVISION"
       }
-    },
-    {
-      "action": "edit",
-      "target": "a",
-      "expectedRevision": 1,
-      "value": {
-        "text": "紅茶",
-        "polarity": "affirmed"
-      },
-      "origin": "user_edited",
-      "cause": {
-        "type": "user",
-        "id": "owner"
-      },
-      "expect": {
-        "ok": true,
-        "items": [
-          {
-            "as": "a",
-            "status": "active",
-            "revision": 2,
-            "valueText": "紅茶",
-            "origin": "user_edited"
-          }
-        ],
-        "events": [
-          {
-            "as": "a",
-            "action": "edit",
-            "from": 1,
-            "to": 2
-          }
-        ]
-      }
-    },
-    {
-      "action": "edit",
-      "target": "a",
-      "expectedRevision": 1,
-      "value": {
-        "text": "緑茶",
-        "polarity": "affirmed"
-      },
-      "origin": "user_edited",
-      "cause": {
-        "type": "user",
-        "id": "owner"
-      },
-      "expect": {
-        "ok": false,
-        "reasonCode": "STALE_REVISION"
-      }
     }
   ],
   "finalStatuses": {

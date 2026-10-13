@@ -6,12 +6,9 @@ const root = join(import.meta.dir, "..");
 // Living docs only: design/verification records keep the paths of their time.
 const DOCS = [
 	"README.md",
-	"eval/README.md",
 	"src/domains/README.md",
 	"src/infrastructure/sqlite/README.md",
 	"src/infrastructure/sqlite/migrations/README.md",
-	"spec/bench-scope-results.md",
-	"spec/improvement-plan.md",
 ];
 
 describe("living docs", () => {

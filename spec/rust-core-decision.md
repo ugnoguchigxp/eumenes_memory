@@ -24,7 +24,7 @@ Rust spike は行わないことになっているため。したがって「B �
    - host 所有の kind（goal / decision / open_question）の除外、kind ごとの admission policy、
    - 「仮定」（hypothetical）を事実にしない規則。
 3. **同期 transaction 内で動く必要**。A は追加の非同期初期化・ビルド成果物なしで、ホストの `store.write` の同期 op の中で呼べる。
-4. **検証様式の継続**。M0 で確立した「依存ゼロ・手書き検査・言語非依存 fixture」をそのまま使える
+4. **検証様式の継続**。「依存ゼロ・手書き検査・言語非依存 fixture」をそのまま使える
    （`fixtures/state/` S01–S20 と `fixtures/admission/` A01–A50 が正本。期待値は手書き）。
 5. **ライセンス**。SAAA は MIT のため規則の移植は可能。コードはコピーせず、移植した規則ごとにコード冒頭コメントと
    fixture の `provenance` に出典（commit `28616e61ce5fe853383d4af6ec14e5b5d542c076`、ファイル:行）を残した。

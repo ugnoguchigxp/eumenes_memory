@@ -7,8 +7,7 @@
  * - expect.forgotten / expect.kept: 型ごとの ID。forgotten は墓標が付き、kept は付かない（state_item は status も確認）。
  * - expect.tombstonedSources: 墓標 `source` が付く出典の参照（`m:` / `r:`）。厳密一致。
  * - expect.receipt: 最後の forget の receipt（external 集約、completed、`provider/externalId|-:state` の一覧）。
- * - expect.valuesGone / valuesPresent: 行の値（`i:` / `c:` / `r:`）が memory_ 表のどこかに残るか。
- * - expect.progressRemaining: 省略（null）以外なら、残る進捗行の出典（参照）の一覧。
+ * - expect.valuesGone / valuesPresent: 行の値（`i:` / `r:`）が memory_ 表のどこかに残るか。
  */
 import { describe, expect, test } from "bun:test";
 import { loadFixtures } from "../fixture-runner.ts";
@@ -24,12 +23,7 @@ import { forgetRecord, tablesContain } from "./records-support.ts";
 
 type Obj = Record<string, unknown>;
 
-const TYPES = [
-	"state_item",
-	"candidate",
-	"extraction_run",
-	"external",
-] as const;
+const TYPES = ["state_item", "external"] as const;
 
 export function describeForgetDbFixtures(): void {
 	describe("lifecycle fixtures (forget over a real SQLite graph)", () => {
@@ -123,22 +117,6 @@ export function describeForgetDbFixtures(): void {
 							});
 						}
 						expect(graph.secrets.has(ref)).toBe(true);
-					}
-					const remaining = expectation["progressRemaining"];
-					if (remaining !== null && remaining !== undefined) {
-						expect(
-							(
-								store.writer
-									.query("SELECT source_key FROM memory_source_progress")
-									.all() as { source_key: string }[]
-							)
-								.map((row) => row.source_key)
-								.sort(),
-						).toEqual(
-							(remaining as string[])
-								.map((ref) => graph.sourceKeyOf(ref))
-								.sort(),
-						);
 					}
 					expect(closureViolations(store)).toEqual([]);
 				} finally {

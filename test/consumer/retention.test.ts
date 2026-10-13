@@ -108,7 +108,7 @@ test("replacement prunes past revisions and rejects the old adoption receipt", (
 	});
 });
 
-test("expiry evicts all bodies and indexes, but explicit recapture is allowed", () => {
+test("expiry evicts all bodies, but explicit recapture is allowed", () => {
 	store = openTestStore();
 	const first = capture();
 	if (first.status !== "captured") throw new Error("missing");
@@ -122,7 +122,7 @@ test("expiry evicts all bodies and indexes, but explicit recapture is allowed", 
 		bytes: 0,
 	});
 	expect(
-		store.reader.query("SELECT count(*) AS n FROM memory_record_fts").get(),
+		store.reader.query("SELECT count(*) AS n FROM memory_record_body").get(),
 	).toEqual({ n: 0 });
 	expect(capture("again", 400, 600).status).toBe("captured");
 });

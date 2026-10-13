@@ -13,7 +13,7 @@ import {
  * - 版（`db_schema_version`）が欠落・不正、既知範囲の hash が欠落／不一致 → `SCHEMA_MISMATCH`
  * - 版が期待より新しい → `SCHEMA_TOO_NEW`（古い本体が新しい DB に接続した）
  * - 版が期待より古い → `SCHEMA_OUTDATED`（ホストが最新の migration を適用していない）
- * `assertMemorySchema` はこれに登録済みの body を渡すだけ。テストが複数 migration の状況を作るために公開している。
+ * `assertMemorySchema` はこれに登録済みの body を渡すだけ。body 列を差し替えて複数 migration の状況を作るための、テスト用の入口（パッケージの公開面には出さない）。
  */
 export function checkSchemaAgainst(
 	db: MemoryDb,

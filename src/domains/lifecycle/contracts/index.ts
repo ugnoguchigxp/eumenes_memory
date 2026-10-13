@@ -1,6 +1,5 @@
 /**
- * Lifecycle / Forget の契約（full-system-design §2.5, §3.9, §6.1）。
- * 実装: S1（record と scope の record 分）、S6（host_source / state_item / scope の全閉包 / 外部削除）。すべて実装済み。
+ * Lifecycle / Forget の契約。
  *
  * 規則（S1 / S6 実装者はこの JSDoc を契約として扱う）:
  * - 忘却は 2 相。`planForget`（read のみ）→ ホストがジャーナルへ追記して fsync → `applyForget`（write）。
@@ -12,22 +11,19 @@
  *   `targets` は (type, scopeKey, id) の UTF-16 コード単位順に整列し重複を除く。entry は本文・digest を含まない。
  * - `planForget` が付ける `seq` / `prevHash` は DB の `memory_journal_state` の head の次。ホストは
  *   plan → 追記 → apply を直列化し、起動時に必ず `reconcileForgetJournal` を済ませる。
- * - `applyForget` は冪等で、墓標の有無に関係なく本文削除・FTS 削除・閉包の無効化・scope revision 更新を毎回行う。
+ * - `applyForget` は冪等で、墓標の有無に関係なく本文削除・閉包の無効化を毎回行う。
  *   閉包は apply 時点で再計算する（plan 後に増えた派生物も漏らさない）。`enabled` に依存しない。
  *   `seq <= head` の entry は、DB に同じ `forgetId` / `hash` があれば再適用（結果は同一）、
  *   無い／異なるなら `MemoryStoreError("JOURNAL_ENTRY_INVALID")`。head の次でない新規 entry も同じ。
- * - 閉包は `memory_dependency` を dependency → dependent 方向に推移的に辿る。引用されなかった入力も含む
- *   （run の入力は `input` 辺として張る）。閉包内の各行は本文 / value / payload を NULL にし status を
- *   `forgotten`、FTS 行を削除、墓標を挿入、関係 scope の revision を +1、変更フィードに `forgotten` を追記する。
+ * - 閉包は `memory_dependency` を dependency → dependent 方向に推移的に辿る。閉包内の各行は本文 / value / payload を NULL にし
+ *   status を `forgotten`、墓標を挿入、関係 scope の revision を +1、変更フィードに `forgotten` を追記する。
  * - `record` の forget は tombstone を `("record", recordId)` と `("source", sourceKey)` の 2 つ書く。
- * - 閉包の起点（S6）: `host_source` はその SourceKey、`state_item` はその item と元の候補（item → candidate の辺。
- *   候補も同じ値を持つため）、`scope` は scope の record の出典キーと scope の state_item / candidate / run / external。
+ * - 閉包の起点: `host_source` はその SourceKey、`state_item` はその item、
+ *   `scope` は scope の record の出典キーと scope の state_item / external。
  *   `host_source` の SourceKey が Records の record のものなら、その record も忘れる。
- * - 閉包内の値の消去（S6）: state_item は value / polarity / 有効期間を NULL・semantic_key を ''・attribute と evidence の行を削除・
- *   event は action と seq だけ残す。candidate は value / polarity を NULL・semantic_key を ''・decision `forgotten`・evidence の行を削除。
- *   run は入力・見せた state・digest・`provider_ref`・進捗行を消し、確定前の run は `stale: SOURCE_TOMBSTONED` で閉じる。
- *   忘れた出典の進捗行も消す。依存辺は残す（再適用の入力）。
- * - 外部削除の確認（S6）: 閉包内の run の `providerRef`、外部へ送った record の `providerRef`、閉包内の外部派生物を
+ * - 閉包内の値の消去: state_item は value / polarity / 有効期間を NULL・semantic_key を ''・attribute と evidence の行を削除・
+ *   event は action と seq だけ残す。依存辺は残す（再適用の入力）。
+ * - 外部削除の確認: 外部へ送った record の `providerRef` と閉包内の外部派生物を
  *   `memory_forget_external` に `pending` で載せる。`recordExternalDeletion` は最後に記録した状態が有効。
  *   scope の forget は、他の scope も引用している出典には墓標を付けない。
  * - deactivate は forget ではない（墓標・ジャーナル・ForgetReceipt を作らない）。API 名・reason・文言で
@@ -152,7 +148,7 @@ export interface ForgetJournalEntry {
 
 export interface ExternalDeletion {
 	readonly providerRef: string;
-	/** 外部派生物（`ExternalDependent`）単位なら externalId、プロバイダー単位（抽出入力の送付先）なら null。 */
+	/** 外部派生物（`ExternalDependent`）単位なら externalId、プロバイダー単位（外部へ送った record の送付先）なら null。 */
 	readonly externalId: string | null;
 	readonly state: ExternalDeletionState;
 }
@@ -170,7 +166,7 @@ export interface ForgetPlan {
 	readonly entry: ForgetJournalEntry;
 	/** 閉包に入る行数（node type 別）。本文・ID を含めない。 */
 	readonly closure: { readonly counts: Readonly<Record<string, number>> };
-	/** 閉包内の run が使った外部プロバイダー（`providerRef`）。 */
+	/** 閉包内の record を外部へ送ったプロバイダー（`providerRef`）。 */
 	readonly externalProviders: readonly string[];
 	/** 閉包に入る外部派生物（ExternalDependent）。apply 後に `pending` として返る。 */
 	readonly externalDependents: readonly {

@@ -1,9 +1,7 @@
 import { ownValue } from "./own.ts";
 
 /**
- * 出典キー = (namespace, kind, id, representation)。内部 Map のキーとして使う。
- * contracts と view の両方から使うため contracts に置き、view/source-ref.ts から
- * 再 export する。
+ * 出典キー = (namespace, kind, id, representation)。依存辺・墓標の ID として使う。
  */
 export function sourceKey(ref: {
 	readonly namespace: string;

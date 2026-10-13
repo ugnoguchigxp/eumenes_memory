@@ -3,7 +3,6 @@
 export const DEPENDENCY_ROLES = Object.freeze([
 	"primary",
 	"support",
-	"input",
 	"derived_from",
 ] as const);
 export type DependencyRole = (typeof DEPENDENCY_ROLES)[number];
@@ -11,8 +10,6 @@ export type DependencyRole = (typeof DEPENDENCY_ROLES)[number];
 /** 依存する側。`external` は外部ドメインの派生物（`ExternalDependent`）。 */
 export const DEPENDENT_NODE_TYPES = Object.freeze([
 	"state_item",
-	"candidate",
-	"extraction_run",
 	"external",
 ] as const);
 export type DependentNodeType = (typeof DEPENDENT_NODE_TYPES)[number];
@@ -21,8 +18,6 @@ export type DependentNodeType = (typeof DEPENDENT_NODE_TYPES)[number];
 export const DEPENDENCY_NODE_TYPES = Object.freeze([
 	"source",
 	"state_item",
-	"candidate",
-	"extraction_run",
 ] as const);
 export type DependencyNodeType = (typeof DEPENDENCY_NODE_TYPES)[number];
 
@@ -31,8 +26,6 @@ export const TOMBSTONE_TARGET_TYPES = Object.freeze([
 	"record",
 	"source",
 	"state_item",
-	"candidate",
-	"extraction_run",
 	"external",
 ] as const);
 export type TombstoneTargetType = (typeof TOMBSTONE_TARGET_TYPES)[number];

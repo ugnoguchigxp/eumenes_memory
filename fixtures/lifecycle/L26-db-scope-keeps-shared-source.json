@@ -1,141 +1,86 @@
 {
-	"id": "L26-db-scope-keeps-shared-source",
-	"fixtureFormat": 1,
-	"covers": [
-		"closure",
-		"S6"
-	],
-	"kind": "forget-db",
-	"description": "A scope forget removes every owned row of the scope and tombstones only the sources no other scope cites; the other scope's rows stay",
-	"input": {
-		"graph": {
-			"runs": [
-				{
-					"id": "ra",
-					"inputs": [
-						"m:onlyA",
-						"m:shared"
-					],
-					"provider": "larm"
-				},
-				{
-					"id": "rb",
-					"scope": "scope:b",
-					"inputs": [
-						"m:shared",
-						"m:onlyB"
-					]
-				}
-			],
-			"candidates": [
-				{
-					"id": "ca",
-					"run": "ra",
-					"evidence": [
-						"m:onlyA"
-					]
-				},
-				{
-					"id": "cb",
-					"scope": "scope:b",
-					"run": "rb",
-					"evidence": [
-						"m:onlyB"
-					]
-				}
-			],
-			"items": [
-				{
-					"id": "ia",
-					"evidence": [
-						"m:onlyA"
-					],
-					"fromCandidate": "ca"
-				},
-				{
-					"id": "ib",
-					"scope": "scope:b",
-					"evidence": [
-						"m:onlyB"
-					],
-					"fromCandidate": "cb"
-				}
-			],
-			"externals": [
-				{
-					"id": "world:na",
-					"dependsOn": [
-						"i:ia"
-					]
-				},
-				{
-					"id": "world:nb",
-					"scope": "scope:b",
-					"dependsOn": [
-						"i:ib"
-					]
-				}
-			],
-			"progress": [
-				"m:onlyA",
-				"m:shared"
-			]
-		},
-		"forget": [
-			{
-				"type": "scope",
-				"scope": "scope:a"
-			}
-		]
-	},
-	"expect": {
-		"forgotten": {
-			"state_item": [
-				"ia"
-			],
-			"candidate": [
-				"ca"
-			],
-			"extraction_run": [
-				"ra"
-			],
-			"external": [
-				"world:na"
-			]
-		},
-		"kept": {
-			"state_item": [
-				"ib"
-			],
-			"candidate": [
-				"cb"
-			],
-			"extraction_run": [
-				"rb"
-			],
-			"external": [
-				"world:nb"
-			]
-		},
-		"tombstonedSources": [
-			"m:onlyA"
-		],
-		"receipt": {
-			"external": "pending",
-			"completed": false,
-			"deletions": [
-				"larm/-:pending",
-				"world/na:pending"
-			]
-		},
-		"valuesGone": [
-			"i:ia",
-			"c:ca"
-		],
-		"valuesPresent": [
-			"i:ib",
-			"c:cb"
-		],
-		"progressRemaining": []
-	}
+  "id": "L26-db-scope-keeps-shared-source",
+  "fixtureFormat": 1,
+  "covers": [
+    "closure",
+    "S6"
+  ],
+  "kind": "forget-db",
+  "description": "A scope forget removes every owned row of the scope and tombstones only the sources no other scope cites; the other scope's rows stay",
+  "input": {
+    "graph": {
+      "items": [
+        {
+          "id": "ia",
+          "evidence": [
+            "m:onlyA",
+            "m:shared"
+          ]
+        },
+        {
+          "id": "ib",
+          "scope": "scope:b",
+          "evidence": [
+            "m:shared",
+            "m:onlyB"
+          ]
+        }
+      ],
+      "externals": [
+        {
+          "id": "world:na",
+          "dependsOn": [
+            "i:ia"
+          ]
+        },
+        {
+          "id": "world:nb",
+          "scope": "scope:b",
+          "dependsOn": [
+            "i:ib"
+          ]
+        }
+      ]
+    },
+    "forget": [
+      {
+        "type": "scope",
+        "scope": "scope:a"
+      }
+    ]
+  },
+  "expect": {
+    "forgotten": {
+      "state_item": [
+        "ia"
+      ],
+      "external": [
+        "world:na"
+      ]
+    },
+    "kept": {
+      "state_item": [
+        "ib"
+      ],
+      "external": [
+        "world:nb"
+      ]
+    },
+    "tombstonedSources": [
+      "m:onlyA"
+    ],
+    "receipt": {
+      "external": "pending",
+      "completed": false,
+      "deletions": [
+        "world/na:pending"
+      ]
+    },
+    "valuesGone": [
+      "i:ia"
+    ],
+    "valuesPresent": [
+      "i:ib"
+    ]
+  }
 }

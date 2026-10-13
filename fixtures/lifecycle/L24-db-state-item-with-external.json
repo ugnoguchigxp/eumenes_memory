@@ -1,0 +1,80 @@
+{
+  "id": "L24-db-state-item-with-external",
+  "fixtureFormat": 1,
+  "covers": [
+    "closure",
+    "S6"
+  ],
+  "kind": "forget-db",
+  "description": "Forgetting an item forgets what is derived from it (the external derivative) and nothing else: the item's sources, the other item that cites the same source, and unrelated items stay",
+  "input": {
+    "graph": {
+      "items": [
+        {
+          "id": "iP",
+          "evidence": [
+            "m:m1"
+          ]
+        },
+        {
+          "id": "iQ",
+          "evidence": [
+            "m:m1"
+          ]
+        },
+        {
+          "id": "iR",
+          "evidence": [
+            "m:m2"
+          ]
+        }
+      ],
+      "externals": [
+        {
+          "id": "world:nA",
+          "dependsOn": [
+            "i:iP"
+          ]
+        }
+      ]
+    },
+    "forget": [
+      {
+        "type": "state_item",
+        "id": "iP"
+      }
+    ]
+  },
+  "expect": {
+    "forgotten": {
+      "state_item": [
+        "iP"
+      ],
+      "external": [
+        "world:nA"
+      ]
+    },
+    "kept": {
+      "state_item": [
+        "iQ",
+        "iR"
+      ],
+      "external": []
+    },
+    "tombstonedSources": [],
+    "receipt": {
+      "external": "pending",
+      "completed": false,
+      "deletions": [
+        "world/nA:pending"
+      ]
+    },
+    "valuesGone": [
+      "i:iP"
+    ],
+    "valuesPresent": [
+      "i:iQ",
+      "i:iR"
+    ]
+  }
+}

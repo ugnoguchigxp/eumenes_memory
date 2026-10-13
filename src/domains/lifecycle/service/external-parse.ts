@@ -234,7 +234,7 @@ export function parseRecordExternalDeletionInput(
 		keyPath(PATH, "forgetId"),
 		71,
 	);
-	// 抽出 run の providerRef は識別子（名前トークンとは限らない）。形の制限は識別子規則だけ。
+	// 外部へ送った record の providerRef は識別子（名前トークンとは限らない）。形の制限は識別子規則だけ。
 	const providerRef = readIdentifier(
 		requiredField(record, PATH, "providerRef"),
 		keyPath(PATH, "providerRef"),

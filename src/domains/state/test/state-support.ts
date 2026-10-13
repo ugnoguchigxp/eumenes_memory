@@ -3,7 +3,6 @@ import { sha256Hex } from "../../../canonical/sha256.ts";
 import type { EvidenceSpan } from "../../../contracts/common.ts";
 import type {
 	AssertUserStateInput,
-	EditStateInput,
 	HostSourceState,
 	StateTargetInput,
 	StateValue,
@@ -103,26 +102,6 @@ export function assertInput(
 		evidence: [makeSpan(COFFEE, "コーヒーが好き")],
 		sources: [COFFEE],
 		origin: "user_confirmed",
-		...overrides,
-	};
-}
-
-export function editInput(
-	itemId: string,
-	expectedRevision: number,
-	overrides: Partial<EditStateInput> = {},
-): EditStateInput {
-	return {
-		contractVersion: 1,
-		access: ACCESS,
-		scopeKey: SCOPE,
-		clock: { atMs: 2000 },
-		itemId,
-		expectedRevision,
-		value: value("紅茶が好き"),
-		evidence: [makeSpan(TEA, "紅茶が好き")],
-		sources: [TEA],
-		origin: "user_edited",
 		...overrides,
 	};
 }

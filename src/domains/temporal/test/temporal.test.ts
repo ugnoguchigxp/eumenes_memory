@@ -1,10 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
 	TemporalError,
-	answersQuery,
 	classifyValidity,
 	endExclusiveMs,
-	evaluateTime,
 	formatPartialDate,
 	parsePartialDate,
 	periodBoundsMs,
@@ -97,8 +95,8 @@ describe("early dates", () => {
 	});
 });
 
-describe("pre-1970 queries and malformed input", () => {
-	test("a question about 1965 can be asked and answered", () => {
+describe("pre-1970 periods and malformed input", () => {
+	test("a period before 1970 can be classified", () => {
 		const p: ValidityPeriod = {
 			from: { precision: "year", year: 1960 },
 			until: { precision: "year", year: 1969 },
@@ -108,12 +106,6 @@ describe("pre-1970 queries and malformed input", () => {
 		expect(classifyValidity(p, ms(1965))).toBe("current");
 		expect(classifyValidity(p, ms(1959))).toBe("future");
 		expect(classifyValidity(p, ms(1970))).toBe("past");
-		expect(
-			answersQuery(
-				{ recordedAtMs: 0, period: p },
-				{ mode: "at", atMs: 10, targetMs: ms(1965), basis: "valid_then" },
-			),
-		).toBe(true);
 	});
 	test("null dates and unknown bases are rejected, not coerced", () => {
 		expect(() =>
@@ -170,61 +162,5 @@ describe("classification", () => {
 	test("rejects negative or fractional host time", () => {
 		expect(() => classifyValidity(since, Number.NaN)).toThrow(TemporalError);
 		expect(() => classifyValidity(since, 1.5)).toThrow(TemporalError);
-	});
-});
-
-describe("queries: now vs past vs 'this time'", () => {
-	const old = {
-		recordedAtMs: utc("2024-01-01"),
-		period: {
-			until: { precision: "month", year: 2026, month: 8 },
-			basis: "stated",
-		},
-	} as const;
-	const next = {
-		recordedAtMs: utc("2026-10-01"),
-		period: { from: SEPT, basis: "stated" },
-	} as const;
-	const undated = { recordedAtMs: utc("2025-01-01") } as const;
-	const now = { mode: "current", atMs: utc("2026-10-09") } as const;
-	const then = {
-		mode: "at",
-		atMs: utc("2026-10-09"),
-		targetMs: utc("2026-03-01"),
-	} as const;
-
-	test("current question uses B (since Sep), not A (until Aug)", () => {
-		expect(answersQuery(old, now)).toBe(false);
-		expect(answersQuery(next, now)).toBe(true);
-	});
-	test("past question returns to A, and B (recorded later) is not known then", () => {
-		expect(answersQuery(old, then)).toBe(true);
-		expect(answersQuery(next, then)).toBe(false);
-		expect(evaluateTime(next, then).recordedAfterTarget).toBe(true);
-	});
-	test("valid_then returns facts learned later that held at the target time", () => {
-		const q = { ...then, basis: "valid_then" } as const;
-		const sepTarget = {
-			mode: "at",
-			atMs: utc("2026-10-09"),
-			targetMs: utc("2026-09-15"),
-			basis: "valid_then",
-		} as const;
-		expect(answersQuery(next, sepTarget)).toBe(true);
-		expect(answersQuery(next, { ...sepTarget, basis: "known_then" })).toBe(
-			false,
-		);
-		expect(answersQuery(old, q)).toBe(true);
-	});
-	test("undated entries answer current questions by default only", () => {
-		expect(answersQuery(undated, now)).toBe(true);
-		expect(answersQuery(undated, now, { includeUnknownInCurrent: false })).toBe(
-			false,
-		);
-		expect(answersQuery(undated, then)).toBe(false);
-	});
-	test("coarse is flagged for month precision", () => {
-		expect(evaluateTime(next, now).coarse).toBe(true);
-		expect(evaluateTime(undated, now).coarse).toBe(false);
 	});
 });

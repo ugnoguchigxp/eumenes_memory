@@ -164,18 +164,36 @@ describe("0001 foundation", () => {
 		expect(GENESIS_JOURNAL_HASH).toHaveLength(64);
 	});
 
-	test("CHECK enumerations match the contract tuples", () => {
+	test("CHECK enumerations equal the contract tuples plus the values no longer written (rows from older databases may still carry them)", () => {
 		expect(checkLists(foundation, "dependent_type")).toEqual([
-			[...DEPENDENT_NODE_TYPES],
+			["state_item", "candidate", "extraction_run", "external"],
 		]);
+		for (const type of DEPENDENT_NODE_TYPES) {
+			expect(checkLists(foundation, "dependent_type")[0]).toContain(type);
+		}
 		expect(checkLists(foundation, "dependency_type")).toEqual([
-			[...DEPENDENCY_NODE_TYPES],
+			[...DEPENDENCY_NODE_TYPES, "candidate", "extraction_run"],
 		]);
-		expect(checkLists(foundation, "role")).toEqual([[...DEPENDENCY_ROLES]]);
+		expect(checkLists(foundation, "role")).toEqual([
+			["primary", "support", "input", "derived_from"],
+		]);
 		expect(checkLists(foundation, "target_type")).toEqual([
-			[...TOMBSTONE_TARGET_TYPES],
+			[
+				"record",
+				"source",
+				"state_item",
+				"candidate",
+				"extraction_run",
+				"external",
+			],
 			[...MEMORY_CHANGE_TARGET_TYPES],
 		]);
+		for (const type of TOMBSTONE_TARGET_TYPES) {
+			expect(checkLists(foundation, "target_type")[0]).toContain(type);
+		}
+		for (const role of DEPENDENCY_ROLES) {
+			expect(checkLists(foundation, "role")[0]).toContain(role);
+		}
 		expect(checkLists(foundation, "external_state")).toEqual([
 			[...FORGET_EXTERNAL_STATES],
 		]);

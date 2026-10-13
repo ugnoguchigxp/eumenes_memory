@@ -1,177 +1,105 @@
 {
-	"id": "L23-db-host-source-uncited",
-	"fixtureFormat": 1,
-	"covers": [
-		"closure",
-		"FG3",
-		"S6"
-	],
-	"kind": "forget-db",
-	"description": "m3 is read by run A but cited by no candidate: forgetting it still closes over A's candidates and items (the input edge), and the external derivative that depends on m3 directly",
-	"input": {
-		"graph": {
-			"runs": [
-				{
-					"id": "A",
-					"inputs": [
-						"m:m1",
-						"m:m2",
-						"m:m3"
-					],
-					"provider": "larm"
-				},
-				{
-					"id": "B",
-					"inputs": [
-						"m:m4"
-					],
-					"provider": "larm"
-				}
-			],
-			"candidates": [
-				{
-					"id": "cA1",
-					"run": "A",
-					"evidence": [
-						"m:m1"
-					]
-				},
-				{
-					"id": "cA2",
-					"run": "A",
-					"evidence": [
-						"m:m2"
-					]
-				},
-				{
-					"id": "cB1",
-					"run": "B",
-					"evidence": [
-						"m:m4"
-					]
-				}
-			],
-			"items": [
-				{
-					"id": "iA1",
-					"evidence": [
-						"m:m1"
-					],
-					"fromCandidate": "cA1"
-				},
-				{
-					"id": "iA2",
-					"evidence": [
-						"m:m2"
-					],
-					"fromCandidate": "cA2"
-				},
-				{
-					"id": "iB1",
-					"evidence": [
-						"m:m4"
-					],
-					"fromCandidate": "cB1"
-				},
-				{
-					"id": "iU",
-					"evidence": [
-						"m:m5"
-					]
-				}
-			],
-			"externals": [
-				{
-					"id": "world:nA1",
-					"dependsOn": [
-						"i:iA1"
-					]
-				},
-				{
-					"id": "world:nB1",
-					"dependsOn": [
-						"i:iB1"
-					]
-				},
-				{
-					"id": "world:nM3",
-					"dependsOn": [
-						"m:m3"
-					]
-				}
-			],
-			"progress": [
-				"m:m1",
-				"m:m2",
-				"m:m3",
-				"m:m4"
-			]
-		},
-		"forget": [
-			{
-				"type": "host_source",
-				"source": "m:m3"
-			}
-		]
-	},
-	"expect": {
-		"forgotten": {
-			"state_item": [
-				"iA1",
-				"iA2"
-			],
-			"candidate": [
-				"cA1",
-				"cA2"
-			],
-			"extraction_run": [
-				"A"
-			],
-			"external": [
-				"world:nA1",
-				"world:nM3"
-			]
-		},
-		"kept": {
-			"state_item": [
-				"iB1",
-				"iU"
-			],
-			"candidate": [
-				"cB1"
-			],
-			"extraction_run": [
-				"B"
-			],
-			"external": [
-				"world:nB1"
-			]
-		},
-		"tombstonedSources": [
-			"m:m3"
-		],
-		"receipt": {
-			"external": "pending",
-			"completed": false,
-			"deletions": [
-				"larm/-:pending",
-				"world/nA1:pending",
-				"world/nM3:pending"
-			]
-		},
-		"valuesGone": [
-			"i:iA1",
-			"i:iA2",
-			"c:cA1",
-			"c:cA2"
-		],
-		"valuesPresent": [
-			"i:iB1",
-			"i:iU",
-			"c:cB1"
-		],
-		"progressRemaining": [
-			"m:m4"
-		]
-	}
+  "id": "L23-db-host-source-uncited",
+  "fixtureFormat": 1,
+  "covers": [
+    "closure",
+    "FG3",
+    "S6"
+  ],
+  "kind": "forget-db",
+  "description": "m3 is cited by no item: forgetting it still tombstones the source and closes over the external derivative that depends on m3 directly, and nothing else",
+  "input": {
+    "graph": {
+      "items": [
+        {
+          "id": "iA1",
+          "evidence": [
+            "m:m1"
+          ]
+        },
+        {
+          "id": "iA2",
+          "evidence": [
+            "m:m1",
+            "m:m2"
+          ]
+        },
+        {
+          "id": "iB1",
+          "evidence": [
+            "m:m4"
+          ]
+        },
+        {
+          "id": "iU",
+          "evidence": [
+            "m:m5"
+          ]
+        }
+      ],
+      "externals": [
+        {
+          "id": "world:nA1",
+          "dependsOn": [
+            "i:iA1"
+          ]
+        },
+        {
+          "id": "world:nB1",
+          "dependsOn": [
+            "i:iB1"
+          ]
+        },
+        {
+          "id": "world:nM3",
+          "dependsOn": [
+            "m:m3"
+          ]
+        }
+      ]
+    },
+    "forget": [
+      {
+        "type": "host_source",
+        "source": "m:m3"
+      }
+    ]
+  },
+  "expect": {
+    "forgotten": {
+      "state_item": [],
+      "external": [
+        "world:nM3"
+      ]
+    },
+    "kept": {
+      "state_item": [
+        "iA1",
+        "iA2",
+        "iB1",
+        "iU"
+      ],
+      "external": [
+        "world:nA1",
+        "world:nB1"
+      ]
+    },
+    "tombstonedSources": [
+      "m:m3"
+    ],
+    "receipt": {
+      "external": "pending",
+      "completed": false,
+      "deletions": [
+        "world/nM3:pending"
+      ]
+    },
+    "valuesGone": [],
+    "valuesPresent": [
+      "i:iA1",
+      "i:iA2",
+      "i:iB1",
+      "i:iU"
+    ]
+  }
 }

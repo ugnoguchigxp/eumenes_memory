@@ -4,7 +4,6 @@ import {
 	enterRead,
 	enterWrite,
 } from "../../../infrastructure/sqlite/session.ts";
-import { bumpScopeRevision } from "../../../infrastructure/sqlite/scope-state.ts";
 import { appendMemoryChange } from "../../../infrastructure/sqlite/changes.ts";
 import {
 	parseCaptureRecordInput,
@@ -141,15 +140,6 @@ export function retainRecord(
 		revision,
 	);
 	// Regenerable records keep only the current body, unlike durable Records.
-	for (const row of db
-		.query(
-			"SELECT body_rowid FROM memory_record_revision WHERE record_id=? AND revision!=?",
-		)
-		.all(recordId, captured.revision)) {
-		db.query("DELETE FROM memory_record_fts WHERE rowid=?").run(
-			readInteger(row, "body_rowid"),
-		);
-	}
 	db.query(
 		"DELETE FROM memory_record_body WHERE record_id=? AND revision!=?",
 	).run(recordId, captured.revision);
@@ -294,12 +284,6 @@ export function evictRetainedRecords(
 			blocked.push(id);
 			continue;
 		}
-		for (const body of db
-			.query("SELECT rowid FROM memory_record_body WHERE record_id=?")
-			.all(id))
-			db.query("DELETE FROM memory_record_fts WHERE rowid=?").run(
-				readInteger(body, "rowid"),
-			);
 		for (const table of [
 			"memory_record_body",
 			"memory_record_revision",
@@ -308,7 +292,6 @@ export function evictRetainedRecords(
 			"memory_record",
 		])
 			db.query(`DELETE FROM ${table} WHERE record_id=?`).run(id);
-		bumpScopeRevision(db, input.access.principal, input.scopeKey);
 		appendMemoryChange(db, {
 			principal: input.access.principal,
 			scopeKey: input.scopeKey,

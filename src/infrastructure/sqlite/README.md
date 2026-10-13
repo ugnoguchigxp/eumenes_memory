@@ -18,24 +18,23 @@ transaction、migration の実行、非同期処理（モデル呼び出し）�
 - 行は `unknown` として受け、`db.ts` の `readInteger` / `readText` などで検査する（違反は `CORRUPT_ROW`）。
 - `JSON.parse` は使えない（src の規則）。JSON 列を読む必要があれば SQL の `json_extract` / `json_each` を使うか、
   列に分解して保存する。モデル出力などはホストが読み込み済みの `unknown` として渡す。
-- 派生行（candidate / state_item / run / external）は必ず `memory_dependency` に辺を持つ（`dependency.ts` の `addDependency`）。
-- 変更のたびに `bumpScopeRevision`（`scope-state.ts`）と `appendMemoryChange`（`changes.ts`）を呼ぶ。
+- 派生行（state_item / external）は必ず `memory_dependency` に辺を持つ（`dependency.ts` の `addDependency`）。
+- 変更のたびに `appendMemoryChange`（`changes.ts`）を呼ぶ。
 
 ## 共有部品（S0 で実装済み）
 
 | ファイル | 内容 |
 |---|---|
 | `db.ts` | `MemoryDb` / `MemoryStatement` / `SqlValue`、`assertWritable`、`issueSeq`、`guarded`・`translateSqliteError`（SQLite 例外 → `MemoryStoreError`）、行の読み取り部品 |
-| `errors.ts` | `MemoryStoreError` / `STORE_ERROR_CODES` / `isMemoryStoreError` / `notImplemented` |
+| `errors.ts` | `MemoryStoreError` / `STORE_ERROR_CODES` / `isMemoryStoreError` |
 | `session.ts` | `enterWrite` / `enterRead` |
 | `schema-check.ts` | `assertMemorySchema`（migration hash 検査）、`checkSchemaAgainst`（テスト用に body 列を指定） |
 | `migrations/` | 登録配列と 0001 foundation。手順は [migrations/README.md](migrations/README.md) |
-| `scope-state.ts` | `bumpScopeRevision` / `readScopeRevision` |
 | `dependency.ts` / `tombstone.ts` | `addDependency` / `isTombstoned` |
 | `changes.ts` | `appendMemoryChange`（内部）/ `listMemoryChanges`・`latestMemoryChangeSeq`（公開、外部ドメイン向けフィードと最大 seq） |
-| `records.ts` `recall.ts` `state.ts` `extraction.ts` `lifecycle.ts` | 実装済み（S1〜S6）。`lifecycle.ts` は target record / host_source / state_item / scope の plan・apply・reconcile・receipt、ExternalDependent の登録・解除、外部削除の記録。値の消去は表の持ち主（`scrubRecord` / `scrubStateItem` / `scrubCandidate` / `scrubRun` / `scrubSourceProgress`）が行い、`lifecycle.ts` が閉包を求めて呼ぶ |
+| `records.ts` `state.ts` `lifecycle.ts` | `lifecycle.ts` は target record / host_source / state_item / scope の plan・apply・reconcile・receipt、ExternalDependent の登録・解除、外部削除の記録。値の消去は表の持ち主（`scrubRecord` / `scrubStateItem`）が行い、`lifecycle.ts` が閉包を求めて呼ぶ |
 
-入出力の型・reasonCode・上限は `src/contracts/{records,recall,state,extraction,lifecycle,external}.ts`（親だけが編集する）。
+入出力の型・reasonCode・上限は各ドメインの `contracts/` と `src/contracts/external.ts`。
 
 ## ホストの起動手順（必須）
 
@@ -45,7 +44,7 @@ transaction、migration の実行、非同期処理（モデル呼び出し）�
    ホスト側のテストで `expect(checkHostMigrations(hostMigrationsArray)).toEqual([])` を呼ぶ（欠落・重複・順序違い・改変を文字列で返す。空なら正しい）。
 2. `assertMemorySchema(db)` を呼ぶ（版が新しい DB や migration の中身が違う DB は `SCHEMA_TOO_NEW` / `SCHEMA_MISMATCH` で拒否）。
 3. 墓標ジャーナル（DB の外のファイル、所有はホスト）を読み、`reconcileForgetJournal` を **queue / worker の起動前**に実行する。
-   `inconsistent` が返ったら Memory の読み出し・抽出を止める（fail closed）。
+   `inconsistent` が返ったら Memory の読み出し・書き込みを止める（fail closed）。
 4. 以後、書き込み系は `store.write` の同期 op（1 transaction）内、読み取り系は read transaction 内で呼ぶ。
 
 運用の推奨: `PRAGMA secure_delete=ON`、忘却後の `wal_checkpoint(TRUNCATE)`。物理消去（空き領域・WAL・OS のスナップショット）は保証しない。
@@ -59,7 +58,7 @@ transaction、migration の実行、非同期処理（モデル呼び出し）�
   `(providerRef, externalId)` を依存閉包に登録（置き換え。忘却済みの対象には登録できない）。forget の閉包に入ると
   `memory_forget_external` に `pending` で載り、外部が削除を確認したら `recordExternalDeletion` で
   `confirmed` / `unverified` / `failed` にする。receipt の集約は failed > pending > unverified > confirmed、
-  `completed` は外部削除が無いか全部 `confirmed` のときだけ。プロバイダー（抽出 run の `providerRef`、record の
+  `completed` は外部削除が無いか全部 `confirmed` のときだけ。プロバイダー（外部へ送った record の
   `providerRef`）の外部削除も同じ表に `externalId = null` の行で載る。
 - `latestMemoryChangeSeq`（実装済み）: 指定 scope で可視な変更の最大 seq（なければ 0）。ホストは `memory_change` を直接読まず、これを世代番号に使う。
 - `listMemoryChanges`（実装済み）: 読み取り専用の変更フィード。ID と版・状態だけを返す。本文は `readRecord` / `listState` で読む。
@@ -68,14 +67,11 @@ transaction、migration の実行、非同期処理（モデル呼び出し）�
 
 ## forget の閉包と限界
 
-- 起点: record は出典キー、host_source は出典キー（引用されなかった入力も `input` 辺で届く）、state_item は item と
-  その元の候補、scope は scope の全 record / state_item / candidate / run / external（辺の scope_key が scope のもの）。
+- 起点: record は出典キー、host_source は出典キー、state_item は item、scope は scope の全 record / state_item / external（辺の scope_key が scope のもの）。
   `memory_dependency` を dependency → dependent に再帰 CTE で辿る（`reach` を外側にして `memory_dependency_by_dependency`
   で引く順に固定している。固定しないと辺の全走査が二乗になる）。
 - 閉包内: state_item は value / polarity / 有効期間を NULL、semantic_key を ''、attribute / evidence の行を削除、event は action と seq だけ残す。
-  candidate は value / polarity を NULL、semantic_key を ''、decision `forgotten`、evidence の行を削除。run は入力・見せた state・digest・
-  `provider_ref`・進捗行を消し、確定前（prepared）の run は `stale: SOURCE_TOMBSTONED` で閉じる。忘れた出典の進捗行を消す。
-  墓標は candidate / state_item / extraction_run / external / source / record に書く。
+  墓標は state_item / external / source / record に書く。
 - 依存辺は消さない（再適用の入力であり、`ID` 以外を持たない）。
 - 限界: 物理消去（SQLite の空き領域、WAL、OS のスナップショット、Time Machine）は保証しない。外部の確認状況は DB の中にだけあるので、
   古い DB を復元して reconcile すると外部削除は `pending` に戻る（ホストが外部に再確認して `recordExternalDeletion` をやり直す）。
