@@ -1,0 +1,22 @@
+{
+	"hash": "3c70fad7f2d0970adf5cf3eabc5db10a39862d8a27570a04d36b135f89ef77a7",
+	"counts": [100, 320],
+	"sourceHashes": {
+		"cases.ts": "ac4049ccacd0601904db06b3b29451489c727ec1d708f65ca7566a44d5b82b3b",
+		"baseline.ts": "dbec9bbf3b131503ad284dd9fc7d9e32079aae74b20d2f244ce8821ef89cc100",
+		"candidate.ts": "f51883318afb57651fd40471750725b93fbfd8317922da2dce98e46478b94945",
+		"run.ts": "8fe213b454029262c34a0f384760509e3ba8fb970dbc81be826fb77c62db8d1e",
+		"freeze.ts": "919724e4c4825cd8247882704c762a0a43072de64eb6850f70ca7172d7bfdef3",
+		"analyze.ts": "94c88e96e2af0ab9be5485e448a5d3e1ecf517196934f9dda10453534daf9494",
+		"recover.ts": "15f645162b00774227488aa067388cb32ff4e4d5cce029699a02d9b4cb7c357e",
+		"PREREGISTRATION.md": "9313200e7b15c272ac6166746dcb2fdd5f976c84a2e04b4245bf8ffe62d1bb2c",
+		"../evidence-followup/cases.ts": "ee15d05eb7a2698f1015de30ca8931233a6237bf42d860932cb02b7b76b90002",
+		"../evidence-followup/score.ts": "f92ca07e52493293906a02f4a097e3a93cb613f6af504a11a390f38033423286",
+		"../experiment.ts": "ee6a15325511443e01b22207618c65a8d2abfc30b4028e8b1ed8ba7d5aceebc5",
+		"../../standalone/luna.ts": "dc5309512ef983dce12674dadec877931f568b372df7d3b701c92d4d4e878ef7",
+		"../../standalone/support.ts": "9e5f28b3cf1181e0663741fae551b0ef582201496fd038e4624f653d44835876",
+		"../../standalone/model-input.ts": "b02516ffefbedf86d8261d5baa8469500fa507e4913d21c0437cd3bd7590dee2",
+		"../../standalone/protocol.ts": "399f03c325b75a00ca0bcc291a4af3e2aae78be10d094e9957b1f8699cc2b0c6"
+	},
+	"runtimeHash": "f7ca3585fc5e82f364d8a62e490461c9e72524fb5269c057fdf8be42009e0136"
+}
