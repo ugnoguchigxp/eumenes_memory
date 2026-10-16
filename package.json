@@ -30,7 +30,8 @@
 		"test:domain": "bun scripts/test-domain.ts",
 		"check:boundaries": "bun scripts/boundaries.ts",
 		"verify": "bun scripts/verify.ts",
-		"verify:all": "bun scripts/verify.ts --all"
+		"verify:all": "bun scripts/verify.ts --all",
+		"memory": "bun examples/standalone/memory.ts"
 	},
 	"devDependencies": {
 		"@openai/codex-sdk": "0.163.0",

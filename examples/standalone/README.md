@@ -17,6 +17,17 @@ bun run verify            # examples の型・整形・lint・回帰試験を含
 
 成功は終了コード 0、認証・モデル・契約・期待結果のいずれかの失敗は 1 です。失敗したシナリオの残りの工程は進めず、独立した別シナリオは続けます。認証・モデル通信の失敗や共通チェックの失敗では全体を止めます。実モデルが使えないときに固定応答へ切り替える処理はありません。レポートのシナリオ別結果には成功工程数と失敗工程を残し、未実行を成功に数えません。
 
+## 通常利用の入口
+
+`bun run memory` は、100ケース比較で採用を決めた耐久実行器を使う。`plan` はLLMで計画を作り、まだ書き込まない。計画を保存してから `apply` で適用する。再試行には同じ操作IDと保存済み計画を渡し、再生成しない。
+
+```sh
+bun run memory /tmp/my-memory plan '和紙作りが好きです。覚えてください。' > /tmp/memory-plan.json
+bun run memory /tmp/my-memory apply request-001 /tmp/memory-plan.json
+```
+
+`partial` / `failed` は終了コード1となる。`needs_clarification` は表示された確認が必要であり、全変更の成功を意味しない。保存した計画には発話が含まれるので呼出し側で管理する。`check:memory` は従来方式の比較・回帰検証用で、通常利用はこの入口を使う。実行器自体は [execution.ts](execution.ts)、採否の根拠は [100件比較](../experiments/holdout-100/RESULTS.md)。
+
 ## 何を確認するか
 
 モデルを使わない共通チェック8項目は、Records の保存・冪等性・版の読み分け、principal / scope 制限、transaction の rollback、引用の不一致拒否、Records → State → 外部派生物の忘却、外部削除確認、墓標による再登録拒否、変更フィード、保持期限と失効、時間判定、再起動、古い DB の復元、ジャーナル追記直後のクラッシュ、ジャーナルの破損・欠落です。関連する確認をまとめて1項目と数えます。

@@ -17,6 +17,10 @@ bun run lint:fix     # 自動修正（verifyではソースを変更しない）
 
 内部は Records / State / Lifecycle / Temporal のドメイン構造。所有範囲と依存規則は [ドメイン構造](src/domains/README.md)。oxfmt / oxlintの版と共通設定は隣接Eumenesに合わせ、React向けの設定はこのライブラリに持ち込まない。検証記録は `verification-reports/` に保存する。Eumenes を模したホスト（会話 message、書き込みキュー、ジャーナル、再起動・DB 復元）は `test/runners/fake-eumenes-host.ts` にあり、実 Eumenes なしで結合の想定を試せる（実 Eumenes との結合の証明ではない）。
 
+## 記憶の計画と適用
+
+通常利用は [独立ホストの入口](examples/standalone/README.md#通常利用の入口) の `bun run memory` を使う。計画と適用を分け、グループ単位の保存、再試行の記録、古い計画の拒否を適用する。以下の `check:memory` は従来方式を含む検証用コマンド。
+
 ## 単体での動作チェック
 
 Eumenes を起動せずに試す場合は、[独立ホストの実行例](examples/standalone/README.md) を使う。
