@@ -1,0 +1,151 @@
+{
+	"designHash": "3c70fad7f2d0970adf5cf3eabc5db10a39862d8a27570a04d36b135f89ef77a7",
+	"productionDecision": "reject",
+	"completedPairs": 420,
+	"sdkCalls": 840,
+	"receivedResponses": 839,
+	"transportRetries": 0,
+	"instructionCharacters": {
+		"before": 3251,
+		"after": 3217
+	},
+	"preservation": {
+		"regressionUnchanged": 320,
+		"originalBaselineByteIdenticalAfterImportRelocation": true,
+		"instructionsCharacters": {
+			"before": 3251,
+			"after": 3217
+		},
+		"snapshotSizes": [8, 24, 64, 256, 1001]
+	},
+	"cohorts": {
+		"holdout": {
+			"matchedResponseCost": {
+				"before": {
+					"count": 99,
+					"passed": 87,
+					"inputTokens": 3713760,
+					"outputTokens": 5704,
+					"cachedInputTokens": 980992,
+					"medianMs": 8217.539583000005,
+					"p95Ms": 12326.575624999998
+				},
+				"after": {
+					"count": 99,
+					"passed": 89,
+					"inputTokens": 2759320,
+					"outputTokens": 4348,
+					"cachedInputTokens": 1003264,
+					"medianMs": 8314.079709000012,
+					"p95Ms": 12184.56004099999
+				}
+			},
+			"matchedRatios": {
+				"tokenRatio": 0.7430285654061983,
+				"medianLatencyRatio": 1.0117480573138613
+			},
+			"referencesOutsideGoldUnionWhereSomeGoldExists": {
+				"before": [],
+				"after": [
+					{
+						"id": "H078",
+						"ids": ["c68dbc9db862ae6c5325"],
+						"facts": [
+							{
+								"itemId": "c68dbc9db862ae6c5325",
+								"revision": 1,
+								"subject": "self",
+								"subjectLabel": "本人",
+								"kind": "personal_fact",
+								"semanticKey": "1ee8064dda538a6060f7",
+								"value": {
+									"text": "ペンを買った店の番号は43",
+									"polarity": "affirmed"
+								}
+							}
+						]
+					}
+				]
+			},
+			"rawReferencesOutsideSnapshot": {
+				"before": [],
+				"after": []
+			},
+			"changedSharedFailures": [
+				{
+					"id": "H078",
+					"message": "私が買ったペンの型番と色は？",
+					"before": [
+						["supported", ["d708b51b2783c5c9f523", "e198f01f2843b3c26a4d"]]
+					],
+					"after": [
+						[
+							"supported",
+							[
+								"c68dbc9db862ae6c5325",
+								"d708b51b2783c5c9f523",
+								"e198f01f2843b3c26a4d"
+							]
+						]
+					]
+				}
+			]
+		},
+		"regression": {
+			"matchedResponseCost": {
+				"before": {
+					"count": 320,
+					"passed": 295,
+					"inputTokens": 11555815,
+					"outputTokens": 20574,
+					"cachedInputTokens": 3808000,
+					"medianMs": 9486.503542000079,
+					"p95Ms": 13099.401290999958
+				},
+				"after": {
+					"count": 320,
+					"passed": 294,
+					"inputTokens": 8609658,
+					"outputTokens": 15714,
+					"cachedInputTokens": 3868416,
+					"medianMs": 8955.519520500093,
+					"p95Ms": 13033.092958000023
+				}
+			},
+			"matchedRatios": {
+				"tokenRatio": 0.7450831170237974,
+				"medianLatencyRatio": 0.9440274260006194
+			},
+			"referencesOutsideGoldUnionWhereSomeGoldExists": {
+				"before": [],
+				"after": []
+			},
+			"rawReferencesOutsideSnapshot": {
+				"before": [],
+				"after": []
+			},
+			"changedSharedFailures": [
+				{
+					"id": "regression-R259",
+					"message": "私が使う工房の名称と最寄駅は？",
+					"before": [
+						["supported", ["d7a5aef2e8bf5596c732", "e2caf17fcea45ace8984"]]
+					],
+					"after": [
+						["supported", ["e2caf17fcea45ace8984"]],
+						["supported", ["d7a5aef2e8bf5596c732"]]
+					]
+				},
+				{
+					"id": "regression-R310",
+					"message": "私の倉庫には窓がありますか。窓の数も教えて。",
+					"before": [
+						["supported", ["157d99355f0838bf3d8c"]],
+						["unknown", []]
+					],
+					"after": [["supported", ["157d99355f0838bf3d8c"]]]
+				}
+			]
+		}
+	}
+}
