@@ -1,0 +1,70 @@
+{
+	"stage": "B",
+	"decision": "adopt",
+	"scoreOverrides": false,
+	"semanticRerolls": false,
+	"newWinsRestoringKnownAnswers": [
+		"H001",
+		"H003",
+		"H004",
+		"H005",
+		"H008",
+		"H018",
+		"H027",
+		"H060"
+	],
+	"newWinsMainlyOutputPartition": [
+		"H019",
+		"H020",
+		"H085",
+		"H087",
+		"H088",
+		"H096",
+		"H098"
+	],
+	"otherNewWins": {
+		"H078": "当番の明示的変更を矛盾ではなく更新として扱った。",
+		"H089": "応募していない既知の部分と、不明な結果を分離。"
+	},
+	"newLosses": {
+		"H032": "参加済みで報告済みという一つの連言質問を二項へ分割。事実は保持されるが固定の出力契約に不一致。",
+		"H080": "北倉庫から南倉庫への移動を古い場所との矛盾と扱った。"
+	},
+	"sharedNewFailures": {
+		"H038": "旧は二項を一つの不明へ統合。新は分割できたが、通う教室と川辺教室との結び付きがないのに先生をsupportedとした。同じ総合不合格でも新たな過剰断定であり、悪化の内訳に明記。",
+		"H039": "新は項目分割できたが、最寄駅の項目に本人と工房の接続根拠を再掲しなかった。全体の根拠集合には関係があるが、項目ごとの裏付け契約には不足。",
+		"H040": "製造年・型番を両方式とも一項に統合。",
+		"H071": "出発までの日数が不明なのに予約変更の可否をsupportedとした。",
+		"H090": "旧は有無と個数を統合。新は分割したが窓なしから0個を回答できず不明。総合点では見えない既知情報の取りこぼし。",
+		"H100": "定期購読の雑誌名と料金を両方式とも一項へ統合。"
+	},
+	"regressionWins": {
+		"R087": "出勤手段を支持し所要時間だけ不明にした。"
+	},
+	"regressionLosses": {
+		"R040": "毎晩必ず自炊の否定から毎晩必ず外食の判断をsupportedとした。"
+	},
+	"sharedRegressionFailures": {
+		"R024": "比較対象の除外根拠が固定許容集合を超過。結論の誤りとは断定しない。",
+		"R039": "参加しないと決めたことの否定を参加の決定の根拠にした。",
+		"R065": "将来時点に適用される受付担当の変更を不明にした。",
+		"R091": "本人の取引先と担当者の対応関係不足を見落とした。"
+	},
+	"identifierConclusion": "新規100+回帰100の各方式で未知ID・契約エラーは0。前回H085は今回両方式成功。ID転記文だけの因果効果は未分離であり、解消したとは主張しない。第1案では実在する無関係なIDへの誤選択が出ており、IDの存在検査ではこれを防げない。",
+	"recovery": {
+		"count": 2,
+		"cases": ["regression-R071 after", "regression-R073 before"],
+		"originalFailure": "HTTP 403, no response",
+		"recoveryEvidence": "Original later cases completed successfully before recovery",
+		"policy": "One recovery per missing response after full batch, original raw rows retained; input/schema/original-row hashes verified",
+		"usageForFailedAttempts": "unknown",
+		"sdkInvocations": 402,
+		"validResponses": 400
+	},
+	"risks": [
+		"回帰は合計同点でも1改善と1悪化が入れ替わる。全ケースの非劣化を意味しない。",
+		"新規では8件の既知回答回復に加えて7件の主に出力形式の改善を含む。自然文回答の精度15ポイント増とは言わない。",
+		"否定・例外や関係の裏付けが全面的に解決した変更ではない。",
+		"各方式各問1回。25関連パターンの合成試験で、独立実利用の精度保証ではない。"
+	]
+}
