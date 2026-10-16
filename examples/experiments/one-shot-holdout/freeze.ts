@@ -95,7 +95,8 @@ const design = {
 		.digest("hex"),
 	priorDesignHash: hash(prior),
 };
-if (before === after) throw Error("Candidate instruction has not changed");
+if (String(before) === String(after))
+	throw Error("Candidate instruction has not changed");
 mkdirSync(dirname(output), { recursive: true });
 writeFileSync(output, JSON.stringify(design, null, 2) + "\n");
 writeFileSync(

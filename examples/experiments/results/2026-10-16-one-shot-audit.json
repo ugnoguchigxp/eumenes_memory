@@ -1,0 +1,53 @@
+{
+	"designHash": "7aa925f309da5286a80ea57539560677e90bd05c6ff65ddab90ec63cc1ed7219",
+	"reviewer": "Primary implementation agent, not an independent human reviewer",
+	"goldChanged": false,
+	"instructionChangedDuringRun": false,
+	"semanticRerolls": 0,
+	"reviewed": "All 19 holdout wins, 2 losses, 3 shared failures; all regression disagreements and remaining failure; all transport records. No scoring overrides.",
+	"remainingFailures": [
+		{
+			"id": "H024",
+			"kind": "strict evidence-set mismatch",
+			"detail": "Cites both the matching person and evidence excluding the other candidate. The declared allowed set accepts only the matching person. This is not proof that the identity answer itself is wrong."
+		},
+		{
+			"id": "H039",
+			"kind": "unsupported inference",
+			"detail": "Not having decided against participation does not establish a decision to participate. Candidate labels the fact supported instead of unknown."
+		},
+		{
+			"id": "H050",
+			"kind": "exception treated as conflict",
+			"detail": "Ordinary prohibition and emergency permission remain wrongly classified as conflict."
+		},
+		{
+			"id": "H085",
+			"kind": "invalid evidence ID",
+			"detail": "Candidate omits one character of a supplied ID; existing validation rejects it. No fuzzy correction or reroll."
+		},
+		{
+			"id": "H087",
+			"kind": "lost known part",
+			"detail": "Combines commute method and unknown duration into one unknown part, losing the known method."
+		},
+		{
+			"id": "regression-R082",
+			"kind": "missing relationship",
+			"detail": "Class location is cited without proof the user attends that class."
+		}
+	],
+	"recovery": {
+		"case": "H097",
+		"arm": "after",
+		"reason": "HTTP 403, no response returned; subsequent requests succeeded",
+		"attempts": 1,
+		"successfulResponsesRepeated": 0,
+		"failedCallUsage": "unknown"
+	},
+	"limits": [
+		"25 correlated synthetic families with four separately authored cases each; one sample per arm.",
+		"Output measures evidence/status selection, not the final natural-language answer.",
+		"Size groups contain different questions; do not infer a causal effect of size from those pass rates."
+	]
+}

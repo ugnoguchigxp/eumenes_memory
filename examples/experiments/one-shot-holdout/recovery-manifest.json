@@ -1,0 +1,4 @@
+{
+	"reason": "One missing HTTP 403 response at H097/after; later requests succeeded. Sequential one-attempt recovery after completion, as preregistered. No successful response regenerated.",
+	"sha256": "87d7cc60772b5638f40530e78e1486594ff510c0f13419f941b826e6329cb364"
+}
