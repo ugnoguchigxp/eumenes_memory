@@ -1,0 +1,21 @@
+{
+	"hash": "ac3db4e3ac49da3e344c0e489bb1a704f1718940e32ecdf8a53713075eb789c7",
+	"stage": "A",
+	"createdAt": "2026-10-16T07:57:01.158Z",
+	"counts": [100, 100],
+	"sourceHashes": {
+		"cases.ts": "ee15d05eb7a2698f1015de30ca8931233a6237bf42d860932cb02b7b76b90002",
+		"prompts.ts": "8457451b05689d0359302ac25b185f5eaec0d03e25a1cffc90116d13183f5f30",
+		"score.ts": "f92ca07e52493293906a02f4a097e3a93cb613f6af504a11a390f38033423286",
+		"run.ts": "67d0dc94bd549583ee255d69852512c95346706192d8403bdac18151f0ad8384",
+		"freeze.ts": "8dad3d211b2e0d3fda6dbd9e756add12082380a2185c77fa800e2aaa0e882dda",
+		"analyze.ts": "f73c48006438c847bfd3d891966d40b0bb40d742a75a91b905e63c7e4849e890",
+		"recover.ts": "f86b30e6e64375fc08dccb0eb5b336fd6c1c50dfe815d88a71650568da059a7f",
+		"../../standalone/luna.ts": "dc5309512ef983dce12674dadec877931f568b372df7d3b701c92d4d4e878ef7",
+		"../../standalone/support.ts": "9e5f28b3cf1181e0663741fae551b0ef582201496fd038e4624f653d44835876",
+		"../../standalone/model-input.ts": "b02516ffefbedf86d8261d5baa8469500fa507e4913d21c0437cd3bd7590dee2",
+		"../../standalone/protocol.ts": "399f03c325b75a00ca0bcc291a4af3e2aae78be10d094e9957b1f8699cc2b0c6",
+		"../experiment.ts": "ee6a15325511443e01b22207618c65a8d2abfc30b4028e8b1ed8ba7d5aceebc5"
+	},
+	"runtimeHash": "4a5b33600fac73e604c5bfe25654735b90b1f43dcedb4a84d4a4ab46ce9871a3"
+}
