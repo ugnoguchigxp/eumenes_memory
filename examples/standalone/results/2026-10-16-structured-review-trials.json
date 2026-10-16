@@ -1,0 +1,3064 @@
+{
+	"date": "2026-10-16",
+	"purpose": "Preserve all exploratory trials, including cancelled, malformed and semantic-failed results. Do not count them as final three repetitions.",
+	"pilots": [
+		{
+			"version": "standalone-memory-v23",
+			"status": "intentionally_cancelled_partial_pilot",
+			"manifest": {
+				"file": "verification-reports/memory-check/2026-10-16T09-09-56.845Z-d018ba36-49e2-4215-8868-713a955da432/repeat-manifest.json",
+				"sha256": "edd9c963fd73e426de73970288e1179fe14399e8b257df1a9a8a532626cd36da"
+			},
+			"intervention": {
+				"reason": "Pilot cancelled after a coverage contract rejected correct actions: operational identity constraints require a distinct disposition; directional citations also need schema-bound source clauses. No gold changes or semantic retries.",
+				"driverPid": 90886,
+				"cancelledOwnSdkWorkers": [6718, 6809, 6810],
+				"modelSourceEditedDuringRun": false
+			},
+			"reports": [
+				{
+					"file": "verification-reports/memory-check/2026-10-16T09-09-56.846Z-c88ff60d-dcfe-4cb3-a629-0e62fc99d6ba/controls.json",
+					"sha256": "7bc07aa9edaf0c215c1e9087ee2536e30bb0b214d74985bd086e1da738c8b86e",
+					"status": "failed",
+					"requestsStarted": 41,
+					"responsesReceived": 40,
+					"plannedTrials": 120,
+					"matched": 34,
+					"failures": [
+						{
+							"name": "reverse-exclusive-condition",
+							"repetition": 1,
+							"expectedPassed": false,
+							"prompt": "{\"task\":\"judge\",\"groups\":[{\"groupId\":\"g0\",\"subject\":\"self\",\"kind\":\"habit\",\"actual\":[{\"id\":\"g0:a0\",\"text\":\"平日だけ、週4回、1回20分ずつ発声練習をする\"}],\"expected\":[{\"id\":\"g0:e0\",\"text\":\"平日に週4回、1回20分ずつ発声練習をする\"}]}]}",
+							"outputSchema": {
+								"type": "object",
+								"properties": {
+									"groups": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 1,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"groupId": {
+															"type": "string",
+															"enum": ["g0"]
+														},
+														"matches": {
+															"type": "array",
+															"minItems": 1,
+															"maxItems": 1,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"actualId": {
+																		"type": "string",
+																		"enum": ["g0:a0"]
+																	},
+																	"expectedId": {
+																		"type": "string",
+																		"enum": ["g0:e0"]
+																	},
+																	"actual": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": [
+																					"平日だけ、週4回、1回20分ずつ発声練習をする"
+																				]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"expected": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": [
+																					"平日に週4回、1回20分ずつ発声練習をする"
+																				]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"missingFromActual": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"missingFromExpected": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"actualEntailsExpected": {
+																		"type": "boolean"
+																	},
+																	"expectedEntailsActual": {
+																		"type": "boolean"
+																	},
+																	"reason": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"actualId",
+																	"expectedId",
+																	"actual",
+																	"expected",
+																	"missingFromActual",
+																	"missingFromExpected",
+																	"actualEntailsExpected",
+																	"expectedEntailsActual",
+																	"reason"
+																],
+																"additionalProperties": false
+															}
+														}
+													},
+													"required": ["groupId", "matches"],
+													"additionalProperties": false
+												}
+											]
+										}
+									}
+								},
+								"required": ["groups"],
+								"additionalProperties": false
+							},
+							"phase": "contract",
+							"response": {
+								"raw": "{\"groups\":[{\"groupId\":\"g0\",\"matches\":[{\"actualId\":\"g0:a0\",\"expectedId\":\"g0:e0\",\"actual\":{\"quote\":\"平日だけ、週4回、1回20分ずつ発声練習をする\",\"relation\":\"発声練習をする習慣\",\"qualifications\":[{\"quote\":\"平日だけ\",\"meaning\":\"練習するのは平日に限る\"},{\"quote\":\"週4回\",\"meaning\":\"週に4回行う\"},{\"quote\":\"1回20分ずつ\",\"meaning\":\"1回あたり20分行う\"}]},\"expected\":{\"quote\":\"平日に週4回、1回20分ずつ発声練習をする\",\"relation\":\"発声練習をする習慣\",\"qualifications\":[{\"quote\":\"平日に\",\"meaning\":\"平日に行う\"},{\"quote\":\"週4回\",\"meaning\":\"週に4回行う\"},{\"quote\":\"1回20分ずつ\",\"meaning\":\"1回あたり20分行う\"}]},\"missingFromActual\":[],\"missingFromExpected\":[{\"quote\":\"平日に\",\"meaning\":\"平日に行うが、平日に限定するとは述べていない\"}],\"actualEntailsExpected\":true,\"expectedEntailsActual\":false,\"reason\":\"どちらも平日に週4回、1回20分ずつ発声練習をする。実際の記述だけが「平日だけ」と限定しており、期待側は週末に行わないことまでは含意しない。\"}]}]}",
+								"usage": {
+									"input_tokens": 14663,
+									"cached_input_tokens": 0,
+									"cache_write_input_tokens": 0,
+									"output_tokens": 476,
+									"reasoning_output_tokens": 135
+								},
+								"threadId": "01a143fb-021e-7561-a3ed-e56b7c057fe6"
+							},
+							"error": "Error: Ungrounded judgment citation",
+							"matched": false
+						},
+						{
+							"name": "nominal-recreation-synonym",
+							"repetition": 1,
+							"expectedPassed": true,
+							"prompt": "{\"task\":\"judge\",\"groups\":[{\"groupId\":\"g0\",\"subject\":\"other:probe-emi\",\"kind\":\"other_person_note\",\"subjectLabel\":\"近所のエミ\",\"actual\":[{\"id\":\"g0:a0\",\"text\":\"気晴らしはクイズです\"}],\"expected\":[{\"id\":\"g0:e0\",\"text\":\"クイズが趣味\"}]}]}",
+							"outputSchema": {
+								"type": "object",
+								"properties": {
+									"groups": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 1,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"groupId": {
+															"type": "string",
+															"enum": ["g0"]
+														},
+														"matches": {
+															"type": "array",
+															"minItems": 1,
+															"maxItems": 1,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"actualId": {
+																		"type": "string",
+																		"enum": ["g0:a0"]
+																	},
+																	"expectedId": {
+																		"type": "string",
+																		"enum": ["g0:e0"]
+																	},
+																	"actual": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["気晴らしはクイズです"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"expected": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["クイズが趣味"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"missingFromActual": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"missingFromExpected": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"actualEntailsExpected": {
+																		"type": "boolean"
+																	},
+																	"expectedEntailsActual": {
+																		"type": "boolean"
+																	},
+																	"reason": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"actualId",
+																	"expectedId",
+																	"actual",
+																	"expected",
+																	"missingFromActual",
+																	"missingFromExpected",
+																	"actualEntailsExpected",
+																	"expectedEntailsActual",
+																	"reason"
+																],
+																"additionalProperties": false
+															}
+														}
+													},
+													"required": ["groupId", "matches"],
+													"additionalProperties": false
+												}
+											]
+										}
+									}
+								},
+								"required": ["groups"],
+								"additionalProperties": false
+							},
+							"phase": "complete",
+							"response": {
+								"raw": "{\"groups\":[{\"groupId\":\"g0\",\"matches\":[{\"actualId\":\"g0:a0\",\"expectedId\":\"g0:e0\",\"actual\":{\"quote\":\"気晴らしはクイズです\",\"relation\":\"クイズを気晴らしにしている\",\"qualifications\":[{\"quote\":\"気晴らし\",\"meaning\":\"気晴らしとして行う\"}]},\"expected\":{\"quote\":\"クイズが趣味\",\"relation\":\"クイズを趣味としている\",\"qualifications\":[]},\"missingFromActual\":[],\"missingFromExpected\":[{\"quote\":\"気晴らし\",\"meaning\":\"気晴らしとして行う\"}],\"actualEntailsExpected\":true,\"expectedEntailsActual\":false,\"reason\":\"どちらもクイズに関する行為を述べていますが、実際の文は気晴らしとして行うことを明示し、趣味とは述べていません。\"}]}]}",
+								"usage": {
+									"input_tokens": 11526,
+									"cached_input_tokens": 0,
+									"cache_write_input_tokens": 0,
+									"output_tokens": 203,
+									"reasoning_output_tokens": 0
+								},
+								"threadId": "01a143fc-6f6e-7bd2-bfca-9c3fb7d4850d"
+							},
+							"judgment": {
+								"passed": false,
+								"reason": "g0/g0:a0↔g0:e0: どちらもクイズに関する行為を述べていますが、実際の文は気晴らしとして行うことを明示し、趣味とは述べていません。"
+							},
+							"matched": false
+						},
+						{
+							"name": "v21-source-faithful-2",
+							"repetition": 1,
+							"expectedPassed": true,
+							"prompt": "{\"task\":\"judge\",\"groups\":[{\"groupId\":\"g0\",\"subject\":\"other:ito\",\"kind\":\"other_person_note\",\"subjectLabel\":\"同僚のイト\",\"actual\":[{\"id\":\"g0:a0\",\"text\":\"イトの気晴らしは写真です。\"}],\"expected\":[{\"id\":\"g0:e0\",\"text\":\"写真が趣味\"}]}]}",
+							"outputSchema": {
+								"type": "object",
+								"properties": {
+									"groups": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 1,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"groupId": {
+															"type": "string",
+															"enum": ["g0"]
+														},
+														"matches": {
+															"type": "array",
+															"minItems": 1,
+															"maxItems": 1,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"actualId": {
+																		"type": "string",
+																		"enum": ["g0:a0"]
+																	},
+																	"expectedId": {
+																		"type": "string",
+																		"enum": ["g0:e0"]
+																	},
+																	"actual": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["イトの気晴らしは写真です。"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"expected": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["写真が趣味"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"missingFromActual": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"missingFromExpected": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"actualEntailsExpected": {
+																		"type": "boolean"
+																	},
+																	"expectedEntailsActual": {
+																		"type": "boolean"
+																	},
+																	"reason": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"actualId",
+																	"expectedId",
+																	"actual",
+																	"expected",
+																	"missingFromActual",
+																	"missingFromExpected",
+																	"actualEntailsExpected",
+																	"expectedEntailsActual",
+																	"reason"
+																],
+																"additionalProperties": false
+															}
+														}
+													},
+													"required": ["groupId", "matches"],
+													"additionalProperties": false
+												}
+											]
+										}
+									}
+								},
+								"required": ["groups"],
+								"additionalProperties": false
+							},
+							"phase": "complete",
+							"response": {
+								"raw": "{\"groups\":[{\"groupId\":\"g0\",\"matches\":[{\"actualId\":\"g0:a0\",\"expectedId\":\"g0:e0\",\"actual\":{\"quote\":\"イトの気晴らしは写真です。\",\"relation\":\"写真を気晴らしにしている\",\"qualifications\":[{\"quote\":\"気晴らし\",\"meaning\":\"写真は気晴らしである\"}]},\"expected\":{\"quote\":\"写真が趣味\",\"relation\":\"写真を趣味としている\",\"qualifications\":[]},\"missingFromActual\":[{\"quote\":\"写真が趣味\",\"meaning\":\"写真を趣味としている\"}],\"missingFromExpected\":[{\"quote\":\"イトの気晴らしは写真です。\",\"meaning\":\"写真を気晴らしにしている\"}],\"actualEntailsExpected\":false,\"expectedEntailsActual\":false,\"reason\":\"気晴らしとしていることは趣味であることを含意せず、趣味であることも気晴らしとしていることを含意しません。\"}]}]}",
+								"usage": {
+									"input_tokens": 14588,
+									"cached_input_tokens": 0,
+									"cache_write_input_tokens": 0,
+									"output_tokens": 223,
+									"reasoning_output_tokens": 0
+								},
+								"threadId": "01a143fc-f9a0-7480-895c-dfef3ddb0da1"
+							},
+							"judgment": {
+								"passed": false,
+								"reason": "g0/g0:a0↔g0:e0: 気晴らしとしていることは趣味であることを含意せず、趣味であることも気晴らしとしていることを含意しません。"
+							},
+							"matched": false
+						},
+						{
+							"name": "v22-full-clause-replay-4",
+							"repetition": 1,
+							"expectedPassed": true,
+							"prompt": "{\"task\":\"judge\",\"groups\":[{\"groupId\":\"g0\",\"subject\":\"self\",\"kind\":\"preference\",\"actual\":[{\"id\":\"g0:a0\",\"text\":\"好きな飲み物は紅茶です。\"}],\"expected\":[{\"id\":\"g0:e0\",\"text\":\"紅茶\"}]}],\"criterion\":\"本人の現在の好きな飲み物は紅茶であり、ほかの好みや職業は記憶されていない。\"}",
+							"outputSchema": {
+								"type": "object",
+								"properties": {
+									"groups": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 1,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"groupId": {
+															"type": "string",
+															"enum": ["g0"]
+														},
+														"matches": {
+															"type": "array",
+															"minItems": 1,
+															"maxItems": 1,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"actualId": {
+																		"type": "string",
+																		"enum": ["g0:a0"]
+																	},
+																	"expectedId": {
+																		"type": "string",
+																		"enum": ["g0:e0"]
+																	},
+																	"actual": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["好きな飲み物は紅茶です。"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"expected": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["紅茶"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"missingFromActual": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"missingFromExpected": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"actualEntailsExpected": {
+																		"type": "boolean"
+																	},
+																	"expectedEntailsActual": {
+																		"type": "boolean"
+																	},
+																	"reason": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"actualId",
+																	"expectedId",
+																	"actual",
+																	"expected",
+																	"missingFromActual",
+																	"missingFromExpected",
+																	"actualEntailsExpected",
+																	"expectedEntailsActual",
+																	"reason"
+																],
+																"additionalProperties": false
+															}
+														}
+													},
+													"required": ["groupId", "matches"],
+													"additionalProperties": false
+												}
+											]
+										}
+									}
+								},
+								"required": ["groups"],
+								"additionalProperties": false
+							},
+							"phase": "complete",
+							"response": {
+								"raw": "{\"groups\":[{\"groupId\":\"g0\",\"matches\":[{\"actualId\":\"g0:a0\",\"expectedId\":\"g0:e0\",\"actual\":{\"quote\":\"好きな飲み物は紅茶です。\",\"relation\":\"likes tea as a drink\",\"qualifications\":[]},\"expected\":{\"quote\":\"紅茶\",\"relation\":\"likes tea\",\"qualifications\":[]},\"missingFromActual\":[],\"missingFromExpected\":[{\"quote\":\"好きな飲み物は紅茶です。\",\"meaning\":\"The actual states the preference is for a drink; the expected shorthand only entails liking tea, not that it is a preferred drink.\"}],\"actualEntailsExpected\":true,\"expectedEntailsActual\":false,\"reason\":\"Both assert liking tea, but only the actual specifies it as a drink.\"}]}]}",
+								"usage": {
+									"input_tokens": 14596,
+									"cached_input_tokens": 0,
+									"cache_write_input_tokens": 0,
+									"output_tokens": 171,
+									"reasoning_output_tokens": 0
+								},
+								"threadId": "01a14400-4058-7f93-828b-a2df9b738b07"
+							},
+							"judgment": {
+								"passed": false,
+								"reason": "g0/g0:a0↔g0:e0: Both assert liking tea, but only the actual specifies it as a drink."
+							},
+							"matched": false
+						},
+						{
+							"name": "v22-full-clause-replay-6",
+							"repetition": 1,
+							"expectedPassed": true,
+							"prompt": "{\"task\":\"judge\",\"groups\":[{\"groupId\":\"g0\",\"subject\":\"other:haru-sister\",\"kind\":\"other_person_note\",\"subjectLabel\":\"妹のハル\",\"actual\":[{\"id\":\"g0:a0\",\"text\":\"妹のハルは猫派です。\"}],\"expected\":[{\"id\":\"g0:e0\",\"text\":\"猫が好き\"}]}],\"criterion\":\"妹の猫好きだけ。忘れた同僚の情報を補わない。\"}",
+							"outputSchema": {
+								"type": "object",
+								"properties": {
+									"groups": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 1,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"groupId": {
+															"type": "string",
+															"enum": ["g0"]
+														},
+														"matches": {
+															"type": "array",
+															"minItems": 1,
+															"maxItems": 1,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"actualId": {
+																		"type": "string",
+																		"enum": ["g0:a0"]
+																	},
+																	"expectedId": {
+																		"type": "string",
+																		"enum": ["g0:e0"]
+																	},
+																	"actual": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["妹のハルは猫派です。"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"expected": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["猫が好き"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"missingFromActual": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"missingFromExpected": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"actualEntailsExpected": {
+																		"type": "boolean"
+																	},
+																	"expectedEntailsActual": {
+																		"type": "boolean"
+																	},
+																	"reason": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"actualId",
+																	"expectedId",
+																	"actual",
+																	"expected",
+																	"missingFromActual",
+																	"missingFromExpected",
+																	"actualEntailsExpected",
+																	"expectedEntailsActual",
+																	"reason"
+																],
+																"additionalProperties": false
+															}
+														}
+													},
+													"required": ["groupId", "matches"],
+													"additionalProperties": false
+												}
+											]
+										}
+									}
+								},
+								"required": ["groups"],
+								"additionalProperties": false
+							},
+							"phase": "complete",
+							"response": {
+								"raw": "{\"groups\":[{\"groupId\":\"g0\",\"matches\":[{\"actualId\":\"g0:a0\",\"expectedId\":\"g0:e0\",\"actual\":{\"quote\":\"妹のハルは猫派です。\",\"relation\":\"is a cat person; likes cats\",\"qualifications\":[]},\"expected\":{\"quote\":\"猫が好き\",\"relation\":\"likes cats\",\"qualifications\":[]},\"missingFromActual\":[],\"missingFromExpected\":[{\"quote\":\"妹のハルは猫派です。\",\"meaning\":\"is a cat person\"}],\"actualEntailsExpected\":true,\"expectedEntailsActual\":false,\"reason\":\"Being a cat person entails liking cats, but liking cats alone does not entail being a cat person.\"}]}]}",
+								"usage": {
+									"input_tokens": 14597,
+									"cached_input_tokens": 0,
+									"cache_write_input_tokens": 0,
+									"output_tokens": 534,
+									"reasoning_output_tokens": 377
+								},
+								"threadId": "01a14400-982e-7bd1-87de-30abaa49d5c2"
+							},
+							"judgment": {
+								"passed": false,
+								"reason": "g0/g0:a0↔g0:e0: Being a cat person entails liking cats, but liking cats alone does not entail being a cat person."
+							},
+							"matched": false
+						},
+						{
+							"name": "v22-full-clause-replay-7",
+							"repetition": 1,
+							"expectedPassed": true,
+							"prompt": "{\"task\":\"judge\",\"groups\":[{\"groupId\":\"g0\",\"subject\":\"self\",\"kind\":\"habit\",\"actual\":[{\"id\":\"g0:a0\",\"text\":\"私は指の体操を毎晩5分続けています。\"}],\"expected\":[{\"id\":\"g0:e0\",\"text\":\"毎晩5分、指の体操をする\"}]},{\"groupId\":\"g1\",\"subject\":\"self\",\"kind\":\"preference\",\"actual\":[{\"id\":\"g1:a0\",\"text\":\"私の息抜きはガラス細工です。\"}],\"expected\":[{\"id\":\"g1:e0\",\"text\":\"ガラス細工が趣味\"}]}],\"criterion\":null}",
+							"outputSchema": {
+								"type": "object",
+								"properties": {
+									"groups": {
+										"type": "array",
+										"minItems": 2,
+										"maxItems": 2,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"groupId": {
+															"type": "string",
+															"enum": ["g0"]
+														},
+														"matches": {
+															"type": "array",
+															"minItems": 1,
+															"maxItems": 1,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"actualId": {
+																		"type": "string",
+																		"enum": ["g0:a0"]
+																	},
+																	"expectedId": {
+																		"type": "string",
+																		"enum": ["g0:e0"]
+																	},
+																	"actual": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": [
+																					"私は指の体操を毎晩5分続けています。"
+																				]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"expected": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["毎晩5分、指の体操をする"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"missingFromActual": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"missingFromExpected": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"actualEntailsExpected": {
+																		"type": "boolean"
+																	},
+																	"expectedEntailsActual": {
+																		"type": "boolean"
+																	},
+																	"reason": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"actualId",
+																	"expectedId",
+																	"actual",
+																	"expected",
+																	"missingFromActual",
+																	"missingFromExpected",
+																	"actualEntailsExpected",
+																	"expectedEntailsActual",
+																	"reason"
+																],
+																"additionalProperties": false
+															}
+														}
+													},
+													"required": ["groupId", "matches"],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"groupId": {
+															"type": "string",
+															"enum": ["g1"]
+														},
+														"matches": {
+															"type": "array",
+															"minItems": 1,
+															"maxItems": 1,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"actualId": {
+																		"type": "string",
+																		"enum": ["g1:a0"]
+																	},
+																	"expectedId": {
+																		"type": "string",
+																		"enum": ["g1:e0"]
+																	},
+																	"actual": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["私の息抜きはガラス細工です。"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"expected": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["ガラス細工が趣味"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"missingFromActual": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"missingFromExpected": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"actualEntailsExpected": {
+																		"type": "boolean"
+																	},
+																	"expectedEntailsActual": {
+																		"type": "boolean"
+																	},
+																	"reason": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"actualId",
+																	"expectedId",
+																	"actual",
+																	"expected",
+																	"missingFromActual",
+																	"missingFromExpected",
+																	"actualEntailsExpected",
+																	"expectedEntailsActual",
+																	"reason"
+																],
+																"additionalProperties": false
+															}
+														}
+													},
+													"required": ["groupId", "matches"],
+													"additionalProperties": false
+												}
+											]
+										}
+									}
+								},
+								"required": ["groups"],
+								"additionalProperties": false
+							},
+							"phase": "complete",
+							"response": {
+								"raw": "{\"groups\":[{\"groupId\":\"g0\",\"matches\":[{\"actualId\":\"g0:a0\",\"expectedId\":\"g0:e0\",\"actual\":{\"quote\":\"私は指の体操を毎晩5分続けています。\",\"relation\":\"毎晩、指の体操をする\",\"qualifications\":[{\"quote\":\"毎晩\",\"meaning\":\"毎晩行う\"},{\"quote\":\"5分\",\"meaning\":\"5分間行う\"},{\"quote\":\"続けています\",\"meaning\":\"継続中の習慣\"}]},\"expected\":{\"quote\":\"毎晩5分、指の体操をする\",\"relation\":\"毎晩、指の体操をする\",\"qualifications\":[{\"quote\":\"毎晩\",\"meaning\":\"毎晩行う\"},{\"quote\":\"5分\",\"meaning\":\"5分間行う\"}]},\"missingFromActual\":[],\"missingFromExpected\":[{\"quote\":\"続けています\",\"meaning\":\"継続中である\"}],\"actualEntailsExpected\":true,\"expectedEntailsActual\":false,\"reason\":\"両方とも指の体操を毎晩5分行う習慣を述べていますが、actualには継続中という明示があります。\"}]},{\"groupId\":\"g1\",\"matches\":[{\"actualId\":\"g1:a0\",\"expectedId\":\"g1:e0\",\"actual\":{\"quote\":\"私の息抜きはガラス細工です。\",\"relation\":\"ガラス細工が息抜きである\",\"qualifications\":[]},\"expected\":{\"quote\":\"ガラス細工が趣味\",\"relation\":\"ガラス細工が趣味である\",\"qualifications\":[]},\"missingFromActual\":[{\"quote\":\"趣味\",\"meaning\":\"ガラス細工が趣味である\"}],\"missingFromExpected\":[{\"quote\":\"息抜き\",\"meaning\":\"ガラス細工が息抜きである\"}],\"actualEntailsExpected\":false,\"expectedEntailsActual\":false,\"reason\":\"actualはガラス細工を息抜きと述べ、expectedは趣味と述べています。片方の関係はもう片方から含意されません。\"}]}]}",
+								"usage": {
+									"input_tokens": 15032,
+									"cached_input_tokens": 0,
+									"cache_write_input_tokens": 0,
+									"output_tokens": 812,
+									"reasoning_output_tokens": 350
+								},
+								"threadId": "01a14400-c892-7453-8899-180e28d6d9b5"
+							},
+							"judgment": {
+								"passed": false,
+								"reason": "g0/g0:a0↔g0:e0: 両方とも指の体操を毎晩5分行う習慣を述べていますが、actualには継続中という明示があります。; g1/g1:a0↔g1:e0: actualはガラス細工を息抜きと述べ、expectedは趣味と述べています。片方の関係はもう片方から含意されません。"
+							},
+							"matched": false
+						},
+						{
+							"name": "paraphrase-with-owner-metadata",
+							"repetition": 2,
+							"expectedPassed": true,
+							"prompt": "{\"task\":\"judge\",\"groups\":[{\"groupId\":\"g0\",\"subject\":\"other:rio-probe\",\"kind\":\"other_person_note\",\"subjectLabel\":\"知人の梨央\",\"actual\":[{\"id\":\"g0:a0\",\"text\":\"社員番号はQ17である\"}],\"expected\":[{\"id\":\"g0:e0\",\"text\":\"社員番号がQ17\"}]}]}",
+							"outputSchema": {
+								"type": "object",
+								"properties": {
+									"groups": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 1,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"groupId": {
+															"type": "string",
+															"enum": ["g0"]
+														},
+														"matches": {
+															"type": "array",
+															"minItems": 1,
+															"maxItems": 1,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"actualId": {
+																		"type": "string",
+																		"enum": ["g0:a0"]
+																	},
+																	"expectedId": {
+																		"type": "string",
+																		"enum": ["g0:e0"]
+																	},
+																	"actual": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["社員番号はQ17である"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"expected": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["社員番号がQ17"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"minLength": 1
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relation",
+																			"qualifications"
+																		],
+																		"additionalProperties": false
+																	},
+																	"missingFromActual": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"missingFromExpected": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"minLength": 1
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"actualEntailsExpected": {
+																		"type": "boolean"
+																	},
+																	"expectedEntailsActual": {
+																		"type": "boolean"
+																	},
+																	"reason": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"actualId",
+																	"expectedId",
+																	"actual",
+																	"expected",
+																	"missingFromActual",
+																	"missingFromExpected",
+																	"actualEntailsExpected",
+																	"expectedEntailsActual",
+																	"reason"
+																],
+																"additionalProperties": false
+															}
+														}
+													},
+													"required": ["groupId", "matches"],
+													"additionalProperties": false
+												}
+											]
+										}
+									}
+								},
+								"required": ["groups"],
+								"additionalProperties": false
+							},
+							"phase": "provider",
+							"error": "Error: Codex Exec exited with signal SIGTERM: Reading prompt from stdin...\n"
+						}
+					]
+				},
+				{
+					"file": "verification-reports/memory-check/2026-10-16T09-09-56.855Z-13b63ed2-4111-4890-b6f9-2cdf7f0755c5/report.json",
+					"sha256": "a1d6009faa15c7a05061e40bcdcc32fad295b062194accf81d756cf500a653e2",
+					"status": "failed",
+					"requestsStarted": 47,
+					"responsesReceived": 46,
+					"cases": [
+						{
+							"id": "preference-correction-forget",
+							"description": "preference-correction-forget",
+							"status": "passed",
+							"totalSteps": 7,
+							"passedSteps": 7
+						},
+						{
+							"id": "ambiguous-forget",
+							"description": "誰の趣味か不明な忘却は確認し、明示後に一人分だけ消す",
+							"status": "passed",
+							"totalSteps": 4,
+							"passedSteps": 4
+						},
+						{
+							"id": "same-name-different-people",
+							"description": "同姓の職場の人と近所の人を別IDで扱い、片方の居住地だけ訂正",
+							"status": "passed",
+							"totalSteps": 4,
+							"passedSteps": 4
+						},
+						{
+							"id": "same-name-explicit-both",
+							"description": "同姓人物への質問で「二人それぞれ」を明示した対照実験",
+							"status": "failed",
+							"totalSteps": 3,
+							"passedSteps": 0,
+							"failedStep": 1,
+							"error": "Error: Inconsistent request disposition"
+						},
+						{
+							"id": "holdout-inclination-unknown",
+							"description": "好き・趣味という定型語を使わない関心と、質問に混ざる未確認情報",
+							"status": "passed",
+							"totalSteps": 3,
+							"passedSteps": 3
+						},
+						{
+							"id": "holdout-three-people-partial",
+							"description": "三人への複合質問で、情報のない人物がいても既知の二人分だけ返す",
+							"status": "passed",
+							"totalSteps": 3,
+							"passedSteps": 3
+						},
+						{
+							"id": "holdout-nested-forget-exception",
+							"description": "本人の趣味をまとめて忘れる依頼で、一つの例外と同じ趣味の他者を保持",
+							"status": "passed",
+							"totalSteps": 3,
+							"passedSteps": 3
+						},
+						{
+							"id": "transfer-other-leisure-curiosity",
+							"description": "別人物の余暇と弱い関心を強めず保持し、一人の忘却後にも残る他者だけを返す",
+							"status": "failed",
+							"totalSteps": 5,
+							"passedSteps": 0,
+							"failedStep": 1,
+							"error": "Error: Error: Codex Exec exited with signal SIGTERM: Reading prompt from stdin...\n"
+						}
+					],
+					"checks": [
+						{
+							"name": "records: capture / idempotence / revision / scoped access",
+							"status": "passed",
+							"durationMs": 18
+						},
+						{
+							"name": "host: transaction rollback",
+							"status": "passed",
+							"durationMs": 1
+						},
+						{
+							"name": "state: reject fabricated quote / record evidence / external dependency",
+							"status": "passed",
+							"durationMs": 4
+						},
+						{
+							"name": "forget: record closes over state and external dependents / tombstone",
+							"status": "passed",
+							"durationMs": 12
+						},
+						{
+							"name": "host: old DB restore replays latest journal before reads",
+							"status": "passed",
+							"durationMs": 39
+						},
+						{
+							"name": "retention: freshness / expiry / eviction; ordinary records survive",
+							"status": "passed",
+							"durationMs": 2
+						},
+						{
+							"name": "temporal: current / past / future / unknown",
+							"status": "passed",
+							"durationMs": 0
+						},
+						{
+							"name": "host: crash between journal and apply / corrupted or missing journal rejects startup",
+							"status": "passed",
+							"durationMs": 71
+						},
+						{
+							"name": "preference-correction-forget/1: decide",
+							"status": "passed",
+							"durationMs": 24686
+						},
+						{
+							"name": "preference-correction-forget/2: recall",
+							"status": "passed",
+							"durationMs": 22633
+						},
+						{
+							"name": "preference-correction-forget/3: decide",
+							"status": "passed",
+							"durationMs": 26626
+						},
+						{
+							"name": "preference-correction-forget/4: decide",
+							"status": "passed",
+							"durationMs": 21347
+						},
+						{
+							"name": "preference-correction-forget/5: recall",
+							"status": "passed",
+							"durationMs": 21771
+						},
+						{
+							"name": "preference-correction-forget/6: decide",
+							"status": "passed",
+							"durationMs": 9851
+						},
+						{
+							"name": "preference-correction-forget/7: recall",
+							"status": "passed",
+							"durationMs": 8625
+						},
+						{
+							"name": "ambiguous-forget/1: decide",
+							"status": "passed",
+							"durationMs": 22267
+						},
+						{
+							"name": "ambiguous-forget/2: decide",
+							"status": "passed",
+							"durationMs": 22129
+						},
+						{
+							"name": "ambiguous-forget/3: decide",
+							"status": "passed",
+							"durationMs": 23525
+						},
+						{
+							"name": "ambiguous-forget/4: recall",
+							"status": "passed",
+							"durationMs": 19121
+						},
+						{
+							"name": "same-name-different-people/1: decide",
+							"status": "passed",
+							"durationMs": 20165
+						},
+						{
+							"name": "same-name-different-people/2: decide",
+							"status": "passed",
+							"durationMs": 29975
+						},
+						{
+							"name": "same-name-different-people/3: recall",
+							"status": "passed",
+							"durationMs": 20824
+						},
+						{
+							"name": "same-name-different-people/4: recall",
+							"status": "passed",
+							"durationMs": 19659
+						},
+						{
+							"name": "same-name-explicit-both/1: decide",
+							"status": "failed",
+							"durationMs": 9892,
+							"error": "Error: Inconsistent request disposition"
+						},
+						{
+							"name": "holdout-inclination-unknown/1: decide",
+							"status": "passed",
+							"durationMs": 23941
+						},
+						{
+							"name": "holdout-inclination-unknown/2: decide",
+							"status": "passed",
+							"durationMs": 18730
+						},
+						{
+							"name": "holdout-inclination-unknown/3: recall",
+							"status": "passed",
+							"durationMs": 22844
+						},
+						{
+							"name": "holdout-three-people-partial/1: decide",
+							"status": "passed",
+							"durationMs": 25685
+						},
+						{
+							"name": "holdout-three-people-partial/2: recall",
+							"status": "passed",
+							"durationMs": 23497
+						},
+						{
+							"name": "holdout-three-people-partial/3: recall",
+							"status": "passed",
+							"durationMs": 8355
+						},
+						{
+							"name": "holdout-nested-forget-exception/1: decide",
+							"status": "passed",
+							"durationMs": 28382
+						},
+						{
+							"name": "holdout-nested-forget-exception/2: decide",
+							"status": "passed",
+							"durationMs": 22198
+						},
+						{
+							"name": "holdout-nested-forget-exception/3: recall",
+							"status": "passed",
+							"durationMs": 28545
+						},
+						{
+							"name": "transfer-other-leisure-curiosity/1: decide",
+							"status": "failed",
+							"durationMs": 5437,
+							"error": "Error: Error: Codex Exec exited with signal SIGTERM: Reading prompt from stdin...\n"
+						}
+					]
+				},
+				{
+					"file": "verification-reports/memory-check/2026-10-16T09-09-56.873Z-bf3aadb1-500b-4663-8e0e-ffa663ecfcac/report.json",
+					"sha256": "7f4004b2d00f2ddc4f34c3dc4e553791800ff0a3a09c4577a5c7e6d173eb9e2e",
+					"status": "failed",
+					"requestsStarted": 44,
+					"responsesReceived": 43,
+					"cases": [
+						{
+							"id": "negation",
+							"description": "negation",
+							"status": "passed",
+							"totalSteps": 2,
+							"passedSteps": 2
+						},
+						{
+							"id": "local-exception",
+							"description": "今日だけの例外や予定を普段の習慣・好みへ上書きしない",
+							"status": "passed",
+							"totalSteps": 3,
+							"passedSteps": 3
+						},
+						{
+							"id": "update-and-forget-in-one-turn",
+							"description": "一つの発話内の訂正・保持・他者の忘却を分けて実行",
+							"status": "passed",
+							"totalSteps": 3,
+							"passedSteps": 3
+						},
+						{
+							"id": "unknown-explicit-preference",
+							"description": "「趣味」を「好き」と明示した対照実験で未知情報の扱いを検証",
+							"status": "passed",
+							"totalSteps": 4,
+							"passedSteps": 4
+						},
+						{
+							"id": "holdout-surname-instruments",
+							"description": "同姓人物の担当楽器、曖昧な訂正の保留、所属を省いた参照",
+							"status": "passed",
+							"totalSteps": 4,
+							"passedSteps": 4
+						},
+						{
+							"id": "holdout-qualified-practice",
+							"description": "曜日条件・頻度・時間を保持し、今日の例外と未確定の予定では上書きしない",
+							"status": "passed",
+							"totalSteps": 3,
+							"passedSteps": 3
+						},
+						{
+							"id": "holdout-quoted-speakers",
+							"description": "現実の伝聞の一人称を話者へ帰属させ、架空の引用命令を実行しない",
+							"status": "passed",
+							"totalSteps": 3,
+							"passedSteps": 3
+						},
+						{
+							"id": "transfer-contrast-recreation",
+							"description": "気晴らしの名詞述語を理解し、対比を伴う訂正で以前の対象への嫌悪を追加しない",
+							"status": "failed",
+							"totalSteps": 3,
+							"passedSteps": 0,
+							"failedStep": 1,
+							"error": "Error: Error: Codex Exec exited with signal SIGTERM: Reading prompt from stdin...\n"
+						}
+					],
+					"checks": [
+						{
+							"name": "records: capture / idempotence / revision / scoped access",
+							"status": "passed",
+							"durationMs": 1
+						},
+						{
+							"name": "host: transaction rollback",
+							"status": "passed",
+							"durationMs": 2
+						},
+						{
+							"name": "state: reject fabricated quote / record evidence / external dependency",
+							"status": "passed",
+							"durationMs": 2
+						},
+						{
+							"name": "forget: record closes over state and external dependents / tombstone",
+							"status": "passed",
+							"durationMs": 4
+						},
+						{
+							"name": "host: old DB restore replays latest journal before reads",
+							"status": "passed",
+							"durationMs": 21
+						},
+						{
+							"name": "retention: freshness / expiry / eviction; ordinary records survive",
+							"status": "passed",
+							"durationMs": 2
+						},
+						{
+							"name": "temporal: current / past / future / unknown",
+							"status": "passed",
+							"durationMs": 1
+						},
+						{
+							"name": "host: crash between journal and apply / corrupted or missing journal rejects startup",
+							"status": "passed",
+							"durationMs": 31
+						},
+						{
+							"name": "negation/1: decide",
+							"status": "passed",
+							"durationMs": 23114
+						},
+						{
+							"name": "negation/2: recall",
+							"status": "passed",
+							"durationMs": 28735
+						},
+						{
+							"name": "local-exception/1: decide",
+							"status": "passed",
+							"durationMs": 30344
+						},
+						{
+							"name": "local-exception/2: decide",
+							"status": "passed",
+							"durationMs": 26502
+						},
+						{
+							"name": "local-exception/3: recall",
+							"status": "passed",
+							"durationMs": 31173
+						},
+						{
+							"name": "update-and-forget-in-one-turn/1: decide",
+							"status": "passed",
+							"durationMs": 22472
+						},
+						{
+							"name": "update-and-forget-in-one-turn/2: decide",
+							"status": "passed",
+							"durationMs": 21896
+						},
+						{
+							"name": "update-and-forget-in-one-turn/3: recall",
+							"status": "passed",
+							"durationMs": 23503
+						},
+						{
+							"name": "unknown-explicit-preference/1: decide",
+							"status": "passed",
+							"durationMs": 17507
+						},
+						{
+							"name": "unknown-explicit-preference/2: decide",
+							"status": "passed",
+							"durationMs": 21059
+						},
+						{
+							"name": "unknown-explicit-preference/3: recall",
+							"status": "passed",
+							"durationMs": 24122
+						},
+						{
+							"name": "unknown-explicit-preference/4: recall",
+							"status": "passed",
+							"durationMs": 8034
+						},
+						{
+							"name": "holdout-surname-instruments/1: decide",
+							"status": "passed",
+							"durationMs": 19618
+						},
+						{
+							"name": "holdout-surname-instruments/2: decide",
+							"status": "passed",
+							"durationMs": 22479
+						},
+						{
+							"name": "holdout-surname-instruments/3: decide",
+							"status": "passed",
+							"durationMs": 23199
+						},
+						{
+							"name": "holdout-surname-instruments/4: recall",
+							"status": "passed",
+							"durationMs": 18550
+						},
+						{
+							"name": "holdout-qualified-practice/1: decide",
+							"status": "passed",
+							"durationMs": 31710
+						},
+						{
+							"name": "holdout-qualified-practice/2: decide",
+							"status": "passed",
+							"durationMs": 29773
+						},
+						{
+							"name": "holdout-qualified-practice/3: recall",
+							"status": "passed",
+							"durationMs": 22437
+						},
+						{
+							"name": "holdout-quoted-speakers/1: decide",
+							"status": "passed",
+							"durationMs": 23572
+						},
+						{
+							"name": "holdout-quoted-speakers/2: decide",
+							"status": "passed",
+							"durationMs": 26925
+						},
+						{
+							"name": "holdout-quoted-speakers/3: recall",
+							"status": "passed",
+							"durationMs": 24950
+						},
+						{
+							"name": "transfer-contrast-recreation/1: decide",
+							"status": "failed",
+							"durationMs": 8831,
+							"error": "Error: Error: Codex Exec exited with signal SIGTERM: Reading prompt from stdin...\n"
+						}
+					]
+				}
+			],
+			"finding": "Correct actions could fail coverage because an operational identity constraint was labelled retain without an active memory fact. Also observed wrong-side citations and contradictory redundant verdict fields. Cancellation is agent intervention, not provider outage. No source changed while jobs were active."
+		},
+		{
+			"version": "standalone-memory-v24",
+			"status": "completed_small_pilot",
+			"scope": "Three intentionally truncated scenarios, four steps; independent fixed controls. This is not a complete repetition of the corpus.",
+			"reports": [
+				{
+					"file": "verification-reports/memory-check/2026-10-16T09-24-16.349Z-1c13218c-da38-4240-9099-bc528dcb4dbb/report.json",
+					"sha256": "9cf682311092bd8d55035706da874aa5611d43c97c27fdace11c1d17f33b38e7",
+					"status": "failed",
+					"requestsStarted": 8,
+					"responsesReceived": 8,
+					"cases": [
+						{
+							"id": "preference-correction-forget",
+							"description": "preference-correction-forget",
+							"status": "failed",
+							"totalSteps": 1,
+							"passedSteps": 0,
+							"failedStep": 1,
+							"error": "AssertionError [ERR_ASSERTION]: Semantic evaluation: g0/g0:a0↔g0:e0: 実際の文はコーヒーを好きな飲み物として述べており、コーヒーが好きという期待内容を含む。期待側の裸の対象は飲み物としての好みまでは述べていない。\n\nfalse !== true\n"
+						},
+						{
+							"id": "same-name-explicit-both",
+							"description": "同姓人物への質問で「二人それぞれ」を明示した対照実験",
+							"status": "passed",
+							"totalSteps": 1,
+							"passedSteps": 1
+						},
+						{
+							"id": "holdout-update-forget-mixed",
+							"description": "一発話で他者の住まいを訂正し、本人の趣味だけ忘れ、本人の住まいを保持",
+							"status": "passed",
+							"totalSteps": 2,
+							"passedSteps": 2
+						}
+					],
+					"checks": [
+						{
+							"name": "records: capture / idempotence / revision / scoped access",
+							"status": "passed",
+							"durationMs": 6
+						},
+						{
+							"name": "host: transaction rollback",
+							"status": "passed",
+							"durationMs": 1
+						},
+						{
+							"name": "state: reject fabricated quote / record evidence / external dependency",
+							"status": "passed",
+							"durationMs": 2
+						},
+						{
+							"name": "forget: record closes over state and external dependents / tombstone",
+							"status": "passed",
+							"durationMs": 5
+						},
+						{
+							"name": "host: old DB restore replays latest journal before reads",
+							"status": "passed",
+							"durationMs": 21
+						},
+						{
+							"name": "retention: freshness / expiry / eviction; ordinary records survive",
+							"status": "passed",
+							"durationMs": 1
+						},
+						{
+							"name": "temporal: current / past / future / unknown",
+							"status": "passed",
+							"durationMs": 0
+						},
+						{
+							"name": "host: crash between journal and apply / corrupted or missing journal rejects startup",
+							"status": "passed",
+							"durationMs": 29
+						},
+						{
+							"name": "preference-correction-forget/1: decide",
+							"status": "failed",
+							"durationMs": 28510,
+							"error": "AssertionError [ERR_ASSERTION]: Semantic evaluation: g0/g0:a0↔g0:e0: 実際の文はコーヒーを好きな飲み物として述べており、コーヒーが好きという期待内容を含む。期待側の裸の対象は飲み物としての好みまでは述べていない。\n\nfalse !== true\n"
+						},
+						{
+							"name": "same-name-explicit-both/1: decide",
+							"status": "passed",
+							"durationMs": 27770
+						},
+						{
+							"name": "holdout-update-forget-mixed/1: decide",
+							"status": "passed",
+							"durationMs": 22540
+						},
+						{
+							"name": "holdout-update-forget-mixed/2: decide",
+							"status": "passed",
+							"durationMs": 24944
+						}
+					]
+				},
+				{
+					"file": "verification-reports/memory-check/2026-10-16T09-24-16.349Z-6d0e0e35-c301-4362-853e-4eac3b0162e8/controls.json",
+					"sha256": "5a5bfec09f18e5a1f5f5534058144c0780b0fa77b830299fae74766bf1405eaa",
+					"status": "failed",
+					"requestsStarted": 3,
+					"responsesReceived": 3,
+					"plannedTrials": 3,
+					"matched": 1,
+					"failures": [
+						{
+							"name": "reverse-exclusive-condition",
+							"repetition": 1,
+							"expectedPassed": false,
+							"prompt": "{\"task\":\"judge\",\"groups\":[{\"groupId\":\"g0\",\"subject\":\"self\",\"kind\":\"habit\",\"actual\":[{\"id\":\"g0:a0\",\"text\":\"平日だけ、週4回、1回20分ずつ発声練習をする\"}],\"expected\":[{\"id\":\"g0:e0\",\"text\":\"平日に週4回、1回20分ずつ発声練習をする\"}]}]}",
+							"outputSchema": {
+								"type": "object",
+								"properties": {
+									"groups": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 1,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"groupId": {
+															"type": "string",
+															"enum": ["g0"]
+														},
+														"matches": {
+															"type": "array",
+															"minItems": 1,
+															"maxItems": 1,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"actualId": {
+																		"type": "string",
+																		"enum": ["g0:a0"]
+																	},
+																	"expectedId": {
+																		"type": "string",
+																		"enum": ["g0:e0"]
+																	},
+																	"actual": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": [
+																					"平日だけ、週4回、1回20分ずつ発声練習をする"
+																				]
+																			},
+																			"relationType": {
+																				"type": "string",
+																				"enum": [
+																					"affinity",
+																					"leisure_interest",
+																					"curiosity",
+																					"event_anticipation",
+																					"recurring_action",
+																					"circumstance",
+																					"requirement",
+																					"other"
+																				],
+																				"description": "Classify the underlying assertion, independently from storage kind: affinity is liking/disliking or taste; leisure_interest is a chosen hobby/pastime/recreation; curiosity is attraction or curiosity without claiming a hobby; event_anticipation concerns a particular occasion; recurring_action is an established routine; circumstance is a descriptive fact; requirement is a limit or rule; other covers remaining predicates."
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"enum": [
+																								"平日だけ、週4回、1回20分ずつ発声練習をする"
+																							]
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			},
+																			"notAsserted": {
+																				"type": "array",
+																				"items": {
+																					"type": "string"
+																				},
+																				"description": "Possible associations or contextual readings that the clause does not separately assert. These cannot justify a missing requirement."
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relationType",
+																			"relation",
+																			"qualifications",
+																			"notAsserted"
+																		],
+																		"additionalProperties": false
+																	},
+																	"expected": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": [
+																					"平日に週4回、1回20分ずつ発声練習をする"
+																				]
+																			},
+																			"relationType": {
+																				"type": "string",
+																				"enum": [
+																					"affinity",
+																					"leisure_interest",
+																					"curiosity",
+																					"event_anticipation",
+																					"recurring_action",
+																					"circumstance",
+																					"requirement",
+																					"other"
+																				],
+																				"description": "Classify the underlying assertion, independently from storage kind: affinity is liking/disliking or taste; leisure_interest is a chosen hobby/pastime/recreation; curiosity is attraction or curiosity without claiming a hobby; event_anticipation concerns a particular occasion; recurring_action is an established routine; circumstance is a descriptive fact; requirement is a limit or rule; other covers remaining predicates."
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"enum": [
+																								"平日に週4回、1回20分ずつ発声練習をする"
+																							]
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			},
+																			"notAsserted": {
+																				"type": "array",
+																				"items": {
+																					"type": "string"
+																				},
+																				"description": "Possible associations or contextual readings that the clause does not separately assert. These cannot justify a missing requirement."
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relationType",
+																			"relation",
+																			"qualifications",
+																			"notAsserted"
+																		],
+																		"additionalProperties": false
+																	},
+																	"missingFromActual": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"enum": [
+																						"平日に週4回、1回20分ずつ発声練習をする"
+																					]
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"missingFromExpected": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"enum": [
+																						"平日だけ、週4回、1回20分ずつ発声練習をする"
+																					]
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"actualEntailsExpected": {
+																		"type": "boolean"
+																	},
+																	"expectedEntailsActual": {
+																		"type": "boolean"
+																	},
+																	"reason": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"actualId",
+																	"expectedId",
+																	"actual",
+																	"expected",
+																	"missingFromActual",
+																	"missingFromExpected",
+																	"actualEntailsExpected",
+																	"expectedEntailsActual",
+																	"reason"
+																],
+																"additionalProperties": false
+															}
+														}
+													},
+													"required": ["groupId", "matches"],
+													"additionalProperties": false
+												}
+											]
+										}
+									}
+								},
+								"required": ["groups"],
+								"additionalProperties": false
+							},
+							"phase": "contract",
+							"response": {
+								"raw": "{\"groups\":[{\"groupId\":\"g0\",\"matches\":[{\"actualId\":\"g0:a0\",\"expectedId\":\"g0:e0\",\"actual\":{\"quote\":\"平日だけ、週4回、1回20分ずつ発声練習をする\",\"relationType\":\"recurring_action\",\"relation\":\"発声練習を週4回、1回20分ずつする\",\"qualifications\":[{\"quote\":\"平日だけ、週4回、1回20分ずつ発声練習をする\",\"meaning\":\"「だけ」により、発声練習をする曜日が平日に限定されている。週4回、1回20分ずつ行う。\"}],\"notAsserted\":[\"発声練習を始めた時期\",\"発声練習の目的\"]},\"expected\":{\"quote\":\"平日に週4回、1回20分ずつ発声練習をする\",\"relationType\":\"recurring_action\",\"relation\":\"発声練習を週4回、1回20分ずつする\",\"qualifications\":[{\"quote\":\"平日に週4回、1回20分ずつ発声練習をする\",\"meaning\":\"平日に週4回、1回20分ずつ行う。平日以外にはしないという限定は明示されていない。\"}],\"notAsserted\":[\"発声練習を始めた時期\",\"発声練習の目的\"]},\"missingFromActual\":[{\"quote\":\"平日に週4回、1回20分ずつ発声練習をする\",\"meaning\":\"平日に週4回、1回20分ずつ行うが、平日以外に行わないとは限定されていない。\"}],\"missingFromExpected\":[{\"quote\":\"平日だけ、週4回、1回20分ずつ発声練習をする\",\"meaning\":\"発声練習を平日に限定し、週4回、1回20分ずつ行う。\"}],\"actualEntailsExpected\":true,\"expectedEntailsActual\":false,\"reason\":\"両方とも平日に週4回、1回20分ずつ発声練習をすると述べる。実際の文は「だけ」で平日に限定するが、期待文は平日以外を除外していない。\"}]}]}",
+								"usage": {
+									"input_tokens": 12249,
+									"cached_input_tokens": 0,
+									"cache_write_input_tokens": 0,
+									"output_tokens": 514,
+									"reasoning_output_tokens": 0
+								},
+								"threadId": "01a14406-c43c-7c72-8024-da324460d4f6"
+							},
+							"error": "Error: Inconsistent directional verdict",
+							"matched": false
+						},
+						{
+							"name": "nominal-recreation-synonym",
+							"repetition": 1,
+							"expectedPassed": true,
+							"prompt": "{\"task\":\"judge\",\"groups\":[{\"groupId\":\"g0\",\"subject\":\"other:probe-emi\",\"kind\":\"other_person_note\",\"subjectLabel\":\"近所のエミ\",\"actual\":[{\"id\":\"g0:a0\",\"text\":\"気晴らしはクイズです\"}],\"expected\":[{\"id\":\"g0:e0\",\"text\":\"クイズが趣味\"}]}]}",
+							"outputSchema": {
+								"type": "object",
+								"properties": {
+									"groups": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 1,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"groupId": {
+															"type": "string",
+															"enum": ["g0"]
+														},
+														"matches": {
+															"type": "array",
+															"minItems": 1,
+															"maxItems": 1,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"actualId": {
+																		"type": "string",
+																		"enum": ["g0:a0"]
+																	},
+																	"expectedId": {
+																		"type": "string",
+																		"enum": ["g0:e0"]
+																	},
+																	"actual": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["気晴らしはクイズです"]
+																			},
+																			"relationType": {
+																				"type": "string",
+																				"enum": [
+																					"affinity",
+																					"leisure_interest",
+																					"curiosity",
+																					"event_anticipation",
+																					"recurring_action",
+																					"circumstance",
+																					"requirement",
+																					"other"
+																				],
+																				"description": "Classify the underlying assertion, independently from storage kind: affinity is liking/disliking or taste; leisure_interest is a chosen hobby/pastime/recreation; curiosity is attraction or curiosity without claiming a hobby; event_anticipation concerns a particular occasion; recurring_action is an established routine; circumstance is a descriptive fact; requirement is a limit or rule; other covers remaining predicates."
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"enum": ["気晴らしはクイズです"]
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			},
+																			"notAsserted": {
+																				"type": "array",
+																				"items": {
+																					"type": "string"
+																				},
+																				"description": "Possible associations or contextual readings that the clause does not separately assert. These cannot justify a missing requirement."
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relationType",
+																			"relation",
+																			"qualifications",
+																			"notAsserted"
+																		],
+																		"additionalProperties": false
+																	},
+																	"expected": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["クイズが趣味"]
+																			},
+																			"relationType": {
+																				"type": "string",
+																				"enum": [
+																					"affinity",
+																					"leisure_interest",
+																					"curiosity",
+																					"event_anticipation",
+																					"recurring_action",
+																					"circumstance",
+																					"requirement",
+																					"other"
+																				],
+																				"description": "Classify the underlying assertion, independently from storage kind: affinity is liking/disliking or taste; leisure_interest is a chosen hobby/pastime/recreation; curiosity is attraction or curiosity without claiming a hobby; event_anticipation concerns a particular occasion; recurring_action is an established routine; circumstance is a descriptive fact; requirement is a limit or rule; other covers remaining predicates."
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"enum": ["クイズが趣味"]
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			},
+																			"notAsserted": {
+																				"type": "array",
+																				"items": {
+																					"type": "string"
+																				},
+																				"description": "Possible associations or contextual readings that the clause does not separately assert. These cannot justify a missing requirement."
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relationType",
+																			"relation",
+																			"qualifications",
+																			"notAsserted"
+																		],
+																		"additionalProperties": false
+																	},
+																	"missingFromActual": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"enum": ["クイズが趣味"]
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"missingFromExpected": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"enum": ["気晴らしはクイズです"]
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"actualEntailsExpected": {
+																		"type": "boolean"
+																	},
+																	"expectedEntailsActual": {
+																		"type": "boolean"
+																	},
+																	"reason": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"actualId",
+																	"expectedId",
+																	"actual",
+																	"expected",
+																	"missingFromActual",
+																	"missingFromExpected",
+																	"actualEntailsExpected",
+																	"expectedEntailsActual",
+																	"reason"
+																],
+																"additionalProperties": false
+															}
+														}
+													},
+													"required": ["groupId", "matches"],
+													"additionalProperties": false
+												}
+											]
+										}
+									}
+								},
+								"required": ["groups"],
+								"additionalProperties": false
+							},
+							"phase": "complete",
+							"response": {
+								"raw": "{\"groups\":[{\"groupId\":\"g0\",\"matches\":[{\"actualId\":\"g0:a0\",\"expectedId\":\"g0:e0\",\"actual\":{\"quote\":\"気晴らしはクイズです\",\"relationType\":\"leisure_interest\",\"relation\":\"エミの気晴らしはクイズである\",\"qualifications\":[{\"quote\":\"気晴らしはクイズです\",\"meaning\":\"気晴らしとして行うものだと述べている\"}],\"notAsserted\":[]},\"expected\":{\"quote\":\"クイズが趣味\",\"relationType\":\"leisure_interest\",\"relation\":\"エミの趣味はクイズである\",\"qualifications\":[],\"notAsserted\":[]},\"missingFromActual\":[],\"missingFromExpected\":[{\"quote\":\"気晴らしはクイズです\",\"meaning\":\"クイズを気晴らしとして行うこと\"}],\"actualEntailsExpected\":true,\"expectedEntailsActual\":false,\"reason\":\"気晴らしとしてのクイズはレジャー上の関心を示すが、趣味として定着していることまでは述べていない。\"}]}]}",
+								"usage": {
+									"input_tokens": 12033,
+									"cached_input_tokens": 0,
+									"cache_write_input_tokens": 0,
+									"output_tokens": 245,
+									"reasoning_output_tokens": 0
+								},
+								"threadId": "01a14407-041e-7720-935c-bbb1e4fe2d5f"
+							},
+							"judgment": {
+								"passed": false,
+								"reason": "g0/g0:a0↔g0:e0: 気晴らしとしてのクイズはレジャー上の関心を示すが、趣味として定着していることまでは述べていない。"
+							},
+							"matched": false
+						}
+					]
+				}
+			],
+			"finding": "Separate request constraints and schema-bound full clauses repaired the pilot contract failure; duplicate boolean/missing-list conclusions still contradicted each other."
+		},
+		{
+			"version": "standalone-memory-v25",
+			"status": "completed_small_pilot",
+			"scope": "Three intentionally truncated scenarios, four steps; independent fixed controls. This is not a complete repetition of the corpus.",
+			"reports": [
+				{
+					"file": "verification-reports/memory-check/2026-10-16T09-33-56.373Z-526c2329-c3d4-4c93-82b8-9e4ef765de57/report.json",
+					"sha256": "593fa97f200c68a67d109f0369a09b5b457ad38536a331e031b55c4b5c51d9ad",
+					"status": "passed",
+					"requestsStarted": 8,
+					"responsesReceived": 8,
+					"cases": [
+						{
+							"id": "preference-correction-forget",
+							"description": "preference-correction-forget",
+							"status": "passed",
+							"totalSteps": 1,
+							"passedSteps": 1
+						},
+						{
+							"id": "same-name-explicit-both",
+							"description": "同姓人物への質問で「二人それぞれ」を明示した対照実験",
+							"status": "passed",
+							"totalSteps": 1,
+							"passedSteps": 1
+						},
+						{
+							"id": "holdout-update-forget-mixed",
+							"description": "一発話で他者の住まいを訂正し、本人の趣味だけ忘れ、本人の住まいを保持",
+							"status": "passed",
+							"totalSteps": 2,
+							"passedSteps": 2
+						}
+					],
+					"checks": [
+						{
+							"name": "records: capture / idempotence / revision / scoped access",
+							"status": "passed",
+							"durationMs": 6
+						},
+						{
+							"name": "host: transaction rollback",
+							"status": "passed",
+							"durationMs": 0
+						},
+						{
+							"name": "state: reject fabricated quote / record evidence / external dependency",
+							"status": "passed",
+							"durationMs": 2
+						},
+						{
+							"name": "forget: record closes over state and external dependents / tombstone",
+							"status": "passed",
+							"durationMs": 5
+						},
+						{
+							"name": "host: old DB restore replays latest journal before reads",
+							"status": "passed",
+							"durationMs": 19
+						},
+						{
+							"name": "retention: freshness / expiry / eviction; ordinary records survive",
+							"status": "passed",
+							"durationMs": 1
+						},
+						{
+							"name": "temporal: current / past / future / unknown",
+							"status": "passed",
+							"durationMs": 0
+						},
+						{
+							"name": "host: crash between journal and apply / corrupted or missing journal rejects startup",
+							"status": "passed",
+							"durationMs": 37
+						},
+						{
+							"name": "preference-correction-forget/1: decide",
+							"status": "passed",
+							"durationMs": 14211
+						},
+						{
+							"name": "same-name-explicit-both/1: decide",
+							"status": "passed",
+							"durationMs": 14364
+						},
+						{
+							"name": "holdout-update-forget-mixed/1: decide",
+							"status": "passed",
+							"durationMs": 20653
+						},
+						{
+							"name": "holdout-update-forget-mixed/2: decide",
+							"status": "passed",
+							"durationMs": 15389
+						}
+					]
+				},
+				{
+					"file": "verification-reports/memory-check/2026-10-16T09-33-56.373Z-61442266-3e07-4d2f-96d2-3b8d4d048045/controls.json",
+					"sha256": "9d1e597be44983606d2238a4e62fc16b1599757455ee35d2fe8db74f98a3e898",
+					"status": "failed",
+					"requestsStarted": 6,
+					"responsesReceived": 6,
+					"plannedTrials": 6,
+					"matched": 5,
+					"failures": [
+						{
+							"name": "context-denial-is-not-applied-twice",
+							"repetition": 1,
+							"expectedPassed": true,
+							"prompt": "{\"task\":\"judge\",\"groups\":[{\"groupId\":\"g0\",\"subject\":\"self\",\"kind\":\"preference\",\"actual\":[{\"id\":\"g0:a0\",\"text\":\"胡椒の香りが好きである\"}],\"expected\":[{\"id\":\"g0:e0\",\"text\":\"胡椒の香り\"}],\"relationContext\":\"本人は胡椒の香りを好まない。\"}]}",
+							"outputSchema": {
+								"type": "object",
+								"properties": {
+									"groups": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 1,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"groupId": {
+															"type": "string",
+															"enum": ["g0"]
+														},
+														"matches": {
+															"type": "array",
+															"minItems": 1,
+															"maxItems": 1,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"actualId": {
+																		"type": "string",
+																		"enum": ["g0:a0"]
+																	},
+																	"expectedId": {
+																		"type": "string",
+																		"enum": ["g0:e0"]
+																	},
+																	"actual": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["胡椒の香りが好きである"]
+																			},
+																			"relationType": {
+																				"type": "string",
+																				"enum": [
+																					"affinity",
+																					"leisure_interest",
+																					"curiosity",
+																					"event_anticipation",
+																					"recurring_action",
+																					"circumstance",
+																					"requirement",
+																					"other"
+																				],
+																				"description": "Classify the underlying assertion, independently from storage kind: affinity is liking/disliking or taste; leisure_interest is a declared chosen hobby/pastime/recreation without an unstated duration, practice history, skill or commitment; curiosity is attraction or curiosity without claiming a hobby; event_anticipation concerns a particular occasion; recurring_action is an established routine; circumstance is a descriptive fact; requirement is a limit or rule; other covers remaining predicates."
+																			},
+																			"relationBasis": {
+																				"type": "string",
+																				"enum": ["text", "contextual_ellipsis"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"enum": ["胡椒の香りが好きである"]
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			},
+																			"notAsserted": {
+																				"type": "array",
+																				"items": {
+																					"type": "string"
+																				},
+																				"description": "Possible associations or contextual readings that the clause does not separately assert. These cannot justify a missing requirement."
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relationType",
+																			"relationBasis",
+																			"relation",
+																			"qualifications",
+																			"notAsserted"
+																		],
+																		"additionalProperties": false
+																	},
+																	"expected": {
+																		"type": "object",
+																		"properties": {
+																			"quote": {
+																				"type": "string",
+																				"enum": ["胡椒の香り"]
+																			},
+																			"relationType": {
+																				"type": "string",
+																				"enum": [
+																					"affinity",
+																					"leisure_interest",
+																					"curiosity",
+																					"event_anticipation",
+																					"recurring_action",
+																					"circumstance",
+																					"requirement",
+																					"other"
+																				],
+																				"description": "Classify the underlying assertion, independently from storage kind: affinity is liking/disliking or taste; leisure_interest is a declared chosen hobby/pastime/recreation without an unstated duration, practice history, skill or commitment; curiosity is attraction or curiosity without claiming a hobby; event_anticipation concerns a particular occasion; recurring_action is an established routine; circumstance is a descriptive fact; requirement is a limit or rule; other covers remaining predicates."
+																			},
+																			"relationBasis": {
+																				"type": "string",
+																				"enum": ["text", "contextual_ellipsis"]
+																			},
+																			"relation": {
+																				"type": "string",
+																				"minLength": 1
+																			},
+																			"qualifications": {
+																				"type": "array",
+																				"items": {
+																					"type": "object",
+																					"properties": {
+																						"quote": {
+																							"type": "string",
+																							"enum": ["胡椒の香り"]
+																						},
+																						"meaning": {
+																							"type": "string",
+																							"minLength": 1
+																						}
+																					},
+																					"required": ["quote", "meaning"],
+																					"additionalProperties": false
+																				}
+																			},
+																			"notAsserted": {
+																				"type": "array",
+																				"items": {
+																					"type": "string"
+																				},
+																				"description": "Possible associations or contextual readings that the clause does not separately assert. These cannot justify a missing requirement."
+																			}
+																		},
+																		"required": [
+																			"quote",
+																			"relationType",
+																			"relationBasis",
+																			"relation",
+																			"qualifications",
+																			"notAsserted"
+																		],
+																		"additionalProperties": false
+																	},
+																	"missingFromActual": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"enum": ["胡椒の香り"]
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"missingFromExpected": {
+																		"type": "array",
+																		"items": {
+																			"type": "object",
+																			"properties": {
+																				"quote": {
+																					"type": "string",
+																					"enum": ["胡椒の香りが好きである"]
+																				},
+																				"meaning": {
+																					"type": "string",
+																					"minLength": 1
+																				}
+																			},
+																			"required": ["quote", "meaning"],
+																			"additionalProperties": false
+																		}
+																	},
+																	"reason": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"actualId",
+																	"expectedId",
+																	"actual",
+																	"expected",
+																	"missingFromActual",
+																	"missingFromExpected",
+																	"reason"
+																],
+																"additionalProperties": false
+															}
+														}
+													},
+													"required": ["groupId", "matches"],
+													"additionalProperties": false
+												}
+											]
+										}
+									}
+								},
+								"required": ["groups"],
+								"additionalProperties": false
+							},
+							"phase": "complete",
+							"response": {
+								"raw": "{\"groups\":[{\"groupId\":\"g0\",\"matches\":[{\"actualId\":\"g0:a0\",\"expectedId\":\"g0:e0\",\"actual\":{\"quote\":\"胡椒の香りが好きである\",\"relationType\":\"affinity\",\"relationBasis\":\"text\",\"relation\":\"胡椒の香りを好む\",\"qualifications\":[], \"notAsserted\":[]},\"expected\":{\"quote\":\"胡椒の香り\",\"relationType\":\"affinity\",\"relationBasis\":\"contextual_ellipsis\",\"relation\":\"胡椒の香りを好む\",\"qualifications\":[],\"notAsserted\":[]},\"missingFromActual\":[],\"missingFromExpected\":[{\"quote\":\"胡椒の香りが好きである\",\"meaning\":\"胡椒の香りを好む\"}],\"reason\":\"Actual asserts liking pepper aroma; the expected bare preference object resolves through context to the same liking.\"}]}]}",
+								"usage": {
+									"input_tokens": 12135,
+									"cached_input_tokens": 0,
+									"cache_write_input_tokens": 0,
+									"output_tokens": 189,
+									"reasoning_output_tokens": 0
+								},
+								"threadId": "01a14410-50c7-7730-b18c-954652f9a797"
+							},
+							"judgment": {
+								"passed": false,
+								"reason": "g0/g0:a0↔g0:e0: Actual asserts liking pepper aroma; the expected bare preference object resolves through context to the same liking."
+							},
+							"matched": false
+						}
+					]
+				}
+			],
+			"finding": "Two mandatory directional missing lists replace duplicate booleans. All four scenario steps passed in this small pilot; the negative-context control still failed. Source then froze before formal repetitions."
+		}
+	],
+	"sourceArchives": [
+		{
+			"version": "v23",
+			"file": "verification-reports/memory-check/v23-frozen-source.tar.gz",
+			"sha256": "ae2407de388fc5139c7d90e55251c1234bb1e7d5141e4ddc56edcb27aadf5f75",
+			"manifest": {
+				"file": "verification-reports/memory-check/v23-frozen-source.manifest.json",
+				"sha256": "8d547a9c0a76c848b837a8feb47e3a71301bb84c1245b9ed455734060761f67b"
+			}
+		},
+		{
+			"version": "v24",
+			"file": "verification-reports/memory-check/v24-frozen-source.tar.gz",
+			"sha256": "46d5e07e570ea83b5989f14775205b36d21f41580d92cbc45a3727e095517416",
+			"manifest": {
+				"file": "verification-reports/memory-check/v24-frozen-source.manifest.json",
+				"sha256": "40e592b01870b5935edf941b096cc71b66a223431fa157bbad2d3dc2fa20801f"
+			}
+		},
+		{
+			"version": "v25",
+			"file": "verification-reports/memory-check/v25-frozen-source.tar.gz",
+			"sha256": "67488e0f303e913c772de98e887d0fb5689d69c2ccd423719a01cf6d5aa32cb4",
+			"manifest": {
+				"file": "verification-reports/memory-check/v25-frozen-source.manifest.json",
+				"sha256": "c08c5b4378383880b1273e66bbdc689f6e1d7d63512651f85dc5fcf4d6036d76"
+			}
+		}
+	],
+	"reviewAfterThreeHypothesisRounds": {
+		"decision": "Freeze v25 source and run the full predefined corpus three times without more prompt tuning. Retain remaining errors and compare regressions.",
+		"newEvidence": [
+			"Operational restrictions need a disposition distinct from retained memory facts.",
+			"Complete source-bound quotation fixes citation provenance, not interpretation.",
+			"Redundant verdict booleans permit contradictory conclusions; directional missing lists can be the only verdict.",
+			"Scoped relation context can still reapply a common denial."
+		],
+		"noExpectationChanges": true
+	},
+	"preparationEvidence": [
+		{
+			"file": "verification-reports/memory-check/v23-pilot-intervention.json",
+			"sha256": "806f0b781e0431e3205c816efd4529cb7992ac8c007959dde5b5395e9f8a36ee"
+		},
+		{
+			"file": "verification-reports/memory-check/v25-preparation-typecheck.json",
+			"sha256": "7b13d6ee452ae909766f93406a8fd67c44b09d39deb46730c8b12632a266dbde"
+		}
+	],
+	"preparationNote": "A test-only type error was corrected before final live calls. Working-tree preflight formatting also found concurrent unfinished seed files; these were not edited by this task. Full frozen verification passed before the formal measurement."
+}

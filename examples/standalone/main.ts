@@ -4,14 +4,16 @@ import { newRunDirectory, runChecks } from "./runner.ts";
 import { scenarios } from "./scenarios.ts";
 import { conversationScenarios } from "./conversations.ts";
 import { holdoutScenarios } from "./holdout.ts";
+import { transferScenarios } from "./transfer.ts";
 
 export function parseArgs(args: string[]): {
 	mode: "offline" | "live";
-	suite: "basic" | "conversation" | "holdout" | "all";
+	suite: "basic" | "conversation" | "holdout" | "transfer" | "all";
 	scenario?: string;
 } {
 	let mode: "offline" | "live" = "offline";
-	let suite: "basic" | "conversation" | "holdout" | "all" = "basic";
+	let suite: "basic" | "conversation" | "holdout" | "transfer" | "all" =
+		"basic";
 	let scenario: string | undefined;
 	let modeSet = false;
 	let suiteSet = false;
@@ -23,7 +25,9 @@ export function parseArgs(args: string[]): {
 		} else if (
 			arg === "--suite" &&
 			!suiteSet &&
-			["basic", "conversation", "holdout", "all"].includes(args[i + 1] ?? "")
+			["basic", "conversation", "holdout", "transfer", "all"].includes(
+				args[i + 1] ?? "",
+			)
 		) {
 			suite = args[++i] as typeof suite;
 			suiteSet = true;
@@ -36,7 +40,7 @@ export function parseArgs(args: string[]): {
 			scenario = args[++i];
 		} else
 			throw new Error(
-				"Usage: bun run check:memory [--offline | --live] [--suite basic|conversation|holdout|all] [--scenario <id>]",
+				"Usage: bun run check:memory [--offline | --live] [--suite basic|conversation|holdout|transfer|all] [--scenario <id>]",
 			);
 	}
 	return { mode, suite, ...(scenario === undefined ? {} : { scenario }) };
@@ -53,7 +57,14 @@ if (import.meta.main) {
 					? conversationScenarios
 					: args.suite === "holdout"
 						? holdoutScenarios
-						: [...scenarios, ...conversationScenarios, ...holdoutScenarios];
+						: args.suite === "transfer"
+							? transferScenarios
+							: [
+									...scenarios,
+									...conversationScenarios,
+									...holdoutScenarios,
+									...transferScenarios,
+								];
 		const cases =
 			args.scenario === undefined
 				? suite

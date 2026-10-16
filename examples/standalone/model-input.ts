@@ -94,3 +94,53 @@ export function evaluationGroups(
 		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
 		.map(([, value], index) => ({ groupId: `g${index}`, ...value }));
 }
+
+/** Outer polarity is already equal on both sides. P ≡ Q iff not-P ≡ not-Q.
+ * Project metadata only; never rewrite either underlying proposition. */
+export function semanticJudgeGroups(
+	groups: readonly EvaluationGroup[],
+): Omit<EvaluationGroup, "polarity">[] {
+	return groups.map(
+		({ groupId, subject, kind, subjectLabel, actual, expected }) => ({
+			groupId,
+			subject,
+			kind,
+			...(subjectLabel === undefined ? {} : { subjectLabel }),
+			actual,
+			expected,
+		}),
+	);
+}
+
+export interface ComparisonFact {
+	id: string;
+	text: string;
+}
+export interface ComparisonGroup {
+	relationContext?: string;
+	groupId: string;
+	subject: ComparableFact["subject"];
+	kind: ComparableFact["kind"];
+	subjectLabel?: string;
+	actual: ComparisonFact[];
+	expected: ComparisonFact[];
+}
+
+/** Assign opaque references without pairing, paraphrasing or interpreting either side. */
+export function comparisonGroups(
+	groups: readonly EvaluationGroup[],
+	relationContext?: string | null,
+): ComparisonGroup[] {
+	return semanticJudgeGroups(groups).map((group) => ({
+		...group,
+		...(relationContext == null ? {} : { relationContext }),
+		actual: group.actual.map((text, index) => ({
+			id: `${group.groupId}:a${index}`,
+			text,
+		})),
+		expected: group.expected.map((text, index) => ({
+			id: `${group.groupId}:e${index}`,
+			text,
+		})),
+	}));
+}

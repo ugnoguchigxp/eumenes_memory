@@ -9,10 +9,14 @@ import { coreChecks } from "./checks.ts";
 import type { Check, CheckResult } from "./checks.ts";
 import { StandaloneHost } from "./host.ts";
 import { MODEL, SDK_VERSION } from "./luna.ts";
-import { evaluationGroups, modelItems } from "./model-input.ts";
 import {
-	decisionSchema,
-	decisionOutputSchema,
+	evaluationGroups,
+	modelItems,
+	comparisonGroups,
+} from "./model-input.ts";
+import {
+	coveredDecisionSchema,
+	parseCoveredDecision,
 	INSTRUCTIONS,
 	judgeSchema,
 	judgeOutputSchema,
@@ -155,7 +159,7 @@ export async function runChecks(options: RunOptions): Promise<Report> {
 	const cases = options.cases ?? scenarios;
 	const configuration = {
 		instructions: INSTRUCTIONS,
-		decisionSchema,
+		decisionSchema: coveredDecisionSchema(),
 		recallSchema,
 		judgeSchema,
 		cases,
@@ -237,7 +241,7 @@ export async function runChecks(options: RunOptions): Promise<Report> {
 								const ids = items.map((item) => item.itemId);
 								const outputSchema =
 									step.task === "decide"
-										? decisionOutputSchema(ids)
+										? coveredDecisionSchema(ids, step.message)
 										: recallOutputSchema(ids);
 								// Expected outcomes and replay decisions are deliberately absent from model input.
 								const prompt = JSON.stringify({
@@ -327,15 +331,18 @@ export async function runChecks(options: RunOptions): Promise<Report> {
 										return;
 									}
 
-									const groupIds = groups.map((group) => group.groupId);
-									const evaluationSchema = judgeOutputSchema(groupIds);
+									const comparison = comparisonGroups(groups, step.criterion);
+									const evaluationSchema = judgeOutputSchema(comparison);
 									const evaluation: TurnTrace = {
 										purpose: "evaluation",
 										outputSchema: evaluationSchema,
 										task: "judge",
 										scenario: scenario.id,
 										step: stepIndex + 1,
-										prompt: JSON.stringify({ task: "judge", groups }),
+										prompt: JSON.stringify({
+											task: "judge",
+											groups: comparison,
+										}),
 									};
 									report.turns.push(evaluation);
 									save();
@@ -353,7 +360,7 @@ export async function runChecks(options: RunOptions): Promise<Report> {
 										save();
 										const judgment = parseJudgment(
 											evaluation.response.raw,
-											groupIds,
+											comparison,
 										);
 										assert.equal(
 											judgment.passed,
@@ -380,7 +387,10 @@ export async function runChecks(options: RunOptions): Promise<Report> {
 								} else {
 									const snapshot = join(directory, "before-forget.db");
 									if (step.restoreBeforeForget) host.snapshot(snapshot);
-									const decision = parseDecision(result.raw);
+									const decision =
+										complete === undefined
+											? parseDecision(result.raw)
+											: parseCoveredDecision(result.raw, ids);
 									trace.decision = decision;
 									if (step.expectClarification !== undefined)
 										assert.equal(
