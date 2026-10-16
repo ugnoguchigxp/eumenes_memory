@@ -175,3 +175,13 @@ SDK の使い方は [OpenAI公式ドキュメント](https://developers.openai.c
 ```sh
 bun examples/experiments/grounding.ts --live verification-reports/cycles/new-grounding
 ```
+
+## 同じ事実・訂正・共存・矛盾の計画
+
+`planning.ts` の `planMemory` は、既存の保存指示を拡張した `planningInstructions` を `withLuna` の `decide` に渡して使う。判断と書込は分離し、計画だけを返す。各提案を `new / same / supersedes / coexists / conflicts / forget` としてLLMが分類する。`same` と `conflicts` は実行対象にせず、未解決の矛盾は確認を要求する。訂正は既存の主体・種類・キーと置換IDを再利用し、共存は別のキーを要求する。忘却ではLLMが別キーの同義記憶も列挙し、コードが許可されたIDだけに展開する。
+
+結果はモデルが参照した時点の `snapshotHash` を持つ。実行側は古い計画の適用を防ぐ必要がある。コードは同義判定を実装せず、LLMの分類の完全性は意味評価の対象として残る。
+
+```sh
+bun examples/experiments/identity.ts --live verification-reports/cycles/new-identity
+```

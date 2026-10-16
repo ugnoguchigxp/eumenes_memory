@@ -139,5 +139,74 @@
 			}
 		],
 		"limitations": "3 synthetic cases x 2 repetitions; no general accuracy estimate. Candidate completeness is not guaranteed."
+	},
+	"cycle2": {
+		"baselineCommit": "fad0595",
+		"liveReport": "verification-reports/cycles/02-identity/report.json",
+		"status": "completed",
+		"calls": 10,
+		"results": [
+			{
+				"case": "same",
+				"repetition": 1,
+				"passed": true,
+				"relations": ["same"]
+			},
+			{
+				"case": "coexists",
+				"repetition": 1,
+				"passed": true,
+				"relations": ["coexists"]
+			},
+			{
+				"case": "conflict",
+				"repetition": 1,
+				"passed": true,
+				"relations": ["conflicts"]
+			},
+			{
+				"case": "correction",
+				"repetition": 1,
+				"passed": true,
+				"relations": ["supersedes"]
+			},
+			{
+				"case": "forget-aliases",
+				"repetition": 1,
+				"passed": true,
+				"relations": ["forget", "forget"]
+			},
+			{
+				"case": "same",
+				"repetition": 2,
+				"passed": true,
+				"relations": []
+			},
+			{
+				"case": "coexists",
+				"repetition": 2,
+				"passed": true,
+				"relations": ["coexists"]
+			},
+			{
+				"case": "correction",
+				"repetition": 2,
+				"passed": true,
+				"relations": ["supersedes"]
+			},
+			{
+				"case": "conflict",
+				"repetition": 2,
+				"passed": true,
+				"relations": ["conflicts"]
+			},
+			{
+				"case": "forget-aliases",
+				"repetition": 2,
+				"passed": true,
+				"relations": ["forget"]
+			}
+		],
+		"limitations": "5 synthetic cases x 2 repetitions. Semantic classification remains an LLM judgment."
 	}
 }
