@@ -165,3 +165,13 @@ SDK の使い方は [OpenAI公式ドキュメント](https://developers.openai.c
 新しいケースは [scenarios.ts](scenarios.ts) または [conversations.ts](conversations.ts) の配列へ追加します。`message`、`expected`（値・極性・kind・subject）、`criterion`（意味の正解文）、offline 用の `replay` を定義し、必要なら `restart` を指定します。fixtureでは `$key:<semanticKey>` で順序に依存せず既存項目を指定できます。`expectClarification` と `expectedActions` は確認質問の有無と操作数の検査用です。`restoreBeforeForget` は忘却後に古いDBを復元し、旧版の消去と対象外の保持も検査します。実装に発話専用の分岐を追加する必要はありません。対応する出力契約とLLM指示は [protocol.ts](protocol.ts) にあります。
 
 このホストは1プロセス・逐次実行のチェック専用です。本番ホストの並列制御、実 Eumenes の結合、物理消去、World / Consolidation、日本語全般の精度はこの結果だけでは保証しません。
+
+## ページをまたぐ根拠判断
+
+`retrieval.ts` の `recallMemory(host, message, { candidates, grounding }, options)` は、公開APIから同一スナップショットを読み、ページごとに関連候補を残してから一度まとめて根拠を判断する。`withLuna` の `recall` 指示をそれぞれ `candidateInstructions` / `groundingInstructions` に差し替えた二つのクライアントを渡す。`subjects` で人物ラベルを渡せる。単一ページの根拠IDをそのまま合併しない。
+
+結果には質問項目ごとの状態・根拠IDと、ホストが計算した `coverage` がある。`maxPages` / `maxCandidates` に達した場合、根拠不明の項目は `unresolved`。`unknown` も今回取得した根拠では確立できないという意味であり、世界や全記憶に存在しないという保証ではない。`coverage.complete` はページ走査が完了したことを表し、LLMによる候補選択の完全性を保証しない。通常の `main.ts` は従来の全件入力の比較基準を維持する。
+
+```sh
+bun examples/experiments/grounding.ts --live verification-reports/cycles/new-grounding
+```

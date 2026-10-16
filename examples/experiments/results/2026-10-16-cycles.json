@@ -1,0 +1,143 @@
+{
+	"cycle1": {
+		"baselineCommit": "2f1a3e5",
+		"liveReport": "verification-reports/cycles/01-grounding/report.json",
+		"status": "completed",
+		"calls": 20,
+		"results": [
+			{
+				"case": "linked",
+				"repetition": 1,
+				"passed": true,
+				"result": {
+					"snapshotHash": "fcca9af13edbe6ac1e1c24c00823db7231a5478b3cf7de387002f0405c2babf0",
+					"coverage": {
+						"complete": true,
+						"scannedPages": 2,
+						"totalPages": 2,
+						"candidateCount": 2,
+						"candidateLimit": false
+					},
+					"parts": [
+						{
+							"request": "お気に入りの喫茶店がある街",
+							"status": "supported",
+							"evidenceIds": ["a", "b"]
+						}
+					]
+				}
+			},
+			{
+				"case": "different",
+				"repetition": 1,
+				"passed": true,
+				"result": {
+					"snapshotHash": "839a2365574f45182c935511bb781a7182e57c6b5be39478b17d4acb69fcd39c",
+					"coverage": {
+						"complete": true,
+						"scannedPages": 2,
+						"totalPages": 2,
+						"candidateCount": 2,
+						"candidateLimit": false
+					},
+					"parts": [
+						{
+							"request": "お気に入りの喫茶店がある街",
+							"status": "unknown",
+							"evidenceIds": []
+						}
+					]
+				}
+			},
+			{
+				"case": "transfer",
+				"repetition": 1,
+				"passed": true,
+				"result": {
+					"snapshotHash": "a4ba849589b9fcfa8b673d1f3e10185985e1e7da0b4f277f70f00c9e01f88b65",
+					"coverage": {
+						"complete": true,
+						"scannedPages": 3,
+						"totalPages": 3,
+						"candidateCount": 3,
+						"candidateLimit": false
+					},
+					"parts": [
+						{
+							"request": "私が所属する読書会の開催日",
+							"status": "supported",
+							"evidenceIds": ["a", "b"]
+						}
+					]
+				}
+			},
+			{
+				"case": "linked",
+				"repetition": 2,
+				"passed": true,
+				"result": {
+					"snapshotHash": "fcca9af13edbe6ac1e1c24c00823db7231a5478b3cf7de387002f0405c2babf0",
+					"coverage": {
+						"complete": true,
+						"scannedPages": 2,
+						"totalPages": 2,
+						"candidateCount": 2,
+						"candidateLimit": false
+					},
+					"parts": [
+						{
+							"request": "お気に入りの喫茶店がある街",
+							"status": "supported",
+							"evidenceIds": ["a", "b"]
+						}
+					]
+				}
+			},
+			{
+				"case": "different",
+				"repetition": 2,
+				"passed": true,
+				"result": {
+					"snapshotHash": "839a2365574f45182c935511bb781a7182e57c6b5be39478b17d4acb69fcd39c",
+					"coverage": {
+						"complete": true,
+						"scannedPages": 2,
+						"totalPages": 2,
+						"candidateCount": 2,
+						"candidateLimit": false
+					},
+					"parts": [
+						{
+							"request": "お気に入りの喫茶店がある街",
+							"status": "unknown",
+							"evidenceIds": []
+						}
+					]
+				}
+			},
+			{
+				"case": "transfer",
+				"repetition": 2,
+				"passed": true,
+				"result": {
+					"snapshotHash": "a4ba849589b9fcfa8b673d1f3e10185985e1e7da0b4f277f70f00c9e01f88b65",
+					"coverage": {
+						"complete": true,
+						"scannedPages": 3,
+						"totalPages": 3,
+						"candidateCount": 3,
+						"candidateLimit": false
+					},
+					"parts": [
+						{
+							"request": "所属する読書会の開催日",
+							"status": "supported",
+							"evidenceIds": ["a", "b"]
+						}
+					]
+				}
+			}
+		],
+		"limitations": "3 synthetic cases x 2 repetitions; no general accuracy estimate. Candidate completeness is not guaranteed."
+	}
+}
