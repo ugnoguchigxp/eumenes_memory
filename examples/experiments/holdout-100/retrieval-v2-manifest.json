@@ -1,0 +1,10 @@
+{
+	"designHash": "c8daea8ed9d430b1fe1b263741ed59f2f010bf78f183c60e9ade7504f47530b5",
+	"parentDesignHash": "1a630122926558578adaa96795e4086b231ce85906581309221c2b13be8a4d69",
+	"runnerSha256": "905f1305eb183256a63a1cfbaa40abbda14f2a15ea9101308310e0583a061144",
+	"generatorSha256": "f92a32b5dacfc51e8c9848b79263e9c31a86042fe8f40fa8fa416a1b6f360226",
+	"goldChanged": false,
+	"questionsChanged": false,
+	"sourceCodeChanged": false,
+	"addedArm": "all-grounded; exact same final instruction as new, one call over all facts"
+}
