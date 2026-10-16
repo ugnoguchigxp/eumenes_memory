@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { applyMemoryPlan } from "../standalone/execution.ts";
 import { StandaloneHost } from "../standalone/host.ts";
 import { planMemory, planningInstructions } from "../standalone/planning.ts";
 import { withLuna } from "../standalone/luna.ts";
@@ -93,11 +94,15 @@ export async function checkIdentity(directory: string) {
 								}),
 							);
 							const actions = plan.changes.flatMap((x) => x.actions);
-							for (const action of actions) {
-								if (action.type === "remember")
-									host.remember(action, c.message);
-								else host.forgetFact(action.itemId);
-							}
+							const execution = applyMemoryPlan(
+								host,
+								`${c.id}/${repetition}`,
+								plan,
+							);
+							if (
+								!["completed", "needs_clarification"].includes(execution.status)
+							)
+								throw Error(JSON.stringify(execution));
 							const after = host.list();
 							const passed =
 								c.id === "same"
@@ -116,7 +121,14 @@ export async function checkIdentity(directory: string) {
 													after[0]!.itemId === before[0]!.itemId
 												: after.length === 1 &&
 													after[0]!.semanticKey === "dust";
-							exp.result({ case: c.id, repetition, passed, plan, after });
+							exp.result({
+								case: c.id,
+								repetition,
+								passed,
+								plan,
+								execution,
+								after,
+							});
 						} finally {
 							host.close();
 							rmSync(dir, { recursive: true, force: true });

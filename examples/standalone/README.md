@@ -185,3 +185,17 @@ bun examples/experiments/grounding.ts --live verification-reports/cycles/new-gro
 ```sh
 bun examples/experiments/identity.ts --live verification-reports/cycles/new-identity
 ```
+
+## 計画の事前検査・まとめた実行・再試行
+
+`execution.ts` の `applyMemoryPlan(host, operationId, plan)` で計画を適用する。同じ依頼の再試行には同じ操作IDと計画を渡す。別の計画に同じIDを使うと拒否する。最初の実行では計画時点の記憶と照合し、全操作を既存APIで試行して巻き戻し、契約違反を実行前に検出する。事前検査では原文ログと忘却ジャーナルを追記しない。
+
+依存する変更の `groups` はLLMが選ぶ。保存だけのグループは状態変更と完了記録を同じSQLite transactionで確定する。途中失敗ならグループ全体を巻き戻す。独立したグループが先に完了していれば、その結果は保持し、再試行で繰り返さない。矛盾を含むグループは全体を保留する。`completed / needs_clarification / partial / failed` と各グループの結果を返し、途中失敗後の未実行分も明示する。前提違反・古い計画は例外となる。
+
+忘却だけのグループは、旧版を含む対象IDを先に保存し、既存の耐久ジャーナルで対象ごとに実行する。途中停止後はホストを開き直してジャーナルを照合し、同じ操作IDで残りを実行できる。忘却は一括の巻き戻しを保証しない。保存と忘却が混在する同一グループは実行前に拒否する。両方の不可分な実行が必要なら、モデルは提案を控えて確認を求める。
+
+完了記録はホスト所有の `example_memory_operation` 表に保存し、元発話や記憶本文を複製しない。実行中の状態確認にはIDとハッシュを用い、対象忘却以外の外部変更があれば再計画を要求する。この実装は1プロセス・逐次実行用。完了結果はその操作の履歴であり、その後も記憶が変わらない保証ではない。古いDBへ戻すと完了記録も戻るため、任意のバックアップ復元をまたぐ一度限りの実行は保証しない。忘却ジャーナルの再適用は従来どおり必要。実行失敗時に原文ログが残る場合があり、ログを含む物理消去はホストの責任となる。
+
+```sh
+bun examples/experiments/execution.ts --live verification-reports/cycles/new-execution
+```

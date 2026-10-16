@@ -28,6 +28,7 @@ const raw = (
 ) =>
 	JSON.stringify({
 		decision: { actions: [action], clarification },
+		groups: [[0]],
 		relations: [{ actionIndex: 0, relation, relatedItemIds }],
 	});
 
@@ -123,6 +124,7 @@ test("planning is read-only and binds to the snapshot observed before the model 
 			return {
 				raw: JSON.stringify({
 					decision: { actions: [], clarification: null },
+					groups: [],
 					relations: [],
 				}),
 				usage: null,

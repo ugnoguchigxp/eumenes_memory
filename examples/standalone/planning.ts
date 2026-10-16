@@ -20,7 +20,13 @@ export const relations = [
 ] as const;
 export type Relation = (typeof relations)[number];
 export const planningInstructions = `${instructionsFor("decide")}
-Return decision and a relations entry for every proposed action, using its zero-based actionIndex.
+Return decision, relations and groups. Give a relations entry for every proposed action, using its zero-based actionIndex.
+Groups are arrays of action indexes. Include each action exactly once. Put mutually dependent
+changes in one group, and independent changes in separate groups. Remember-only groups are atomic;
+forget-only groups are resumable durable deletion intents. A group mixing remember and forget is
+unsupported. If such operations must succeed together, withhold those proposals and ask for
+clarification rather than silently splitting a dependent change. Same/conflict proposals still
+belong to a group even though they have no executable action. No actions means groups: [].
 For each durable assertion identify its relation to existing memory before choosing a key:
 new: no related existing assertion; same: the same proposition already exists; supersedes: an
 explicit correction replaces that assertion; coexists: a distinct assertion must remain alongside
@@ -49,9 +55,19 @@ export function planningSchema(ids: readonly string[]) {
 	return {
 		type: "object",
 		additionalProperties: false,
-		required: ["decision", "relations"],
+		required: ["decision", "relations", "groups"],
 		properties: {
 			decision: decisionOutputSchema(ids),
+			groups: {
+				type: "array",
+				maxItems: 8,
+				items: {
+					type: "array",
+					minItems: 1,
+					maxItems: 8,
+					items: { type: "integer", minimum: 0, maximum: 7 },
+				},
+			},
 			relations: {
 				type: "array",
 				maxItems: 8,
@@ -86,6 +102,7 @@ export interface MemoryPlan {
 	message: string;
 	clarification: string | null;
 	changes: ResolvedChange[];
+	groups: number[][];
 }
 export function parsePlan(
 	raw: string,
@@ -95,11 +112,12 @@ export function parsePlan(
 	const root = JSON.parse(raw);
 	if (
 		!root ||
-		Object.keys(root).sort().join() !== "decision,relations" ||
+		Object.keys(root).sort().join() !== "decision,groups,relations" ||
 		!Array.isArray(root.relations)
 	)
 		throw Error("Invalid memory plan");
 	const decision = parseDecision(JSON.stringify(root.decision));
+	validateGroups(root.groups, decision.actions.length);
 	if (root.relations.length !== decision.actions.length)
 		throw Error("Missing action relations");
 	const seen = new Set<number>();
@@ -203,6 +221,7 @@ export function parsePlan(
 		message,
 		clarification: decision.clarification,
 		changes: changes.sort((a, b) => a.actionIndex - b.actionIndex),
+		groups: root.groups,
 	};
 }
 /** Semantic resolution is performed once by the LLM; this function does not mutate memory. */
@@ -224,4 +243,25 @@ export async function planMemory(
 		...parsePlan(response.raw, items, message),
 		snapshotHash: snapshotHash(modelItems(stored)),
 	};
+}
+
+/** Structural grouping only; dependence itself is chosen by the LLM/caller. */
+export function validateGroups(
+	groups: unknown,
+	count: number,
+): asserts groups is number[][] {
+	if (
+		!Array.isArray(groups) ||
+		groups.length > 8 ||
+		groups.some(
+			(g) =>
+				!Array.isArray(g) ||
+				g.length === 0 ||
+				g.some((i) => !Number.isSafeInteger(i) || i < 0 || i >= count),
+		)
+	)
+		throw Error("Invalid operation groups");
+	const indexes = groups.flat();
+	if (indexes.length !== count || new Set(indexes).size !== count)
+		throw Error("Incomplete or duplicate operation groups");
 }

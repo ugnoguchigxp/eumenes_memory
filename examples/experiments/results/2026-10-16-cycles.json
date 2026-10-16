@@ -208,5 +208,166 @@
 			}
 		],
 		"limitations": "5 synthetic cases x 2 repetitions. Semantic classification remains an LLM judgment."
+	},
+	"cycle3": {
+		"baselineCommit": "ebbaff5",
+		"live": {
+			"03-execution": {
+				"liveReport": "verification-reports/cycles/03-execution/report.json",
+				"status": "completed",
+				"calls": 4,
+				"results": [
+					{
+						"case": "independent",
+						"repetition": 1,
+						"passed": true,
+						"groups": [[0], [1]],
+						"execution": {
+							"status": "completed",
+							"groups": ["applied", "applied"]
+						}
+					},
+					{
+						"case": "dependent",
+						"repetition": 1,
+						"passed": true,
+						"groups": [[0, 1]],
+						"execution": {
+							"status": "completed",
+							"groups": ["applied"]
+						}
+					},
+					{
+						"case": "dependent",
+						"repetition": 2,
+						"passed": true,
+						"groups": [[0, 1]],
+						"execution": {
+							"status": "completed",
+							"groups": ["applied"]
+						}
+					},
+					{
+						"case": "independent",
+						"repetition": 2,
+						"passed": true,
+						"groups": [[0], [1]],
+						"execution": {
+							"status": "completed",
+							"groups": ["applied", "applied"]
+						}
+					}
+				]
+			},
+			"03-identity": {
+				"liveReport": "verification-reports/cycles/03-identity/report.json",
+				"status": "completed",
+				"calls": 10,
+				"results": [
+					{
+						"case": "coexists",
+						"repetition": 1,
+						"passed": true,
+						"groups": [[0]],
+						"execution": {
+							"status": "completed",
+							"groups": ["applied"]
+						}
+					},
+					{
+						"case": "same",
+						"repetition": 1,
+						"passed": true,
+						"groups": [[0]],
+						"execution": {
+							"status": "completed",
+							"groups": ["skipped"]
+						}
+					},
+					{
+						"case": "conflict",
+						"repetition": 1,
+						"passed": true,
+						"groups": [[0]],
+						"execution": {
+							"status": "needs_clarification",
+							"groups": ["blocked"]
+						}
+					},
+					{
+						"case": "correction",
+						"repetition": 1,
+						"passed": true,
+						"groups": [[0]],
+						"execution": {
+							"status": "completed",
+							"groups": ["applied"]
+						}
+					},
+					{
+						"case": "same",
+						"repetition": 2,
+						"passed": true,
+						"groups": [[0]],
+						"execution": {
+							"status": "completed",
+							"groups": ["skipped"]
+						}
+					},
+					{
+						"case": "forget-aliases",
+						"repetition": 1,
+						"passed": true,
+						"groups": [[0, 1]],
+						"execution": {
+							"status": "completed",
+							"groups": ["applied"]
+						}
+					},
+					{
+						"case": "coexists",
+						"repetition": 2,
+						"passed": true,
+						"groups": [[0]],
+						"execution": {
+							"status": "completed",
+							"groups": ["applied"]
+						}
+					},
+					{
+						"case": "correction",
+						"repetition": 2,
+						"passed": true,
+						"groups": [[0]],
+						"execution": {
+							"status": "completed",
+							"groups": ["applied"]
+						}
+					},
+					{
+						"case": "conflict",
+						"repetition": 2,
+						"passed": true,
+						"groups": [[0]],
+						"execution": {
+							"status": "needs_clarification",
+							"groups": ["blocked"]
+						}
+					},
+					{
+						"case": "forget-aliases",
+						"repetition": 2,
+						"passed": true,
+						"groups": [[0]],
+						"execution": {
+							"status": "completed",
+							"groups": ["applied"]
+						}
+					}
+				]
+			}
+		},
+		"offlineTests": 513,
+		"limitations": "Single-process sequential example host. Remember groups are atomic in SQLite; forget groups are durable resumable intents, not rollback transactions. Mixed dependent remember/forget groups are rejected. Synthetic live cases do not establish general accuracy."
 	}
 }

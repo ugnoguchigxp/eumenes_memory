@@ -38,7 +38,7 @@ import type {
 	ForgetTarget,
 	MemoryDb,
 } from "eumenes-memory/sqlite";
-import type { RememberAction } from "./protocol.ts";
+import type { Action, RememberAction } from "./protocol.ts";
 
 export const ACCESS: AccessContext = {
 	principal: "standalone:owner",
@@ -63,6 +63,7 @@ function appendDurable(path: string, value: unknown): void {
 /** Example-only single-process host. All memory access goes through public APIs. */
 export class StandaloneHost {
 	private readonly db: Database;
+	private previewing = false;
 	readonly path: string;
 	readonly journalPath: string;
 	readonly startup: {
@@ -126,6 +127,25 @@ export class StandaloneHost {
 	}
 	read<T>(operation: (db: MemoryDb) => T): T {
 		return this.db.transaction(() => operation(this.db))();
+	}
+	/** Run the real contracts, then roll back. No host source or forget journal is appended. */
+	preview(actions: readonly Action[], message: string): void {
+		if (this.previewing) throw new Error("Nested preview");
+		const rollback = new Error("preview rollback");
+		this.previewing = true;
+		try {
+			this.write(() => {
+				for (const action of actions) {
+					if (action.type === "remember") this.remember(action, message);
+					else this.forgetFact(action.itemId);
+				}
+				throw rollback;
+			});
+		} catch (error) {
+			if (error !== rollback) throw error;
+		} finally {
+			this.previewing = false;
+		}
 	}
 	list(includeInactive = false): readonly StateItem[] {
 		return this.read((db) => {
@@ -230,7 +250,8 @@ export class StandaloneHost {
 				: this.list().find((item) => item.itemId === action.replacesItemId);
 		if (action.replacesItemId !== null && replaces === undefined)
 			throw new Error("Unknown replacement target");
-		appendDurable(join(this.directory, "sources.jsonl"), source);
+		if (!this.previewing)
+			appendDurable(join(this.directory, "sources.jsonl"), source);
 		const result = this.write((db) =>
 			assertUserState(db, {
 				contractVersion: CONTRACT_VERSIONS.state,
@@ -285,7 +306,7 @@ export class StandaloneHost {
 		);
 		if (planned.status !== "planned")
 			throw new Error(`planForget: ${planned.status}`);
-		appendDurable(this.journalPath, planned.plan.entry);
+		if (!this.previewing) appendDurable(this.journalPath, planned.plan.entry);
 		// This deliberate interruption is used only by the crash-recovery check.
 		if (crashAfterJournal) throw new Error("simulated_crash_after_journal");
 		try {
@@ -298,7 +319,7 @@ export class StandaloneHost {
 			);
 		} catch (error) {
 			// A durable journal entry must be reconciled before any further use.
-			this.close();
+			if (!this.previewing) this.close();
 			throw error;
 		}
 	}
