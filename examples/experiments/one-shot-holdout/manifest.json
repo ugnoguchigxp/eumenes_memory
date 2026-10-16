@@ -1,0 +1,12 @@
+{
+	"hash": "7aa925f309da5286a80ea57539560677e90bd05c6ff65ddab90ec63cc1ed7219",
+	"runtimeHash": "4a5b33600fac73e604c5bfe25654735b90b1f43dcedb4a84d4a4ab46ce9871a3",
+	"sourceHashes": {
+		"cases.ts": "45b90e03759e40250cc2d95f7308b28fdd92bbaf466af43440714c012c8ee0ff",
+		"score.ts": "f92ca07e52493293906a02f4a097e3a93cb613f6af504a11a390f38033423286",
+		"run.ts": "04b5da49f327b05cddfd0781e3af725e312343520f875c119f8abc6baa16907e",
+		"freeze.ts": "981fa3655c641d0f6c5aec1cb82f5162a7b320e7bb968be045683b7cb6fce560"
+	},
+	"counts": [100, 20],
+	"createdAt": "2026-10-16T07:23:55.105Z"
+}
