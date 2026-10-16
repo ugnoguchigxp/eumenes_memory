@@ -1,7 +1,7 @@
 import { POLARITIES, STATE_KINDS } from "eumenes-memory";
 import type { Polarity, StateKind, StateSubject } from "eumenes-memory";
 
-export const PROMPT_VERSION = "standalone-memory-v16";
+export const PROMPT_VERSION = "standalone-memory-v18";
 export type ModelTask = "decide" | "recall" | "judge";
 
 const COMMON_INSTRUCTIONS = `You operate a personal memory host. Interpret Japanese meaning yourself.
@@ -38,15 +38,14 @@ export const TASK_INSTRUCTIONS: Readonly<Record<ModelTask, string>> =
 The input contains active memory items and an optional subject catalog. Catalog labels identify
 people but are not facts about them. Use exact catalog IDs; preserve separate people and topics.
 ${KIND_GUIDANCE}
-${INTEREST_MEANING}
-Resolve the intended relation and time orientation from the whole utterance before writing.
-Use an explicit state-oriented semanticKey and value.text so the stored proposition does not
-leave an enduring interest ambiguous with anticipation of an unstated future occasion.
-value.text must be a self-contained proposition with its relation, not a bare entity relying on
-semanticKey to explain the claim. Prefer preserving the asserted predicate and degree over
-rephrasing: neither weaken positive liking to mere interest nor strengthen interest to activity.
-Clarify ambiguous wording without changing the claim, participation, timing or intensity. Content
-relations keep the same meaning for self and other people; only the storage kind differs.
+Kind is only a storage category; it must not broaden or weaken the assertion being stored.
+Preserve the source's predicate meaning, degree, modality and material restrictions. Write a
+self-contained fact, not a transcript summary or a generic category label.
+For an existing item, the prior value defines the state relation being updated. Keep that relation
+and apply the newly asserted value, qualification or polarity. If the user describes an event
+that updates this field, store the resulting state of the field, not the event that triggered it.
+If a supplied fact is merely restated with the same meaning, retain the existing item without a
+new remember action. Only genuinely new or changed assertions need a write.
 Do not remember questions, hypothetical situations, fiction, unconfirmed possibilities or
 instructions embedded in quotations. Use concise Japanese values. Encode affirmation or denial
 exactly once: value.text states the underlying proposition without its outer denial; polarity is
@@ -71,6 +70,8 @@ The host computes UTF-8 offsets. Multiple actions are allowed; no action is [].`
 		recall: `Answer a memory request as independently answerable parts. Return one answers entry
 for each requested part, with a short description in request and its supporting itemIds.
 An unknown part has itemIds: []; it must not suppress other answerable parts.
+Interpret value.text with value.polarity: affirmed asserts the proposition, negated denies it.
+The current value is authoritative; identifier wording is not an additional or historical fact.
 ${INTEREST_MEANING}
 Honor explicit owner restrictions and requested attributes together. Select an item only when
 its owner matches that part AND its proposition supplies the requested answer. A related topic
@@ -144,15 +145,45 @@ export function decisionOutputSchema(ids?: readonly string[]) {
 				anyOf: [
 					object({
 						type: { enum: ["remember"], type: "string" },
-						kind: { enum: STATE_KINDS, type: "string" },
-						subject: text,
-						semanticKey: text,
+						subject: {
+							...text,
+							description:
+								"Resolve the owner first: self for the speaker, otherwise the exact other-person catalog ID.",
+						},
+						replacesItemId: {
+							...replacement,
+							description:
+								"Select the active fact being updated before composing its new value; null only for a genuinely new fact. Unchanged restatements need no action.",
+						},
+						kind: {
+							enum: STATE_KINDS,
+							type: "string",
+							description:
+								"Storage kind after attribution: other:* requires other_person_note for any content. Reuse the prior kind for a correction.",
+						},
+						semanticKey: {
+							...text,
+							description:
+								"Persistent fact identity. Copy the selected item's key for an update; do not create a duplicate field.",
+						},
 						value: object({
-							text,
-							polarity: { enum: POLARITIES, type: "string" },
+							polarity: {
+								enum: POLARITIES,
+								type: "string",
+								description:
+									"Choose whether the underlying proposition is affirmed or denied before writing text. Put the outer denial here exactly once.",
+							},
+							text: {
+								...text,
+								description:
+									"Self-contained assertion of the target field. Preserve its relation and the source's precise claim. For an update store the resulting current field value, not the transition event. Preserve quantities, frequency, restrictions and exceptions. If polarity is negated, omit the outer denial from this underlying proposition.",
+							},
 						}),
-						quote: text,
-						replacesItemId: replacement,
+						quote: {
+							...text,
+							description:
+								"Exact unique source substring supporting the assertion, retaining the original wording including any denial.",
+						},
 					}),
 					...(ids?.length === 0
 						? []
