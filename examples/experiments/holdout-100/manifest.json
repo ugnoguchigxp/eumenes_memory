@@ -1,0 +1,11 @@
+{
+	"designHash": "1a630122926558578adaa96795e4086b231ce85906581309221c2b13be8a4d69",
+	"sourceCommit": "357f820135ac",
+	"baselinePlanningCommit": "ebbaff5",
+	"files": {
+		"examples/experiments/holdout-100/cases.ts": "39a9dc4f90af933d142382da366bcdaba0b313b6ee7d11d4d51ba32ef48a7f65",
+		"examples/experiments/holdout-100/freeze.ts": "7fcb0cb4c37bbe46e3e80f98585effd8eb2be2e21728738a3636bb2f39c010f0",
+		"examples/experiments/holdout-100/grade.ts": "0515ca2e8802de84edd0151683dca0d71dc4945c393c2b9021c7197ac23bfbb5",
+		"examples/experiments/holdout-100/runner.ts": "2a02f486576805747d76cd81dfbb930ef76166481c2f9db23a3576f08299d66c"
+	}
+}
