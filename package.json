@@ -17,6 +17,10 @@
 		"./package.json": "./package.json"
 	},
 	"scripts": {
+		"check:memory": "bun examples/standalone/main.ts",
+		"check:memory:live": "bun examples/standalone/main.ts --live",
+		"check:memory:conversations": "bun examples/standalone/main.ts --suite conversation",
+		"check:memory:conversations:live": "bun examples/standalone/main.ts --suite conversation --live",
 		"lint": "oxlint --deny-warnings",
 		"lint:fix": "oxlint --fix",
 		"format": "oxfmt --write",
@@ -29,6 +33,7 @@
 		"verify:all": "bun scripts/verify.ts --all"
 	},
 	"devDependencies": {
+		"@openai/codex-sdk": "0.163.0",
 		"@types/bun": "1.3.14",
 		"@types/node": "25.9.3",
 		"oxfmt": "0.71.0",

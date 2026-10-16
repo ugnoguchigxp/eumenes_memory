@@ -271,10 +271,21 @@ export interface ListStateInput extends ScopedRead {
 	/** true なら active 以外（inactive / superseded / disputed / retracted / invalidated）も返す。forgotten は常に返さない。 */
 	readonly includeInactive?: boolean;
 	readonly limit?: number;
+	/** Continue the same scope/filter in updated-seq descending, item-ID ascending order.
+	 * Read all pages in one host read transaction for a consistent snapshot. */
+	readonly after?: { readonly updatedSeq: number; readonly itemId: string };
 }
 
 export type ListStateResult =
-	| { readonly status: "ok"; readonly items: readonly StateItem[] }
+	| {
+			readonly status: "ok";
+			readonly items: readonly StateItem[];
+			/** Present only when another visible page exists. */
+			readonly nextCursor?: {
+				readonly updatedSeq: number;
+				readonly itemId: string;
+			};
+	  }
 	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
 
 /**

@@ -908,22 +908,37 @@ export function listState(
 		kindClause = ` AND i.kind IN (${placeholders(kinds.length)})`;
 		params.push(...kinds);
 	}
-	params.push(limit ?? LIMITS_STATE.maxListItems);
+	const after = ownValue(parsed, "after");
+	let cursorClause = "";
+	if (after !== undefined) {
+		cursorClause =
+			" AND (i.updated_seq < ? OR (i.updated_seq = ? AND i.item_id > ?))";
+		params.push(after.updatedSeq, after.updatedSeq, after.itemId);
+	}
+	const pageSize = limit ?? LIMITS_STATE.maxListItems;
+	params.push(pageSize + 1);
 	const rows = guarded(() =>
 		db
 			.query(
 				`SELECT ${ITEM_COLUMNS} FROM memory_state_item i
 				WHERE i.principal = ? AND i.scope_key = ?
-					AND i.status IN (${placeholders(statuses.length)})${kindClause}
+					AND i.status IN (${placeholders(statuses.length)})${kindClause}${cursorClause}
 					AND ${NO_TOMBSTONE}
 				ORDER BY i.updated_seq DESC, i.item_id ASC
 				LIMIT ?`,
 			)
 			.all(...params),
 	);
+	const items = hydrate(db, parsed.scopeKey, rows.slice(0, pageSize));
+	const last = items.at(-1);
 	return {
 		status: "ok",
-		items: hydrate(db, parsed.scopeKey, rows),
+		items,
+		...(rows.length > pageSize && last !== undefined
+			? {
+					nextCursor: { updatedSeq: last.updatedSeq, itemId: last.itemId },
+				}
+			: {}),
 	};
 }
 

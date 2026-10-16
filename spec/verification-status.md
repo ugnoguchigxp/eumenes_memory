@@ -75,6 +75,8 @@
 
 ## 6. 限界
 
+単体のホスト接続と実モデル評価は [examples/standalone/README.md](../examples/standalone/README.md) から実行できる。offline は固定判断の再生と実 SQLite の検査、live は Codex SDK / gpt-6-luna の判断と別スレッドの意味評価。実行ごとの到達状況は `verification-reports/memory-check/<日時-UUID>/report.json` に記録する。この実行例の成功だけで実 Eumenes 結合や日本語全般の精度を主張しない。
+
 - 物理消去（空き領域、WAL、OS のスナップショット）は保証しない。ホストの責任（`secure_delete`、checkpoint、VACUUM）。
 - 復元直後で reconcile 未実行の DB は本体だけでは検出できない。ホストの起動手順（ジャーナルの存在確認）が必須。
 - 外部の確認状況は DB の中にだけあり、古い DB を復元して reconcile すると外部削除は `pending` に戻る。

@@ -452,6 +452,7 @@ export function parseListStateInput(value: unknown): ListStateInput {
 		"kinds",
 		"includeInactive",
 		"limit",
+		"after",
 	]);
 	const header = readScopedHeader(record, path);
 	let kinds: ListStateInput["kinds"];
@@ -485,11 +486,31 @@ export function parseListStateInput(value: unknown): ListStateInput {
 				LIMITS_STATE.maxListItems,
 			)
 		: undefined;
+	let after: ListStateInput["after"];
+	if (Object.hasOwn(record, "after")) {
+		const cursorPath = keyPath(path, "after");
+		const cursor = readRecord(record["after"], cursorPath);
+		checkKeys(cursor, cursorPath, ["updatedSeq", "itemId"]);
+		after = {
+			updatedSeq: readSafeInteger(
+				requiredField(cursor, cursorPath, "updatedSeq"),
+				keyPath(cursorPath, "updatedSeq"),
+				1,
+				Number.MAX_SAFE_INTEGER,
+			),
+			itemId: readIdentifier(
+				requiredField(cursor, cursorPath, "itemId"),
+				keyPath(cursorPath, "itemId"),
+				LIMITS.maxItemIdBytes,
+			),
+		};
+	}
 	return deepFreeze({
 		...header,
 		...(kinds === undefined ? {} : { kinds }),
 		...(includeInactive === undefined ? {} : { includeInactive }),
 		...(limit === undefined ? {} : { limit }),
+		...(after === undefined ? {} : { after }),
 	});
 }
 

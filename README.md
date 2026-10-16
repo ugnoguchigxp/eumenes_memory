@@ -17,6 +17,18 @@ bun run lint:fix     # 自動修正（verifyではソースを変更しない）
 
 内部は Records / State / Lifecycle / Temporal のドメイン構造。所有範囲と依存規則は [ドメイン構造](src/domains/README.md)。oxfmt / oxlintの版と共通設定は隣接Eumenesに合わせ、React向けの設定はこのライブラリに持ち込まない。検証記録は `verification-reports/` に保存する。Eumenes を模したホスト（会話 message、書き込みキュー、ジャーナル、再起動・DB 復元）は `test/runners/fake-eumenes-host.ts` にあり、実 Eumenes なしで結合の想定を試せる（実 Eumenes との結合の証明ではない）。
 
+## 単体での動作チェック
+
+Eumenes を起動せずに試す場合は、[独立ホストの実行例](examples/standalone/README.md) を使う。
+
+```sh
+bun run check:memory       # 認証なし。実 SQLite で保存・訂正・忘却・復元など17項目を検査
+bun run check:memory:live  # Codex SDK + gpt-6-luna で日本語の判断と意味評価も実行
+bun run check:memory:conversations:live # 人物・話題混在、曖昧な訂正、部分忘却など13種類の実験
+```
+
+工程別の結果、モデルの出力・使用量、DB と忘却ジャーナルを `verification-reports/memory-check/` に保存する。offline は固定判断の再生、live は実モデルによる判断であり、モデル未使用の結果を意味精度の証拠にはしない。examples の型検査と外部呼び出しなしの回帰試験は通常の `verify` に含まれる。
+
 ## 公開面
 
 | import | 内容 |

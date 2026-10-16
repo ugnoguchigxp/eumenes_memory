@@ -1,0 +1,313 @@
+{
+	"date": "2026-10-16",
+	"model": "gpt-6-luna",
+	"reasoningEffort": "medium",
+	"sdkVersion": "0.163.0",
+	"limitations": [
+		"Synthetic targeted pilot; repeated observations are not independent cases.",
+		"Initial factorial semantic scores invalidated due to unexpected semanticKey on expected facts; identical generated outputs regraded after removing that field.",
+		"Initial final judge call failed with provider 403; all 54 generation responses existed, all 54 corrected judge calls completed.",
+		"Current standalone protocol developed concurrently; experimental prompts, schemas and parsers frozen independently.",
+		"Answer evaluation measures support IDs/status, not final prose.",
+		"Scale LLM comparison: 100 and 1001 facts, three questions per size, one run. 10000 measures storage/recovery only.",
+		"Directory is ephemeral over a fixed authorized snapshot; persistent derived-index update/forget/restore not implemented or tested.",
+		"Token counts include SDK overhead and cached tokens; timings are descriptive under concurrent calls, not controlled production latency."
+	],
+	"sources": {
+		"factorial": {
+			"path": "verification-reports/experiments/factorial/report.json",
+			"sha256": "034c0a5f6d2374862b569eb717a03fcfffd9f1059177495eb743880762d227fd",
+			"status": "failed",
+			"calls": 108,
+			"completedResponses": 107
+		},
+		"factorial-corrected": {
+			"path": "verification-reports/experiments/factorial-corrected/report.json",
+			"sha256": "076e1a1397626eea900a6c6a78167783f8defeafdcf1de26b0b0cd412b6cbb8e",
+			"status": "completed",
+			"calls": 54,
+			"completedResponses": 54
+		},
+		"answers": {
+			"path": "verification-reports/experiments/answers/report.json",
+			"sha256": "258db50304d7a64921a3941635d16dc2501145bcbe83463d74da2afbe519f32f",
+			"status": "completed",
+			"calls": 36,
+			"completedResponses": 36
+		},
+		"scale-live": {
+			"path": "verification-reports/experiments/scale-live/report.json",
+			"sha256": "d1dd96bc3709a8e18fe25f40818d1395640a0a156b4bda4f1ff2b37893149e1f",
+			"status": "completed",
+			"calls": 48,
+			"completedResponses": 48
+		},
+		"final-scale-storage": {
+			"path": "verification-reports/experiments/final-scale-storage/report.json",
+			"sha256": "0a68e37d0f8ab4e5bf84548fc1350fad7077edfd59d6042285c7796b4a6b21b8",
+			"status": "completed",
+			"calls": 0,
+			"completedResponses": 0
+		}
+	},
+	"factorial": {
+		"v9": {
+			"recall": {
+				"passed": 7,
+				"total": 18
+			},
+			"generationContract": {
+				"passed": 6,
+				"total": 9
+			},
+			"crossJudge": {
+				"v9": {
+					"semanticPass": 5,
+					"judged": 6,
+					"contractRejected": 3,
+					"totalGeneration": 9
+				},
+				"v10": {
+					"semanticPass": 5,
+					"judged": 6,
+					"contractRejected": 3,
+					"totalGeneration": 9
+				}
+			},
+			"judgeCalibration": {
+				"correct": 8,
+				"total": 9
+			}
+		},
+		"v10": {
+			"recall": {
+				"passed": 18,
+				"total": 18
+			},
+			"generationContract": {
+				"passed": 9,
+				"total": 9
+			},
+			"crossJudge": {
+				"v9": {
+					"semanticPass": 7,
+					"judged": 9,
+					"contractRejected": 0,
+					"totalGeneration": 9
+				},
+				"v10": {
+					"semanticPass": 7,
+					"judged": 9,
+					"contractRejected": 0,
+					"totalGeneration": 9
+				}
+			},
+			"judgeCalibration": {
+				"correct": 9,
+				"total": 9
+			}
+		}
+	},
+	"answers": {
+		"ids": {
+			"idPass": 18,
+			"total": 18,
+			"partsPass": null,
+			"calls": 18,
+			"inputTokens": 223721,
+			"cachedInputTokens": 153472,
+			"outputTokens": 528,
+			"medianCallMs": 11920.5
+		},
+		"evidence": {
+			"idPass": 18,
+			"total": 18,
+			"partsPass": 18,
+			"calls": 18,
+			"inputTokens": 203580,
+			"cachedInputTokens": 36352,
+			"outputTokens": 907,
+			"medianCallMs": 11442.5
+		}
+	},
+	"retrieval": [
+		{
+			"size": 100,
+			"method": "latest-1000",
+			"passed": 3,
+			"total": 3,
+			"medianQueryMs": 14412,
+			"calls": 3,
+			"inputTokens": 59116,
+			"cachedInputTokens": 17152,
+			"outputTokens": 159,
+			"medianCallMs": 14406
+		},
+		{
+			"size": 100,
+			"method": "all",
+			"passed": 3,
+			"total": 3,
+			"medianQueryMs": 14397,
+			"calls": 3,
+			"inputTokens": 59116,
+			"cachedInputTokens": 16512,
+			"outputTokens": 179,
+			"medianCallMs": 14393
+		},
+		{
+			"size": 100,
+			"method": "page-scan",
+			"passed": 3,
+			"total": 3,
+			"medianQueryMs": 13301,
+			"calls": 3,
+			"inputTokens": 62854,
+			"cachedInputTokens": 29056,
+			"outputTokens": 159,
+			"medianCallMs": 13296
+		},
+		{
+			"size": 100,
+			"method": "directory",
+			"passed": 3,
+			"total": 3,
+			"medianQueryMs": 21010,
+			"calls": 6,
+			"inputTokens": 94898,
+			"cachedInputTokens": 17152,
+			"outputTokens": 216,
+			"medianCallMs": 10154.0,
+			"build": {
+				"calls": 1,
+				"inputTokens": 19047,
+				"cachedInputTokens": 0,
+				"outputTokens": 80,
+				"medianCallMs": 13565,
+				"totalMs": 13565
+			},
+			"candidateCounts": [100, 100, 100],
+			"candidateHits": 3
+		},
+		{
+			"size": 1001,
+			"method": "latest-1000",
+			"passed": 2,
+			"total": 3,
+			"medianQueryMs": 14907,
+			"calls": 3,
+			"inputTokens": 294405,
+			"cachedInputTokens": 24448,
+			"outputTokens": 122,
+			"medianCallMs": 14901
+		},
+		{
+			"size": 1001,
+			"method": "all",
+			"passed": 3,
+			"total": 3,
+			"medianQueryMs": 11188,
+			"calls": 3,
+			"inputTokens": 294657,
+			"cachedInputTokens": 32640,
+			"outputTokens": 176,
+			"medianCallMs": 11182
+		},
+		{
+			"size": 1001,
+			"method": "page-scan",
+			"passed": 3,
+			"total": 3,
+			"medianQueryMs": 55022,
+			"calls": 15,
+			"inputTokens": 447681,
+			"cachedInputTokens": 140928,
+			"outputTokens": 371,
+			"medianCallMs": 10171
+		},
+		{
+			"size": 1001,
+			"method": "directory",
+			"passed": 3,
+			"total": 3,
+			"medianQueryMs": 24419,
+			"calls": 6,
+			"inputTokens": 115428,
+			"cachedInputTokens": 29184,
+			"outputTokens": 217,
+			"medianCallMs": 12074.0,
+			"build": {
+				"calls": 5,
+				"inputTokens": 137638,
+				"cachedInputTokens": 0,
+				"outputTokens": 214,
+				"medianCallMs": 10248,
+				"totalMs": 49599
+			},
+			"candidateCounts": [1, 250, 250],
+			"candidateHits": 3
+		}
+	],
+	"storage": [
+		{
+			"type": "storage",
+			"size": 999,
+			"seedMs": 1198,
+			"readMs": 6,
+			"enumerated": 999,
+			"latestCount": 999
+		},
+		{
+			"type": "recovery",
+			"size": 999,
+			"survivors": 998,
+			"forgottenAbsent": true,
+			"passed": true
+		},
+		{
+			"type": "storage",
+			"size": 1000,
+			"seedMs": 1322,
+			"readMs": 3,
+			"enumerated": 1000,
+			"latestCount": 1000
+		},
+		{
+			"type": "recovery",
+			"size": 1000,
+			"survivors": 999,
+			"forgottenAbsent": true,
+			"passed": true
+		},
+		{
+			"type": "storage",
+			"size": 1001,
+			"seedMs": 1256,
+			"readMs": 4,
+			"enumerated": 1001,
+			"latestCount": 1000
+		},
+		{
+			"type": "recovery",
+			"size": 1001,
+			"survivors": 1000,
+			"forgottenAbsent": true,
+			"passed": true
+		},
+		{
+			"type": "storage",
+			"size": 10000,
+			"seedMs": 9922,
+			"readMs": 48,
+			"enumerated": 10000,
+			"latestCount": 1000
+		},
+		{
+			"type": "recovery",
+			"size": 10000,
+			"survivors": 9999,
+			"forgottenAbsent": true,
+			"passed": true
+		}
+	]
+}

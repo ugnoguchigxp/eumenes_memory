@@ -1,0 +1,1102 @@
+{
+	"date": "2026-10-16",
+	"timezone": "Asia/Tokyo",
+	"model": "gpt-6-luna",
+	"sdkVersion": "0.163.0",
+	"method": "初回12ケースと、原因を分ける対照条件・評価側修正後の追加実行。期待値を変更せず原ケースと失敗を保持。各ケースは失敗後の依存工程を省略。latestByScenarioは異なる実行版の最終観測であり、一つの同条件試験の成功率ではない。",
+	"addedScenarios": 13,
+	"addedSteps": 54,
+	"uniqueScenarios": 15,
+	"liveRuns": 8,
+	"modelCalls": 126,
+	"latestNewPassed": 9,
+	"latestNewFailed": 4,
+	"offline": {
+		"report": "verification-reports/memory-check/2026-10-16T02-20-31.224Z-896ec154-8df7-4765-9a2a-e5e3ea73afc2/report.json",
+		"status": "passed",
+		"checks": 71,
+		"scenarios": 15
+	},
+	"observations": [
+		{
+			"finding": "人物・話題を分けた保存、人物指定の訂正・参照、部分忘却とDB復元は成功。",
+			"evidence": [
+				"mixed-people-topics",
+				"negation-reversal-selective-forget",
+				"forget-explicit-preference"
+			]
+		},
+		{
+			"finding": "曖昧な訂正・忘却では確認質問を返し変更しなかった。忘却対象が明示された後の消去と対象外の保持も確認。",
+			"evidence": ["ambiguous-correction", "ambiguous-forget"],
+			"limitation": "ambiguous-forgetはその後の包括的参照で失敗しており、ケース全体の成功ではない。"
+		},
+		{
+			"finding": "「読書が趣味」はモデルがhabit、fixtureはpreferenceを期待。内容自体は読書の趣味として一致。分類基準の差があり、以後の依存工程は未検証。",
+			"evidence": ["unknown-and-false-premise", "forget-topics-keep-exceptions"]
+		},
+		{
+			"finding": "「読書が好き」と好みを明示した対照条件では、未提供の出身地・職業を作らず、既知部分だけの参照と完全に未知な質問の0件応答を確認。複数話題の忘却・例外保持・復元も通過。",
+			"evidence": ["unknown-explicit-preference", "forget-explicit-preference"],
+			"limitation": "元の趣味表現の期待値・失敗結果を置き換えるものではない。"
+		},
+		{
+			"finding": "曖昧・包括的な質問では記憶に残る情報まで0件になる失敗を観測。名指しは成功し、同姓二人に「二人それぞれ」と明示した対照条件も成功。",
+			"evidence": [
+				"same-name-different-people",
+				"ambiguous-forget",
+				"same-name-explicit-both"
+			]
+		},
+		{
+			"finding": "既知情報と忘却済み情報を混ぜた同じ質問がv5では0件、v6では既知の勤務先を返した。",
+			"evidence": ["forget-explicit-preference"],
+			"limitation": "評価指示の版が異なる別試行であり、純粋な同条件反復や成功率の測定ではない。"
+		},
+		{
+			"finding": "評価モデルが、状態は正しいのに操作・確認質問の不足として失敗判定する例を観測。v6では意味評価を保存後の事実の比較に限定し、操作・確認の検査はホストに分離。",
+			"evidence": ["ambiguous-forget", "unknown-explicit-preference"],
+			"limitation": "同じlunaによる意味評価は依然として自動評価であり、汎用的な正解保証ではない。"
+		}
+	],
+	"latestByScenario": [
+		{
+			"id": "preference-correction-forget",
+			"description": "preference-correction-forget",
+			"status": "passed",
+			"totalSteps": 7,
+			"passedSteps": 7,
+			"promptVersion": "standalone-memory-v4",
+			"report": "verification-reports/memory-check/2026-10-16T02-03-07.736Z-6c7125bf-8e2d-496c-8ef0-f1a68d4cfb6e/report.json"
+		},
+		{
+			"id": "negation",
+			"description": "negation",
+			"status": "passed",
+			"totalSteps": 2,
+			"passedSteps": 2,
+			"promptVersion": "standalone-memory-v4",
+			"report": "verification-reports/memory-check/2026-10-16T02-03-07.736Z-6c7125bf-8e2d-496c-8ef0-f1a68d4cfb6e/report.json"
+		},
+		{
+			"id": "mixed-people-topics",
+			"description": "3人・飲み物・居住地・習慣を混在させ、友人の飲み物だけ訂正・忘却",
+			"status": "passed",
+			"totalSteps": 6,
+			"passedSteps": 6,
+			"promptVersion": "standalone-memory-v4",
+			"report": "verification-reports/memory-check/2026-10-16T02-03-07.736Z-6c7125bf-8e2d-496c-8ef0-f1a68d4cfb6e/report.json"
+		},
+		{
+			"id": "ambiguous-correction",
+			"description": "対象人物と確度が曖昧な訂正を保留し、対象が明示された訂正だけ適用",
+			"status": "passed",
+			"totalSteps": 4,
+			"passedSteps": 4,
+			"promptVersion": "standalone-memory-v4",
+			"report": "verification-reports/memory-check/2026-10-16T02-03-07.736Z-6c7125bf-8e2d-496c-8ef0-f1a68d4cfb6e/report.json"
+		},
+		{
+			"id": "ambiguous-forget",
+			"description": "誰の趣味か不明な忘却は確認し、明示後に一人分だけ消す",
+			"status": "failed",
+			"totalSteps": 4,
+			"passedSteps": 3,
+			"failedStep": 4,
+			"error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ []\n- [\n-   '[\"other_person_note\",\"other:takumi\",\"affirmed\"]'\n- ]\n",
+			"promptVersion": "standalone-memory-v6",
+			"report": "verification-reports/memory-check/2026-10-16T02-18-09.499Z-a780ad6b-ffe5-45ef-8867-fda4026ca8be/report.json"
+		},
+		{
+			"id": "local-exception",
+			"description": "今日だけの例外や予定を普段の習慣・好みへ上書きしない",
+			"status": "passed",
+			"totalSteps": 3,
+			"passedSteps": 3,
+			"promptVersion": "standalone-memory-v4",
+			"report": "verification-reports/memory-check/2026-10-16T02-03-07.736Z-6c7125bf-8e2d-496c-8ef0-f1a68d4cfb6e/report.json"
+		},
+		{
+			"id": "negation-reversal-selective-forget",
+			"description": "二つの否定的好みの片方だけ肯定へ訂正し、もう片方だけ忘れる",
+			"status": "passed",
+			"totalSteps": 5,
+			"passedSteps": 5,
+			"promptVersion": "standalone-memory-v4",
+			"report": "verification-reports/memory-check/2026-10-16T02-03-07.736Z-6c7125bf-8e2d-496c-8ef0-f1a68d4cfb6e/report.json"
+		},
+		{
+			"id": "quotes-fiction-injection",
+			"description": "引用内の命令・架空人物と、現実の他者についての伝聞を区別",
+			"status": "passed",
+			"totalSteps": 4,
+			"passedSteps": 4,
+			"promptVersion": "standalone-memory-v4",
+			"report": "verification-reports/memory-check/2026-10-16T02-03-07.736Z-6c7125bf-8e2d-496c-8ef0-f1a68d4cfb6e/report.json"
+		},
+		{
+			"id": "same-name-different-people",
+			"description": "同姓の職場の人と近所の人を別IDで扱い、片方の居住地だけ訂正",
+			"status": "failed",
+			"totalSteps": 4,
+			"passedSteps": 3,
+			"failedStep": 4,
+			"error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ []\n- [\n-   '[\"other_person_note\",\"other:tanaka-neighbor\",\"affirmed\"]',\n-   '[\"other_person_note\",\"other:tanaka-work\",\"affirmed\"]'\n- ]\n",
+			"promptVersion": "standalone-memory-v4",
+			"report": "verification-reports/memory-check/2026-10-16T02-03-07.736Z-6c7125bf-8e2d-496c-8ef0-f1a68d4cfb6e/report.json"
+		},
+		{
+			"id": "update-and-forget-in-one-turn",
+			"description": "一つの発話内の訂正・保持・他者の忘却を分けて実行",
+			"status": "passed",
+			"totalSteps": 3,
+			"passedSteps": 3,
+			"promptVersion": "standalone-memory-v4",
+			"report": "verification-reports/memory-check/2026-10-16T02-03-07.736Z-6c7125bf-8e2d-496c-8ef0-f1a68d4cfb6e/report.json"
+		},
+		{
+			"id": "unknown-and-false-premise",
+			"description": "未提供の事実を質問の前提から作らず、既知と未知を分けて参照",
+			"status": "failed",
+			"totalSteps": 4,
+			"passedSteps": 0,
+			"failedStep": 1,
+			"error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   '[\"habit\",\"self\",\"affirmed\"]'\n-   '[\"preference\",\"self\",\"affirmed\"]'\n  ]\n",
+			"promptVersion": "standalone-memory-v4",
+			"report": "verification-reports/memory-check/2026-10-16T02-03-07.736Z-6c7125bf-8e2d-496c-8ef0-f1a68d4cfb6e/report.json"
+		},
+		{
+			"id": "forget-topics-keep-exceptions",
+			"description": "複数の自己情報と他者情報から二つの話題だけ旧版ごと忘却",
+			"status": "failed",
+			"totalSteps": 5,
+			"passedSteps": 0,
+			"failedStep": 1,
+			"error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   '[\"habit\",\"self\",\"affirmed\"]',\n    '[\"other_person_note\",\"other:misaki\",\"affirmed\"]',\n    '[\"personal_fact\",\"self\",\"affirmed\"]',\n    '[\"personal_fact\",\"self\",\"affirmed\"]',\n-   '[\"preference\",\"self\",\"affirmed\"]'\n  ]\n",
+			"promptVersion": "standalone-memory-v4",
+			"report": "verification-reports/memory-check/2026-10-16T02-03-07.736Z-6c7125bf-8e2d-496c-8ef0-f1a68d4cfb6e/report.json"
+		},
+		{
+			"id": "same-name-explicit-both",
+			"description": "同姓人物への質問で「二人それぞれ」を明示した対照実験",
+			"status": "passed",
+			"totalSteps": 3,
+			"passedSteps": 3,
+			"promptVersion": "standalone-memory-v5",
+			"report": "verification-reports/memory-check/2026-10-16T02-14-39.050Z-9f5913f4-6227-4ff6-ae51-99d12d88fc2c/report.json"
+		},
+		{
+			"id": "unknown-explicit-preference",
+			"description": "「趣味」を「好き」と明示した対照実験で未知情報の扱いを検証",
+			"status": "passed",
+			"totalSteps": 4,
+			"passedSteps": 4,
+			"promptVersion": "standalone-memory-v6",
+			"report": "verification-reports/memory-check/2026-10-16T02-18-09.503Z-f5e449ef-5783-443a-86c4-6fe4f1b89ade/report.json"
+		},
+		{
+			"id": "forget-explicit-preference",
+			"description": "「読書が好き」と明示し、複数話題の忘却と例外の保持を最後まで検証",
+			"status": "passed",
+			"totalSteps": 5,
+			"passedSteps": 5,
+			"promptVersion": "standalone-memory-v6",
+			"report": "verification-reports/memory-check/2026-10-16T02-18-09.502Z-d291f285-cb22-4af5-afaa-c02e4e044afd/report.json"
+		}
+	],
+	"runs": [
+		{
+			"label": "initial",
+			"startedAt": "2026-10-16T02:03:07.737Z",
+			"status": "failed",
+			"promptVersion": "standalone-memory-v4",
+			"inputHash": "4cc1db22f22c1e1e98ce829cc60d511c8134aa88c5e82dddcade8caf5e6b9d3d",
+			"report": "verification-reports/memory-check/2026-10-16T02-03-07.736Z-6c7125bf-8e2d-496c-8ef0-f1a68d4cfb6e/report.json",
+			"reportSha256": "3b67fe255c5db966a5823ba140271aeb878083fac5c29831c6a4d03d0d53398d",
+			"plannedChecks": 59,
+			"passedChecks": 46,
+			"failedChecks": 4,
+			"skippedChecks": 9,
+			"modelCalls": 79,
+			"inputTokens": 1135658,
+			"outputTokens": 6323,
+			"scenarios": [
+				{
+					"id": "preference-correction-forget",
+					"description": "preference-correction-forget",
+					"status": "passed",
+					"totalSteps": 7,
+					"passedSteps": 7
+				},
+				{
+					"id": "negation",
+					"description": "negation",
+					"status": "passed",
+					"totalSteps": 2,
+					"passedSteps": 2
+				},
+				{
+					"id": "mixed-people-topics",
+					"description": "3人・飲み物・居住地・習慣を混在させ、友人の飲み物だけ訂正・忘却",
+					"status": "passed",
+					"totalSteps": 6,
+					"passedSteps": 6
+				},
+				{
+					"id": "ambiguous-correction",
+					"description": "対象人物と確度が曖昧な訂正を保留し、対象が明示された訂正だけ適用",
+					"status": "passed",
+					"totalSteps": 4,
+					"passedSteps": 4
+				},
+				{
+					"id": "ambiguous-forget",
+					"description": "誰の趣味か不明な忘却は確認し、明示後に一人分だけ消す",
+					"status": "failed",
+					"totalSteps": 4,
+					"passedSteps": 1,
+					"failedStep": 2,
+					"error": "AssertionError [ERR_ASSERTION]: Semantic evaluation: criterionは両方を消さず確認することを求めていますが、actualとexpectedは登山・写真の趣味を記憶した内容で一致しています。\n\nfalse !== true\n"
+				},
+				{
+					"id": "local-exception",
+					"description": "今日だけの例外や予定を普段の習慣・好みへ上書きしない",
+					"status": "passed",
+					"totalSteps": 3,
+					"passedSteps": 3
+				},
+				{
+					"id": "negation-reversal-selective-forget",
+					"description": "二つの否定的好みの片方だけ肯定へ訂正し、もう片方だけ忘れる",
+					"status": "passed",
+					"totalSteps": 5,
+					"passedSteps": 5
+				},
+				{
+					"id": "quotes-fiction-injection",
+					"description": "引用内の命令・架空人物と、現実の他者についての伝聞を区別",
+					"status": "passed",
+					"totalSteps": 4,
+					"passedSteps": 4
+				},
+				{
+					"id": "same-name-different-people",
+					"description": "同姓の職場の人と近所の人を別IDで扱い、片方の居住地だけ訂正",
+					"status": "failed",
+					"totalSteps": 4,
+					"passedSteps": 3,
+					"failedStep": 4,
+					"error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ []\n- [\n-   '[\"other_person_note\",\"other:tanaka-neighbor\",\"affirmed\"]',\n-   '[\"other_person_note\",\"other:tanaka-work\",\"affirmed\"]'\n- ]\n"
+				},
+				{
+					"id": "update-and-forget-in-one-turn",
+					"description": "一つの発話内の訂正・保持・他者の忘却を分けて実行",
+					"status": "passed",
+					"totalSteps": 3,
+					"passedSteps": 3
+				},
+				{
+					"id": "unknown-and-false-premise",
+					"description": "未提供の事実を質問の前提から作らず、既知と未知を分けて参照",
+					"status": "failed",
+					"totalSteps": 4,
+					"passedSteps": 0,
+					"failedStep": 1,
+					"error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   '[\"habit\",\"self\",\"affirmed\"]'\n-   '[\"preference\",\"self\",\"affirmed\"]'\n  ]\n"
+				},
+				{
+					"id": "forget-topics-keep-exceptions",
+					"description": "複数の自己情報と他者情報から二つの話題だけ旧版ごと忘却",
+					"status": "failed",
+					"totalSteps": 5,
+					"passedSteps": 0,
+					"failedStep": 1,
+					"error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   '[\"habit\",\"self\",\"affirmed\"]',\n    '[\"other_person_note\",\"other:misaki\",\"affirmed\"]',\n    '[\"personal_fact\",\"self\",\"affirmed\"]',\n    '[\"personal_fact\",\"self\",\"affirmed\"]',\n-   '[\"preference\",\"self\",\"affirmed\"]'\n  ]\n"
+				}
+			],
+			"failures": [
+				{
+					"scenario": "ambiguous-forget",
+					"step": 2,
+					"phase": "semantic",
+					"message": "さっきの人の趣味を忘れて。美咲と拓海のどっちの話だったか、いま名前が出てこない。",
+					"expected": [
+						{
+							"text": "趣味は登山",
+							"kind": "other_person_note",
+							"subject": "other:misaki",
+							"polarity": "affirmed"
+						},
+						{
+							"text": "趣味は写真",
+							"kind": "other_person_note",
+							"subject": "other:takumi",
+							"polarity": "affirmed"
+						}
+					],
+					"criterion": "対象が不明なのでどちらも消さず確認を求める。",
+					"before": [
+						{
+							"itemId": "state:9079aab7b7dfa1bc21e9e545cd6f1de05be5a351d1fc4815927b1d22b1b00337",
+							"subject": "other:takumi",
+							"kind": "other_person_note",
+							"semanticKey": "hobby",
+							"status": "active",
+							"value": {
+								"text": "写真が趣味",
+								"polarity": "affirmed"
+							}
+						},
+						{
+							"itemId": "state:2885a4b015d7782d44e12301eb2758819bd54e7e14f9894930ab066191aafe6a",
+							"subject": "other:misaki",
+							"kind": "other_person_note",
+							"semanticKey": "hobby",
+							"status": "active",
+							"value": {
+								"text": "登山が趣味",
+								"polarity": "affirmed"
+							}
+						}
+					],
+					"after": [
+						{
+							"itemId": "state:9079aab7b7dfa1bc21e9e545cd6f1de05be5a351d1fc4815927b1d22b1b00337",
+							"subject": "other:takumi",
+							"kind": "other_person_note",
+							"semanticKey": "hobby",
+							"status": "active",
+							"value": {
+								"text": "写真が趣味",
+								"polarity": "affirmed"
+							}
+						},
+						{
+							"itemId": "state:2885a4b015d7782d44e12301eb2758819bd54e7e14f9894930ab066191aafe6a",
+							"subject": "other:misaki",
+							"kind": "other_person_note",
+							"semanticKey": "hobby",
+							"status": "active",
+							"value": {
+								"text": "登山が趣味",
+								"polarity": "affirmed"
+							}
+						}
+					],
+					"response": {
+						"clarification": "美咲と拓海のどちらの趣味を忘れますか？",
+						"actions": []
+					},
+					"judgment": {
+						"passed": false,
+						"reason": "criterionは両方を消さず確認することを求めていますが、actualとexpectedは登山・写真の趣味を記憶した内容で一致しています。"
+					},
+					"error": "AssertionError [ERR_ASSERTION]: Semantic evaluation: criterionは両方を消さず確認することを求めていますが、actualとexpectedは登山・写真の趣味を記憶した内容で一致しています。\n\nfalse !== true\n"
+				},
+				{
+					"scenario": "same-name-different-people",
+					"step": 4,
+					"phase": "structure",
+					"message": "田中さんの住まいを教えて。どちらの田中さんかはまだ指定しません。",
+					"expected": [
+						{
+							"text": "横浜に住んでいる",
+							"kind": "other_person_note",
+							"subject": "other:tanaka-work",
+							"polarity": "affirmed"
+						},
+						{
+							"text": "京都に住んでいる",
+							"kind": "other_person_note",
+							"subject": "other:tanaka-neighbor",
+							"polarity": "affirmed"
+						}
+					],
+					"criterion": "どちらか一人に決めず、区別した二人分を選ぶ。",
+					"before": [
+						{
+							"itemId": "state:2885a4b015d7782d44e12301eb2758819bd54e7e14f9894930ab066191aafe6a",
+							"subject": "other:tanaka-work",
+							"kind": "other_person_note",
+							"semanticKey": "residence",
+							"status": "superseded",
+							"value": {
+								"text": "東京在住",
+								"polarity": "affirmed"
+							}
+						},
+						{
+							"itemId": "state:cebe9d9de5e01e4710dfc8a1fff9d602b3477dca7ebc9d1ff85f6e50f6ff9102",
+							"subject": "other:tanaka-work",
+							"kind": "other_person_note",
+							"semanticKey": "residence",
+							"status": "active",
+							"value": {
+								"text": "横浜在住",
+								"polarity": "affirmed"
+							}
+						},
+						{
+							"itemId": "state:9079aab7b7dfa1bc21e9e545cd6f1de05be5a351d1fc4815927b1d22b1b00337",
+							"subject": "other:tanaka-neighbor",
+							"kind": "other_person_note",
+							"semanticKey": "residence",
+							"status": "active",
+							"value": {
+								"text": "京都在住",
+								"polarity": "affirmed"
+							}
+						}
+					],
+					"after": [
+						{
+							"itemId": "state:2885a4b015d7782d44e12301eb2758819bd54e7e14f9894930ab066191aafe6a",
+							"subject": "other:tanaka-work",
+							"kind": "other_person_note",
+							"semanticKey": "residence",
+							"status": "superseded",
+							"value": {
+								"text": "東京在住",
+								"polarity": "affirmed"
+							}
+						},
+						{
+							"itemId": "state:cebe9d9de5e01e4710dfc8a1fff9d602b3477dca7ebc9d1ff85f6e50f6ff9102",
+							"subject": "other:tanaka-work",
+							"kind": "other_person_note",
+							"semanticKey": "residence",
+							"status": "active",
+							"value": {
+								"text": "横浜在住",
+								"polarity": "affirmed"
+							}
+						},
+						{
+							"itemId": "state:9079aab7b7dfa1bc21e9e545cd6f1de05be5a351d1fc4815927b1d22b1b00337",
+							"subject": "other:tanaka-neighbor",
+							"kind": "other_person_note",
+							"semanticKey": "residence",
+							"status": "active",
+							"value": {
+								"text": "京都在住",
+								"polarity": "affirmed"
+							}
+						}
+					],
+					"response": {
+						"itemIds": []
+					},
+					"judgment": null,
+					"error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ []\n- [\n-   '[\"other_person_note\",\"other:tanaka-neighbor\",\"affirmed\"]',\n-   '[\"other_person_note\",\"other:tanaka-work\",\"affirmed\"]'\n- ]\n"
+				},
+				{
+					"scenario": "unknown-and-false-premise",
+					"step": 1,
+					"phase": "structure",
+					"message": "私は読書が趣味です。覚えてください。",
+					"expected": [
+						{
+							"text": "読書が趣味",
+							"kind": "preference",
+							"subject": "self",
+							"polarity": "affirmed"
+						}
+					],
+					"criterion": "本人の趣味は読書。ほかの職業・出身地・知人の情報はない。",
+					"before": [],
+					"after": [
+						{
+							"itemId": "state:2885a4b015d7782d44e12301eb2758819bd54e7e14f9894930ab066191aafe6a",
+							"subject": "self",
+							"kind": "habit",
+							"semanticKey": "hobby",
+							"status": "active",
+							"value": {
+								"text": "読書が趣味",
+								"polarity": "affirmed"
+							}
+						}
+					],
+					"response": {
+						"clarification": null,
+						"actions": [
+							{
+								"type": "remember",
+								"kind": "habit",
+								"subject": "self",
+								"semanticKey": "hobby",
+								"value": {
+									"text": "読書が趣味",
+									"polarity": "affirmed"
+								},
+								"quote": "私は読書が趣味です。",
+								"replacesItemId": null
+							}
+						]
+					},
+					"judgment": null,
+					"error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   '[\"habit\",\"self\",\"affirmed\"]'\n-   '[\"preference\",\"self\",\"affirmed\"]'\n  ]\n"
+				},
+				{
+					"scenario": "forget-topics-keep-exceptions",
+					"step": 1,
+					"phase": "structure",
+					"message": "私は大阪に住んでいます。勤務先は青葉社です。読書が趣味です。美咲は岐阜に住んでいます。それぞれ覚えてください。",
+					"expected": [
+						{
+							"text": "大阪に住んでいる",
+							"kind": "personal_fact",
+							"subject": "self",
+							"polarity": "affirmed"
+						},
+						{
+							"text": "勤務先は青葉社",
+							"kind": "personal_fact",
+							"subject": "self",
+							"polarity": "affirmed"
+						},
+						{
+							"text": "読書が趣味",
+							"kind": "preference",
+							"subject": "self",
+							"polarity": "affirmed"
+						},
+						{
+							"text": "岐阜に住んでいる",
+							"kind": "other_person_note",
+							"subject": "other:misaki",
+							"polarity": "affirmed"
+						}
+					],
+					"criterion": "本人は大阪在住・青葉社勤務・読書が趣味、美咲は岐阜在住。",
+					"before": [],
+					"after": [
+						{
+							"itemId": "state:ce8963d6925098cfe0e6e3690c366caa7b3e3510703c4ff3158e8fd4b3857b5a",
+							"subject": "other:misaki",
+							"kind": "other_person_note",
+							"semanticKey": "residence",
+							"status": "active",
+							"value": {
+								"text": "岐阜に住んでいる",
+								"polarity": "affirmed"
+							}
+						},
+						{
+							"itemId": "state:cebe9d9de5e01e4710dfc8a1fff9d602b3477dca7ebc9d1ff85f6e50f6ff9102",
+							"subject": "self",
+							"kind": "habit",
+							"semanticKey": "hobby_reading",
+							"status": "active",
+							"value": {
+								"text": "読書が趣味",
+								"polarity": "affirmed"
+							}
+						},
+						{
+							"itemId": "state:9079aab7b7dfa1bc21e9e545cd6f1de05be5a351d1fc4815927b1d22b1b00337",
+							"subject": "self",
+							"kind": "personal_fact",
+							"semanticKey": "employer",
+							"status": "active",
+							"value": {
+								"text": "青葉社に勤務している",
+								"polarity": "affirmed"
+							}
+						},
+						{
+							"itemId": "state:2885a4b015d7782d44e12301eb2758819bd54e7e14f9894930ab066191aafe6a",
+							"subject": "self",
+							"kind": "personal_fact",
+							"semanticKey": "residence",
+							"status": "active",
+							"value": {
+								"text": "大阪に住んでいる",
+								"polarity": "affirmed"
+							}
+						}
+					],
+					"response": {
+						"clarification": null,
+						"actions": [
+							{
+								"type": "remember",
+								"kind": "personal_fact",
+								"subject": "self",
+								"semanticKey": "residence",
+								"value": {
+									"text": "大阪に住んでいる",
+									"polarity": "affirmed"
+								},
+								"quote": "私は大阪に住んでいます",
+								"replacesItemId": null
+							},
+							{
+								"type": "remember",
+								"kind": "personal_fact",
+								"subject": "self",
+								"semanticKey": "employer",
+								"value": {
+									"text": "青葉社に勤務している",
+									"polarity": "affirmed"
+								},
+								"quote": "勤務先は青葉社です",
+								"replacesItemId": null
+							},
+							{
+								"type": "remember",
+								"kind": "habit",
+								"subject": "self",
+								"semanticKey": "hobby_reading",
+								"value": {
+									"text": "読書が趣味",
+									"polarity": "affirmed"
+								},
+								"quote": "読書が趣味です",
+								"replacesItemId": null
+							},
+							{
+								"type": "remember",
+								"kind": "other_person_note",
+								"subject": "other:misaki",
+								"semanticKey": "residence",
+								"value": {
+									"text": "岐阜に住んでいる",
+									"polarity": "affirmed"
+								},
+								"quote": "美咲は岐阜に住んでいます",
+								"replacesItemId": null
+							}
+						]
+					},
+					"judgment": null,
+					"error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   '[\"habit\",\"self\",\"affirmed\"]',\n    '[\"other_person_note\",\"other:misaki\",\"affirmed\"]',\n    '[\"personal_fact\",\"self\",\"affirmed\"]',\n    '[\"personal_fact\",\"self\",\"affirmed\"]',\n-   '[\"preference\",\"self\",\"affirmed\"]'\n  ]\n"
+				}
+			]
+		},
+		{
+			"label": "contrast-and-grader-v5",
+			"startedAt": "2026-10-16T02:14:39.048Z",
+			"status": "failed",
+			"promptVersion": "standalone-memory-v5",
+			"inputHash": "338cb1e1cea0f11f364feabb0ae5912e543711a5e08551492ea389ce965c6e97",
+			"report": "verification-reports/memory-check/2026-10-16T02-14-39.048Z-be248fef-8ab4-49a9-ad46-6e72ee77675b/report.json",
+			"reportSha256": "f89d7b608e4bcdab857f79041cea355fcf30a945955e85ddd2dce9fb4fb998fe",
+			"plannedChecks": 12,
+			"passedChecks": 10,
+			"failedChecks": 1,
+			"skippedChecks": 1,
+			"modelCalls": 6,
+			"inputTokens": 84437,
+			"outputTokens": 392,
+			"scenarios": [
+				{
+					"id": "ambiguous-forget",
+					"description": "誰の趣味か不明な忘却は確認し、明示後に一人分だけ消す",
+					"status": "failed",
+					"totalSteps": 4,
+					"passedSteps": 2,
+					"failedStep": 3,
+					"error": "AssertionError [ERR_ASSERTION]: Semantic evaluation: 美咲の趣味だけを忘れる依頼に対し、拓海の写真を忘れる操作を選んでいます。\n\nfalse !== true\n"
+				}
+			],
+			"failures": [
+				{
+					"scenario": "ambiguous-forget",
+					"step": 3,
+					"phase": "semantic",
+					"message": "忘れてほしいのは美咲の趣味だけです。拓海の趣味は残してください。",
+					"expected": [
+						{
+							"text": "趣味は写真",
+							"kind": "other_person_note",
+							"subject": "other:takumi",
+							"polarity": "affirmed"
+						}
+					],
+					"criterion": "美咲の趣味だけ忘れ、拓海の写真を残す。",
+					"before": [
+						{
+							"itemId": "state:9079aab7b7dfa1bc21e9e545cd6f1de05be5a351d1fc4815927b1d22b1b00337",
+							"subject": "other:takumi",
+							"kind": "other_person_note",
+							"semanticKey": "hobby",
+							"status": "active",
+							"value": {
+								"text": "写真",
+								"polarity": "affirmed"
+							}
+						},
+						{
+							"itemId": "state:2885a4b015d7782d44e12301eb2758819bd54e7e14f9894930ab066191aafe6a",
+							"subject": "other:misaki",
+							"kind": "other_person_note",
+							"semanticKey": "hobby",
+							"status": "active",
+							"value": {
+								"text": "登山",
+								"polarity": "affirmed"
+							}
+						}
+					],
+					"after": [
+						{
+							"itemId": "state:9079aab7b7dfa1bc21e9e545cd6f1de05be5a351d1fc4815927b1d22b1b00337",
+							"subject": "other:takumi",
+							"kind": "other_person_note",
+							"semanticKey": "hobby",
+							"status": "active",
+							"value": {
+								"text": "写真",
+								"polarity": "affirmed"
+							}
+						}
+					],
+					"response": {
+						"clarification": null,
+						"actions": [
+							{
+								"type": "forget",
+								"itemId": "state:2885a4b015d7782d44e12301eb2758819bd54e7e14f9894930ab066191aafe6a"
+							}
+						]
+					},
+					"judgment": {
+						"passed": false,
+						"reason": "美咲の趣味だけを忘れる依頼に対し、拓海の写真を忘れる操作を選んでいます。"
+					},
+					"error": "AssertionError [ERR_ASSERTION]: Semantic evaluation: 美咲の趣味だけを忘れる依頼に対し、拓海の写真を忘れる操作を選んでいます。\n\nfalse !== true\n"
+				}
+			]
+		},
+		{
+			"label": "contrast-and-grader-v5",
+			"startedAt": "2026-10-16T02:14:39.050Z",
+			"status": "passed",
+			"promptVersion": "standalone-memory-v5",
+			"inputHash": "ecfadf33c9a9f0679c8263e16e3dd39ec532bfd48b7158039cd385eb71947ca4",
+			"report": "verification-reports/memory-check/2026-10-16T02-14-39.050Z-9f5913f4-6227-4ff6-ae51-99d12d88fc2c/report.json",
+			"reportSha256": "2f735f0666d9e30fab1008c9e4396d252de58f0352f1e5c23cb61242f97d2297",
+			"plannedChecks": 11,
+			"passedChecks": 11,
+			"failedChecks": 0,
+			"skippedChecks": 0,
+			"modelCalls": 6,
+			"inputTokens": 81374,
+			"outputTokens": 500,
+			"scenarios": [
+				{
+					"id": "same-name-explicit-both",
+					"description": "同姓人物への質問で「二人それぞれ」を明示した対照実験",
+					"status": "passed",
+					"totalSteps": 3,
+					"passedSteps": 3
+				}
+			],
+			"failures": []
+		},
+		{
+			"label": "contrast-and-grader-v5",
+			"startedAt": "2026-10-16T02:14:39.051Z",
+			"status": "failed",
+			"promptVersion": "standalone-memory-v5",
+			"inputHash": "314a9aa58272b21aaac8cf01dc3b77adca0ddc10f7f881753f2c3116c3eed197",
+			"report": "verification-reports/memory-check/2026-10-16T02-14-39.051Z-e6412620-fbb5-4391-8f54-df01c06a3fd4/report.json",
+			"reportSha256": "a31051687d57e2c05fb1087d75fbcd0dea271f237cdc4b9834b22f871737fb55",
+			"plannedChecks": 12,
+			"passedChecks": 9,
+			"failedChecks": 1,
+			"skippedChecks": 2,
+			"modelCalls": 4,
+			"inputTokens": 54648,
+			"outputTokens": 175,
+			"scenarios": [
+				{
+					"id": "unknown-explicit-preference",
+					"description": "「趣味」を「好き」と明示した対照実験で未知情報の扱いを検証",
+					"status": "failed",
+					"totalSteps": 4,
+					"passedSteps": 1,
+					"failedStep": 2,
+					"error": "AssertionError [ERR_ASSERTION]: Semantic evaluation: 読書好きは期待どおりですが、実際の判断は記憶アクションが空で、読書の好みを保存していません。\n\nfalse !== true\n"
+				}
+			],
+			"failures": [
+				{
+					"scenario": "unknown-explicit-preference",
+					"step": 2,
+					"phase": "semantic",
+					"message": "私って福岡出身だったっけ？ 美咲は医者なのかな？ まだどちらも確認していません。",
+					"expected": [
+						{
+							"text": "読書が好き",
+							"kind": "preference",
+							"subject": "self",
+							"polarity": "affirmed"
+						}
+					],
+					"criterion": "未確認の疑問から出身地や職業を記憶せず、読書好きだけを残す。",
+					"before": [
+						{
+							"itemId": "state:2885a4b015d7782d44e12301eb2758819bd54e7e14f9894930ab066191aafe6a",
+							"subject": "self",
+							"kind": "preference",
+							"semanticKey": "likes_reading",
+							"status": "active",
+							"value": {
+								"text": "読書",
+								"polarity": "affirmed"
+							}
+						}
+					],
+					"after": [
+						{
+							"itemId": "state:2885a4b015d7782d44e12301eb2758819bd54e7e14f9894930ab066191aafe6a",
+							"subject": "self",
+							"kind": "preference",
+							"semanticKey": "likes_reading",
+							"status": "active",
+							"value": {
+								"text": "読書",
+								"polarity": "affirmed"
+							}
+						}
+					],
+					"response": {
+						"clarification": null,
+						"actions": []
+					},
+					"judgment": {
+						"passed": false,
+						"reason": "読書好きは期待どおりですが、実際の判断は記憶アクションが空で、読書の好みを保存していません。"
+					},
+					"error": "AssertionError [ERR_ASSERTION]: Semantic evaluation: 読書好きは期待どおりですが、実際の判断は記憶アクションが空で、読書の好みを保存していません。\n\nfalse !== true\n"
+				}
+			]
+		},
+		{
+			"label": "contrast-and-grader-v5",
+			"startedAt": "2026-10-16T02:14:39.051Z",
+			"status": "failed",
+			"promptVersion": "standalone-memory-v5",
+			"inputHash": "76bbbd621843e986c59415bc8200fc8d9e7159c37f5ed567dc056732cd34a320",
+			"report": "verification-reports/memory-check/2026-10-16T02-14-39.050Z-36100e0d-8851-4e12-896d-b9bce4010534/report.json",
+			"reportSha256": "17c0715060fad12e23af421d62eabb67a09bf41a99991d85b984f81e6abd46ad",
+			"plannedChecks": 13,
+			"passedChecks": 11,
+			"failedChecks": 1,
+			"skippedChecks": 1,
+			"modelCalls": 7,
+			"inputTokens": 100946,
+			"outputTokens": 674,
+			"scenarios": [
+				{
+					"id": "forget-explicit-preference",
+					"description": "「読書が好き」と明示し、複数話題の忘却と例外の保持を最後まで検証",
+					"status": "failed",
+					"totalSteps": 5,
+					"passedSteps": 3,
+					"failedStep": 4,
+					"error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ []\n- [\n-   '[\"personal_fact\",\"self\",\"affirmed\"]'\n- ]\n"
+				}
+			],
+			"failures": [
+				{
+					"scenario": "forget-explicit-preference",
+					"step": 4,
+					"phase": "structure",
+					"message": "今の私の勤務先と、覚えていれば住まいや好みも教えて。",
+					"expected": [
+						{
+							"text": "勤務先は青葉社",
+							"kind": "personal_fact",
+							"subject": "self",
+							"polarity": "affirmed"
+						}
+					],
+					"criterion": "青葉社勤務だけを参照し、忘れた住まいと好みは補わない。",
+					"before": [
+						{
+							"itemId": "state:ce8963d6925098cfe0e6e3690c366caa7b3e3510703c4ff3158e8fd4b3857b5a",
+							"subject": "other:misaki",
+							"kind": "other_person_note",
+							"semanticKey": "residence",
+							"status": "active",
+							"value": {
+								"text": "岐阜に住んでいる",
+								"polarity": "affirmed"
+							}
+						},
+						{
+							"itemId": "state:9079aab7b7dfa1bc21e9e545cd6f1de05be5a351d1fc4815927b1d22b1b00337",
+							"subject": "self",
+							"kind": "personal_fact",
+							"semanticKey": "employer",
+							"status": "active",
+							"value": {
+								"text": "勤務先は青葉社",
+								"polarity": "affirmed"
+							}
+						}
+					],
+					"after": [
+						{
+							"itemId": "state:ce8963d6925098cfe0e6e3690c366caa7b3e3510703c4ff3158e8fd4b3857b5a",
+							"subject": "other:misaki",
+							"kind": "other_person_note",
+							"semanticKey": "residence",
+							"status": "active",
+							"value": {
+								"text": "岐阜に住んでいる",
+								"polarity": "affirmed"
+							}
+						},
+						{
+							"itemId": "state:9079aab7b7dfa1bc21e9e545cd6f1de05be5a351d1fc4815927b1d22b1b00337",
+							"subject": "self",
+							"kind": "personal_fact",
+							"semanticKey": "employer",
+							"status": "active",
+							"value": {
+								"text": "勤務先は青葉社",
+								"polarity": "affirmed"
+							}
+						}
+					],
+					"response": {
+						"itemIds": []
+					},
+					"judgment": null,
+					"error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ []\n- [\n-   '[\"personal_fact\",\"self\",\"affirmed\"]'\n- ]\n"
+				}
+			]
+		},
+		{
+			"label": "state-only-grader-v6",
+			"startedAt": "2026-10-16T02:18:09.500Z",
+			"status": "failed",
+			"promptVersion": "standalone-memory-v6",
+			"inputHash": "01be8c94dd3a76e772d4b89e74981877b82219285ca614e54d30a88a28e473c6",
+			"report": "verification-reports/memory-check/2026-10-16T02-18-09.499Z-a780ad6b-ffe5-45ef-8867-fda4026ca8be/report.json",
+			"reportSha256": "14e63151d7e8d5d327bd47b2b382a918cc36603232e59045fb1c75726d61637b",
+			"plannedChecks": 12,
+			"passedChecks": 11,
+			"failedChecks": 1,
+			"skippedChecks": 0,
+			"modelCalls": 7,
+			"inputTokens": 92924,
+			"outputTokens": 432,
+			"scenarios": [
+				{
+					"id": "ambiguous-forget",
+					"description": "誰の趣味か不明な忘却は確認し、明示後に一人分だけ消す",
+					"status": "failed",
+					"totalSteps": 4,
+					"passedSteps": 3,
+					"failedStep": 4,
+					"error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ []\n- [\n-   '[\"other_person_note\",\"other:takumi\",\"affirmed\"]'\n- ]\n"
+				}
+			],
+			"failures": [
+				{
+					"scenario": "ambiguous-forget",
+					"step": 4,
+					"phase": "structure",
+					"message": "二人の趣味で今覚えているものを教えて。",
+					"expected": [
+						{
+							"text": "趣味は写真",
+							"kind": "other_person_note",
+							"subject": "other:takumi",
+							"polarity": "affirmed"
+						}
+					],
+					"criterion": "拓海の写真だけ。美咲の登山を復活させない。",
+					"before": [
+						{
+							"itemId": "state:9079aab7b7dfa1bc21e9e545cd6f1de05be5a351d1fc4815927b1d22b1b00337",
+							"subject": "other:takumi",
+							"kind": "other_person_note",
+							"semanticKey": "hobby",
+							"status": "active",
+							"value": {
+								"text": "趣味は写真",
+								"polarity": "affirmed"
+							}
+						}
+					],
+					"after": [
+						{
+							"itemId": "state:9079aab7b7dfa1bc21e9e545cd6f1de05be5a351d1fc4815927b1d22b1b00337",
+							"subject": "other:takumi",
+							"kind": "other_person_note",
+							"semanticKey": "hobby",
+							"status": "active",
+							"value": {
+								"text": "趣味は写真",
+								"polarity": "affirmed"
+							}
+						}
+					],
+					"response": {
+						"itemIds": []
+					},
+					"judgment": null,
+					"error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ []\n- [\n-   '[\"other_person_note\",\"other:takumi\",\"affirmed\"]'\n- ]\n"
+				}
+			]
+		},
+		{
+			"label": "state-only-grader-v6",
+			"startedAt": "2026-10-16T02:18:09.503Z",
+			"status": "passed",
+			"promptVersion": "standalone-memory-v6",
+			"inputHash": "e7b6aa3584937d3c420e23829ababe1a200abb2fea428cb27478fbfc328a554f",
+			"report": "verification-reports/memory-check/2026-10-16T02-18-09.503Z-f5e449ef-5783-443a-86c4-6fe4f1b89ade/report.json",
+			"reportSha256": "e6e337ac57d7681c1d52f7dc6c8e088ca95f1ea366ec1fcff5ef5f15a7f110e5",
+			"plannedChecks": 12,
+			"passedChecks": 12,
+			"failedChecks": 0,
+			"skippedChecks": 0,
+			"modelCalls": 7,
+			"inputTokens": 92069,
+			"outputTokens": 333,
+			"scenarios": [
+				{
+					"id": "unknown-explicit-preference",
+					"description": "「趣味」を「好き」と明示した対照実験で未知情報の扱いを検証",
+					"status": "passed",
+					"totalSteps": 4,
+					"passedSteps": 4
+				}
+			],
+			"failures": []
+		},
+		{
+			"label": "state-only-grader-v6",
+			"startedAt": "2026-10-16T02:18:09.502Z",
+			"status": "passed",
+			"promptVersion": "standalone-memory-v6",
+			"inputHash": "fa283c93c9ebc420a60181fcb7315153c9d9913a7dfca788cec99082ec340ffd",
+			"report": "verification-reports/memory-check/2026-10-16T02-18-09.502Z-d291f285-cb22-4af5-afaa-c02e4e044afd/report.json",
+			"reportSha256": "586de9c6d4885fd52ba73c5da0783a039e57c42e98e10071e5c41add1da7dee2",
+			"plannedChecks": 13,
+			"passedChecks": 13,
+			"failedChecks": 0,
+			"skippedChecks": 0,
+			"modelCalls": 10,
+			"inputTokens": 141106,
+			"outputTokens": 869,
+			"scenarios": [
+				{
+					"id": "forget-explicit-preference",
+					"description": "「読書が好き」と明示し、複数話題の忘却と例外の保持を最後まで検証",
+					"status": "passed",
+					"totalSteps": 5,
+					"passedSteps": 5
+				}
+			],
+			"failures": []
+		}
+	]
+}
