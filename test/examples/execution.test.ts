@@ -273,26 +273,19 @@ test("model plan, execution and grounded retrieval compose through the real host
 			}),
 		);
 		expect(applyMemoryPlan(host, "through", p).status).toBe("completed");
-		const result = await recallMemory(host, "preference?", {
-			candidates: async (input) =>
-				response({
-					itemIds: JSON.parse(input).items.map(
-						(x: { itemId: string }) => x.itemId,
-					),
-				}),
-			grounding: async (input) =>
-				response({
-					parts: [
-						{
-							request: "preference",
-							status: "supported",
-							evidenceIds: JSON.parse(input).items.map(
-								(x: { itemId: string }) => x.itemId,
-							),
-						},
-					],
-				}),
-		});
+		const result = await recallMemory(host, "preference?", async (input) =>
+			response({
+				parts: [
+					{
+						request: "preference",
+						status: "supported",
+						evidenceIds: JSON.parse(input).items.map(
+							(x: { itemId: string }) => x.itemId,
+						),
+					},
+				],
+			}),
+		);
 		expect(result.parts[0]!.evidenceIds).toEqual([host.list()[0]!.itemId]);
 		expect(result.coverage.complete).toBe(true);
 	} finally {

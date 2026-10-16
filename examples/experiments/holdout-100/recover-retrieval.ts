@@ -8,7 +8,7 @@ import {
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { withLuna } from "../../standalone/luna.ts";
-import { recallSnapshot } from "../../standalone/retrieval.ts";
+import { recallSnapshot } from "../frozen-retrieval.ts";
 import { parseEvidence } from "../../standalone/support.ts";
 import { parseRecall } from "../frozen-protocol.ts";
 import type { Complete, ModelResult } from "../../standalone/protocol.ts";

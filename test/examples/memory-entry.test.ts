@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { memoryCommand } from "../../examples/standalone/memory.ts";
 import { StandaloneHost } from "../../examples/standalone/host.ts";
+import { groundingInstructions } from "../../examples/standalone/retrieval.ts";
 import { planningInstructions } from "../../examples/standalone/planning.ts";
 
 test("standard entry plans without mutation and applies the same saved operation once across restart", async () => {
@@ -77,6 +78,36 @@ test("standard entry plans without mutation and applies the same saved operation
 			sources,
 		);
 		expect(modelCalls).toBe(1);
+		let recalls = 0;
+		const recalled = await memoryCommand(
+			[directory, "recall", "私の好みは？"],
+			async (operation, instructions) => {
+				expect(instructions?.recall).toBe(groundingInstructions);
+				return operation(async (input, _schema, task) => {
+					recalls++;
+					expect(task).toBe("recall");
+					const items = JSON.parse(input).items;
+					expect(items).toHaveLength(1);
+					return {
+						raw: JSON.stringify({
+							parts: [
+								{
+									request: "私の好み",
+									status: "supported",
+									evidenceIds: [items[0].itemId],
+								},
+							],
+						}),
+						usage: null,
+						threadId: null,
+					};
+				});
+			},
+		);
+		expect(recalls).toBe(1);
+		expect(recalled).toMatchObject({
+			coverage: { complete: true, itemCount: 1 },
+		});
 		await expect(
 			memoryCommand([directory, "apply", "request-2", path], noModel),
 		).rejects.toThrow("Stale");

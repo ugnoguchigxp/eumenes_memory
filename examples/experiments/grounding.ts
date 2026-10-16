@@ -6,7 +6,7 @@ import {
 	recallSnapshot,
 	candidateInstructions,
 	groundingInstructions,
-} from "../standalone/retrieval.ts";
+} from "./frozen-retrieval.ts";
 import type { Complete } from "../standalone/protocol.ts";
 
 const cases = [

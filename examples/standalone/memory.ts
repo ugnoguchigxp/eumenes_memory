@@ -1,3 +1,4 @@
+import { recallMemory, groundingInstructions } from "./retrieval.ts";
 import { readFileSync } from "node:fs";
 import { StandaloneHost } from "./host.ts";
 import { withLuna } from "./luna.ts";
@@ -18,15 +19,20 @@ export async function memoryCommand(
 		!directory ||
 		!value ||
 		!(
-			(command === "plan" && args.length === 3) ||
+			(["plan", "recall"].includes(command ?? "") && args.length === 3) ||
 			(command === "apply" && args.length === 4)
 		)
 	)
 		throw Error(
-			"Usage: bun run memory <directory> plan <message> | <directory> apply <operation-id> <saved-plan.json>",
+			"Usage: bun run memory <directory> plan|recall <message> | <directory> apply <operation-id> <saved-plan.json>",
 		);
 	const host = new StandaloneHost(directory);
 	try {
+		if (command === "recall")
+			return await withModel(
+				(complete) => recallMemory(host, value, complete),
+				{ recall: groundingInstructions },
+			);
 		if (command === "plan")
 			return await withModel((complete) => planMemory(host, value, complete), {
 				decide: planningInstructions,

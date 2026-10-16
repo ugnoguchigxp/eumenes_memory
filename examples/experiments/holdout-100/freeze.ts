@@ -12,7 +12,7 @@ import {
 import {
 	candidateInstructions,
 	groundingInstructions,
-} from "../../standalone/retrieval.ts";
+} from "../frozen-retrieval.ts";
 import { retrievalInstructions } from "../retrieval.ts";
 import {
 	evidenceInstructions,

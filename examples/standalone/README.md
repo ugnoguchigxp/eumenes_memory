@@ -226,15 +226,17 @@ SDK の使い方は [OpenAI公式ドキュメント](https://developers.openai.c
 
 このホストは1プロセス・逐次実行のチェック専用です。本番ホストの並列制御、実 Eumenes の結合、物理消去、World / Consolidation、日本語全般の精度はこの結果だけでは保証しません。
 
-## ページをまたぐ根拠判断
+## 一括取得
 
-`retrieval.ts` の `recallMemory(host, message, { candidates, grounding }, options)` は、公開APIから同一スナップショットを読み、ページごとに関連候補を残してから一度まとめて根拠を判断する。`withLuna` の `recall` 指示をそれぞれ `candidateInstructions` / `groundingInstructions` に差し替えた二つのクライアントを渡す。`subjects` で人物ラベルを渡せる。単一ページの根拠IDをそのまま合併しない。
-
-結果には質問項目ごとの状態・根拠IDと、ホストが計算した `coverage` がある。`maxPages` / `maxCandidates` に達した場合、根拠不明の項目は `unresolved`。`unknown` も今回取得した根拠では確立できないという意味であり、世界や全記憶に存在しないという保証ではない。`coverage.complete` はページ走査が完了したことを表し、LLMによる候補選択の完全性を保証しない。通常の `main.ts` は従来の全件入力の比較基準を維持する。
+`retrieval.ts` の `recallMemory(host, message, complete, { subjects })` は許可された全記憶を一度だけモデルへ渡す。`withLuna` の `recall` 指示には `groundingInstructions` を使う。候補選択・ページ分割・候補数の予算は通常利用から削除した。
 
 ```sh
-bun examples/experiments/grounding.ts --live verification-reports/cycles/new-grounding
+bun run memory /tmp/my-memory recall '私について何を覚えていますか？'
 ```
+
+結果は質問項目ごとの `supported / unknown / conflict` と根拠ID。`coverage` は全件を渡したことと件数を示し、モデル判断の完全性を保証しない。入力上限や通信の失敗はエラーとして返し、黙って一部を切り捨てない。1001件までは前回比較で一括方式が同等以上だったが、無制限の入力長を保証するものではない。
+
+旧ページ方式は `examples/experiments/frozen-retrieval.ts` と `frozen-support.ts` に凍結し、過去の比較スクリプトだけが参照する。通常利用側から実験コードは呼ばない。過去のmanifestは当時のコミットのソースを識別するもので、参照先を移した現在の実験ファイルのハッシュではない。
 
 ## 同じ事実・訂正・共存・矛盾の計画
 

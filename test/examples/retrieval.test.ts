@@ -1,130 +1,101 @@
 import { expect, test } from "bun:test";
-import { recallSnapshot } from "../../examples/standalone/retrieval.ts";
+import {
+	recallSnapshot,
+	recallMemory,
+} from "../../examples/standalone/retrieval.ts";
 import { item } from "../../examples/experiments/cases.ts";
-import type { Complete } from "../../examples/standalone/protocol.ts";
+import { StandaloneHost } from "../../examples/standalone/host.ts";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { StandaloneHost } from "../../examples/standalone/host.ts";
-import { recallMemory } from "../../examples/standalone/retrieval.ts";
-
-const response = (value: unknown) => ({
-	raw: JSON.stringify(value),
+const response = (parts: unknown[]) => ({
+	raw: JSON.stringify({ parts }),
 	usage: null,
 	threadId: null,
 });
-const selectAll: Complete = async (input) =>
-	response({
-		itemIds: JSON.parse(input).items.map((x: { itemId: string }) => x.itemId),
-	});
-const unknown: Complete = async () =>
-	response({
-		parts: [{ request: "所在地", status: "unknown", evidenceIds: [] }],
-	});
+const unknown = () =>
+	response([{ request: "質問", status: "unknown", evidenceIds: [] }]);
 
-test("host retrieval supplies surviving facts and catalog labels through public APIs", async () => {
-	const directory = mkdtempSync(join(tmpdir(), "retrieval-host-"));
+test("one-shot recall sends all 1001 authorized facts exactly once with no selection stage", async () => {
+	const items = Array.from({ length: 1001 }, (_, i) =>
+		item(`i${i}`, `記録${i}`),
+	);
+	let calls = 0;
+	const result = await recallSnapshot(
+		items,
+		"最後の記録",
+		async (input, _schema, task) => {
+			calls++;
+			expect(task).toBe("recall");
+			expect(JSON.parse(input)).toEqual({ message: "最後の記録", items });
+			return response([
+				{ request: "最後の記録", status: "supported", evidenceIds: ["i1000"] },
+			]);
+		},
+	);
+	expect(calls).toBe(1);
+	expect(result.parts[0]!.evidenceIds).toEqual(["i1000"]);
+	expect(result.coverage).toEqual({ complete: true, itemCount: 1001 });
+});
+test("one-shot recall preserves labels, normalized negation and only surviving host facts", async () => {
+	const directory = mkdtempSync(join(tmpdir(), "one-shot-host-"));
 	const host = new StandaloneHost(directory);
 	try {
-		const text = "版画が好き";
+		const text = "会員である";
 		const saved = host.remember(
 			{
 				type: "remember",
+				subject: "other:p",
 				kind: "other_person_note",
-				subject: "other:p1",
-				semanticKey: "printmaking",
-				value: { text, polarity: "affirmed" },
-				quote: text,
+				semanticKey: "member",
+				value: { text, polarity: "negated" },
+				quote: "会員ではない",
 				replacesItemId: null,
 			},
-			text,
+			"会員ではない",
 		);
-		let supplied: unknown[] = [];
-		const candidates: Complete = async (input) => {
-			supplied = JSON.parse(input).items;
-			return selectAll(input, {}, "recall");
-		};
 		await recallMemory(
 			host,
-			"ミナの好み",
-			{ candidates, grounding: unknown },
-			{ subjects: [{ id: "other:p1", label: "ミナ" }] },
+			"担当者は会員か",
+			async (input) => {
+				expect(JSON.parse(input).items[0]).toMatchObject({
+					subject: "other:p",
+					subjectLabel: "担当者の理央",
+					value: { text, polarity: "negated" },
+				});
+				return unknown();
+			},
+			{ subjects: [{ id: "other:p", label: "担当者の理央" }] },
 		);
-		expect(supplied).toHaveLength(1);
-		expect(supplied[0]).toHaveProperty("subjectLabel", "ミナ");
 		host.forgetFact(saved.itemId);
-		const result = await recallMemory(host, "ミナの好み", {
-			candidates,
-			grounding: unknown,
+		const result = await recallMemory(host, "担当者は会員か", async (input) => {
+			expect(JSON.parse(input).items).toEqual([]);
+			return unknown();
 		});
-		expect(result.coverage.candidateCount).toBe(0);
+		expect(result.coverage.itemCount).toBe(0);
 	} finally {
 		host.close();
 		rmSync(directory, { recursive: true, force: true });
 	}
 });
-
-test("joint grounding sees both pages and can reject their locally plausible candidates", async () => {
-	const seen: string[][] = [];
-	const result = await recallSnapshot(
-		[item("a", "お気に入りは南風亭"), item("b", "白波堂は港町にある")],
-		"お気に入りの所在地は？",
-		{
-			candidates: selectAll,
-			grounding: async (input) => {
-				seen.push(
-					JSON.parse(input).items.map((x: { itemId: string }) => x.itemId),
-				);
-				return unknown(input, {}, "recall");
-			},
-		},
-		{ pageSize: 1 },
-	);
-	expect(seen).toEqual([["a", "b"]]);
-	expect(result.parts[0]!.evidenceIds).toEqual([]);
-	expect(result.coverage.complete).toBe(true);
-});
-test("page and candidate budgets expose incomplete search instead of definitive absence", async () => {
-	for (const options of [
-		{ pageSize: 1, maxPages: 1 },
-		{ pageSize: 1, maxCandidates: 1 },
-	]) {
-		const result = await recallSnapshot(
-			[item("a", "a"), item("b", "b")],
-			"質問",
-			{ candidates: selectAll, grounding: unknown },
-			options,
-		);
-		expect(result.coverage.complete).toBe(false);
-		expect(result.parts[0]!.status).toBe("unresolved");
-	}
-});
-test("candidate and grounding IDs must belong to their supplied authorized sets", async () => {
+test("unknown IDs, duplicate snapshot IDs, missing parts and malformed polarity evidence fail closed", async () => {
+	const facts = [item("a", "a")];
+	for (const parts of [
+		[],
+		[{ request: "q", status: "supported", evidenceIds: ["outside"] }],
+		[{ request: "q", status: "conflict", evidenceIds: ["a"] }],
+	])
+		await expect(
+			recallSnapshot(facts, "q", async () => response(parts)),
+		).rejects.toThrow();
 	await expect(
-		recallSnapshot([item("a", "a")], "質問", {
-			candidates: async () => response({ itemIds: ["foreign"] }),
-			grounding: unknown,
-		}),
-	).rejects.toThrow("Invalid candidate IDs");
-	await expect(
-		recallSnapshot([item("a", "a")], "質問", {
-			candidates: selectAll,
-			grounding: async () =>
-				response({
-					parts: [
-						{ request: "質問", status: "supported", evidenceIds: ["foreign"] },
-					],
-				}),
-		}),
-	).rejects.toThrow("Invalid evidence part");
+		recallSnapshot([...facts, ...facts], "q", async () => unknown()),
+	).rejects.toThrow("Duplicate");
 });
-test("a failed page is an execution failure, not an empty successful answer", async () => {
+test("provider/context-limit failure is not converted to a successful unknown result", async () => {
 	await expect(
-		recallSnapshot([item("a", "a")], "質問", {
-			candidates: async () => {
-				throw Error("provider unavailable");
-			},
-			grounding: unknown,
+		recallSnapshot([item("a", "a")], "q", async () => {
+			throw Error("context limit");
 		}),
-	).rejects.toThrow("provider unavailable");
+	).rejects.toThrow("context limit");
 });

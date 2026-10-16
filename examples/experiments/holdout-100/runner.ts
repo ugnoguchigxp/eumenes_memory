@@ -29,7 +29,7 @@ import {
 } from "../../standalone/planning.ts";
 import type { MemoryPlan } from "../../standalone/planning.ts";
 import { applyMemoryPlan } from "../../standalone/execution.ts";
-import { recallSnapshot } from "../../standalone/retrieval.ts";
+import { recallSnapshot } from "../frozen-retrieval.ts";
 import { parseEvidence } from "../../standalone/support.ts";
 import { subjectsFor } from "./cases.ts";
 import type { MutationCase, Fact, RetrievalCase } from "./cases.ts";
