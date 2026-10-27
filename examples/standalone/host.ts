@@ -48,7 +48,7 @@ export const ACCESS: AccessContext = {
 };
 export const SCOPE = ACCESS.scopeKeys[0]!;
 
-function appendDurable(path: string, value: unknown): void {
+export function appendDurable(path: string, value: unknown): void {
 	const fd = openSync(path, "a", 0o600);
 	try {
 		const bytes = Buffer.from(`${JSON.stringify(value)}\n`);

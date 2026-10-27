@@ -149,11 +149,32 @@ describe("src hygiene", () => {
 		expect(importers).toEqual(["test/support/store.ts"]);
 	});
 
-	test("package.json has no runtime dependencies", () => {
+	test("package.json has no runtime dependencies and exports the built files", () => {
 		const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
 		expect(pkg.dependencies).toBeUndefined();
 		expect(pkg.peerDependencies).toBeUndefined();
-		expect(pkg.exports["."]).toBe("./src/index.ts");
-		expect(pkg.exports["./sqlite"]).toBe("./src/sqlite.ts");
+		// The package ships built JavaScript and declarations; its own examples reach the sources by tsconfig paths.
+		expect(pkg.files).toEqual([
+			"dist",
+			"LICENSE",
+			"README.md",
+			"THIRD_PARTY_NOTICES.md",
+		]);
+		expect(pkg.exports["."]).toEqual({
+			types: "./dist/index.d.ts",
+			default: "./dist/index.js",
+		});
+		expect(pkg.exports["./sqlite"]).toEqual({
+			types: "./dist/sqlite.d.ts",
+			default: "./dist/sqlite.js",
+		});
+		const paths = JSON.parse(
+			readFileSync(join(ROOT, "tsconfig.json"), "utf8").replace(
+				/^\s*\/\/.*$/gm,
+				"",
+			),
+		).compilerOptions.paths;
+		expect(paths["eumenes-memory"]).toEqual(["./src/index.ts"]);
+		expect(paths["eumenes-memory/sqlite"]).toEqual(["./src/sqlite.ts"]);
 	});
 });

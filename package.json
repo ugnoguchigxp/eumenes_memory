@@ -1,22 +1,30 @@
 {
 	"name": "eumenes-memory",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"private": true,
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
 	"files": [
-		"src",
+		"dist",
 		"LICENSE",
 		"README.md",
 		"THIRD_PARTY_NOTICES.md"
 	],
 	"exports": {
-		".": "./src/index.ts",
-		"./sqlite": "./src/sqlite.ts",
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./sqlite": {
+			"types": "./dist/sqlite.d.ts",
+			"default": "./dist/sqlite.js"
+		},
 		"./package.json": "./package.json"
 	},
 	"scripts": {
+		"build": "rm -rf dist && tsc -p tsconfig.build.json",
+		"prepack": "bun run build",
 		"check:memory": "bun examples/standalone/main.ts",
 		"check:memory:live": "bun examples/standalone/main.ts --live",
 		"check:memory:conversations": "bun examples/standalone/main.ts --suite conversation",
@@ -31,7 +39,8 @@
 		"check:boundaries": "bun scripts/boundaries.ts",
 		"verify": "bun scripts/verify.ts",
 		"verify:all": "bun scripts/verify.ts --all",
-		"memory": "bun examples/standalone/memory.ts"
+		"memory": "bun examples/standalone/memory.ts",
+		"memory:seed": "bun examples/seeds/main.ts"
 	},
 	"devDependencies": {
 		"@openai/codex-sdk": "0.163.0",

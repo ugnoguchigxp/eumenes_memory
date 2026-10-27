@@ -23,6 +23,8 @@ bun run lint:fix     # 自動修正（verifyではソースを変更しない）
 
 ## 単体での動作チェック
 
+会話履歴から抽出した50件の候補は [Seedデータの例](examples/seeds/README.md) にあります。`bun run memory:seed load /tmp/seed-memory` でState候補28件を未確認の推定として初期化し、`bun run memory /tmp/seed-memory recall '私のAI動画の好みは？'` で参照できます。手順18件と案件情報4件はStateへ投入せず、同じデータファイルから参照できます。
+
 Eumenes を起動せずに試す場合は、[独立ホストの実行例](examples/standalone/README.md) を使う。
 
 ```sh
@@ -42,10 +44,10 @@ bun run check:memory:conversations:live # 人物・話題混在、曖昧な訂�
 
 ## Eumenes からの利用
 
-Eumenes はビルド済みの配布物（`artifacts/eumenes-memory-<version>.tgz`）を `vendor/eumenes-memory/` に置いて取り込む。配布物の中身は TS ソース（`exports["."] = "./src/index.ts"`、ビルド不要）で、`package.json` の `files` に含まれるものだけが入る。
+Eumenes はビルド済みの配布物（`artifacts/eumenes-memory-<version>.tgz`）を `vendor/eumenes-memory/` に置いて取り込む。配布物の中身はビルド済みの JavaScript と型宣言（`dist/`。`exports["."]` は `./dist/index.js`、型は `./dist/index.d.ts`）で、`package.json` の `files` に含まれるものだけが入る。Node（Playwright など）からも読み込める。作るときは `bun pm pack --destination artifacts`（`prepack` が `bun run build` で `dist/` を作り直す）。このリポジトリの examples は `tsconfig.json` の `paths` でソースを直接読むので、開発中にビルドは要らない。
 
 ```json
-{ "dependencies": { "eumenes-memory": "file:vendor/eumenes-memory/eumenes-memory-0.0.1.tgz" } }
+{ "dependencies": { "eumenes-memory": "file:vendor/eumenes-memory/eumenes-memory-0.0.2-<sha256の先頭12桁>.tgz" } }
 ```
 
 ```ts

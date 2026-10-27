@@ -11,6 +11,11 @@
 		"allowImportingTsExtensions": true,
 		"resolveJsonModule": true,
 		"noUncheckedIndexedAccess": true,
+		// The package's own examples import it by name; resolve that to the sources, not dist.
+		"paths": {
+			"eumenes-memory": ["./src/index.ts"],
+			"eumenes-memory/sqlite": ["./src/sqlite.ts"]
+		},
 		"exactOptionalPropertyTypes": true,
 		"noImplicitOverride": true,
 		"noPropertyAccessFromIndexSignature": true,
