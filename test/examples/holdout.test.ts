@@ -38,34 +38,41 @@ test("baseline legacy recall parser matches its actual schema; pre-group plannin
 		parsePlan(JSON.stringify({ ...old, groups: [] }), [], "read only").changes,
 	).toEqual([]);
 });
-test("every mutation seed can be persisted through real public host contracts", () => {
-	for (const c of [...identityCases(), ...executionCases()]) {
-		const dir = mkdtempSync(join(tmpdir(), "holdout-seed-"));
-		const host = new StandaloneHost(dir);
-		try {
-			for (const f of c.seed)
-				host.remember(
-					{
-						type: "remember",
-						subject: f.subject,
-						kind: f.kind,
-						semanticKey: f.key,
-						value: { text: f.text, polarity: f.polarity },
-						quote: f.text,
-						replacesItemId: null,
-					},
-					f.text,
-				);
-			expect(host.list().length).toBe(c.seed.length);
-			expect(c.preserve.every((key) => c.seed.some((x) => x.key === key))).toBe(
-				true,
-			);
-		} finally {
-			host.close();
-			rmSync(dir, { recursive: true, force: true });
-		}
+// Each independent case keeps the default timeout; total suite duration is not a product SLA.
+// Both CI platforms exceeded5s when200 fresh databases were hidden inside one test.
+for (const [suite, cases] of [
+	["identity", identityCases()],
+	["execution", executionCases()],
+] as const) {
+	for (const c of cases) {
+		test(`${suite}/${c.id}: mutation seed persists through real public host contracts`, () => {
+			const dir = mkdtempSync(join(tmpdir(), "holdout-seed-"));
+			const host = new StandaloneHost(dir);
+			try {
+				for (const f of c.seed)
+					host.remember(
+						{
+							type: "remember",
+							subject: f.subject,
+							kind: f.kind,
+							semanticKey: f.key,
+							value: { text: f.text, polarity: f.polarity },
+							quote: f.text,
+							replacesItemId: null,
+						},
+						f.text,
+					);
+				expect(host.list().length).toBe(c.seed.length);
+				expect(
+					c.preserve.every((key) => c.seed.some((x) => x.key === key)),
+				).toBe(true);
+			} finally {
+				host.close();
+				rmSync(dir, { recursive: true, force: true });
+			}
+		});
 	}
-});
+}
 
 test("corrected retrieval inputs keep every question/gold while resolving explicit owner and polarity defects", async () => {
 	const dir = mkdtempSync(join(tmpdir(), "holdout-metadata-"));
