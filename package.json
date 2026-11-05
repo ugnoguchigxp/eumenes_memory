@@ -50,6 +50,7 @@
 		"eval:memory:preflight": "bun examples/quality/preflight.ts",
 		"bench:memory": "bun examples/quality/benchmark.ts",
 		"eval:memory:calibrate": "bun examples/quality/answers.ts calibrate",
+		"eval:memory:answers:freeze": "bun examples/quality/answers.ts freeze",
 		"eval:memory:answers": "bun examples/quality/answers.ts answers",
 		"eval:memory:lifecycle": "bun examples/quality/lifecycle.ts"
 	},

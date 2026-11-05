@@ -1,5 +1,5 @@
 /** Two external API adapters for the existing Complete contract. No execution tools are supplied. */
-import { appendFileSync } from "node:fs";
+import { appendFileSync, closeSync, fsyncSync, openSync } from "node:fs";
 import type { Complete, ModelTask } from "../standalone/protocol.ts";
 import { instructionsFor } from "../standalone/protocol.ts";
 import { Budget } from "./budget.ts";
@@ -22,8 +22,10 @@ export class ApiFailure extends Error {
 			| "http"
 			| "refusal"
 			| "incomplete"
-			| "contract",
+			| "contract"
+			| "persistence",
 		message: string,
+		readonly details: { httpStatus?: number; retryNotBefore?: string } = {},
 	) {
 		super(message);
 	}
@@ -41,8 +43,8 @@ export interface ApiOptions {
 }
 /** Only remove transport-unsupported constraints. The existing local parsers retain every limit. */
 export function claudeSchema(schema: unknown): unknown {
-	if (Array.isArray(schema)) return schema.map(claudeSchema);
-	if (!schema || typeof schema !== "object") return schema;
+	if (!schema || typeof schema !== "object" || Array.isArray(schema))
+		return schema;
 	return Object.fromEntries(
 		Object.entries(schema)
 			.filter(
@@ -56,7 +58,50 @@ export function claudeSchema(schema: unknown): unknown {
 						"maxItems",
 					].includes(k),
 			)
-			.map(([k, v]) => [k, claudeSchema(v)]),
+			.map(([k, v]) => {
+				// Property/definition names and enum/const/default values are data, not keywords.
+				if (
+					[
+						"properties",
+						"patternProperties",
+						"$defs",
+						"definitions",
+						"dependentSchemas",
+					].includes(k)
+				)
+					return [
+						k,
+						Object.fromEntries(
+							Object.entries(obj(v)).map(([name, child]) => [
+								name,
+								claudeSchema(child),
+							]),
+						),
+					];
+				if (
+					["allOf", "anyOf", "oneOf", "prefixItems"].includes(k) &&
+					Array.isArray(v)
+				)
+					return [k, v.map(claudeSchema)];
+				if (
+					[
+						"items",
+						"additionalItems",
+						"additionalProperties",
+						"unevaluatedProperties",
+						"unevaluatedItems",
+						"propertyNames",
+						"contains",
+						"not",
+						"if",
+						"then",
+						"else",
+						"contentSchema",
+					].includes(k)
+				)
+					return [k, Array.isArray(v) ? v.map(claudeSchema) : claudeSchema(v)];
+				return [k, v];
+			}),
 	);
 }
 function obj(x: unknown): Record<string, unknown> {
@@ -113,6 +158,13 @@ export function apiComplete(options: ApiOptions): Complete {
 		const maxOutput = options.maxOutput ?? (provider === "openai" ? 2048 : 768);
 		if (!Number.isSafeInteger(maxOutput) || maxOutput < 16 || maxOutput > 4096)
 			throw new ApiFailure("configuration", "Invalid output budget");
+		const timeoutMs = options.timeoutMs ?? 120000;
+		if (
+			!Number.isSafeInteger(timeoutMs) ||
+			timeoutMs <= 0 ||
+			timeoutMs > 2147483647
+		)
+			throw new ApiFailure("configuration", "Invalid API timeout");
 		const instructions = options.instructions?.[task] ?? instructionsFor(task);
 		const body =
 			provider === "openai"
@@ -149,15 +201,32 @@ export function apiComplete(options: ApiOptions): Complete {
 			throw new ApiFailure("contract", "API_INPUT_BUDGET_EXCEEDED");
 		const inputBound = Buffer.byteLength(encoded) * 2 + 8192;
 		const rate = RATES[provider];
-		const reservation = budget.reserve(
-			(inputBound * rate.reserveInput + maxOutput * rate.output) / 1e6,
-		);
+		let logFd: number;
+		try {
+			logFd = openSync(logPath, "a", 0o600);
+		} catch {
+			throw new ApiFailure("configuration", "Cannot open API audit log");
+		}
+		let reservation: string;
+		try {
+			reservation = budget.reserve(
+				(inputBound * rate.reserveInput + maxOutput * rate.output) / 1e6,
+			);
+		} catch (error) {
+			closeSync(logFd);
+			throw error;
+		}
 		const started = performance.now();
 		let status = "uncertain",
+			httpStatus: number | null = null,
+			retryNotBefore: string | null = null,
 			charge: number | null = null,
 			responseId: unknown = null,
 			rawUsage: unknown = null,
 			responseBody: unknown = null;
+		let completion: Awaited<ReturnType<Complete>> | undefined;
+		let requestFailed = false,
+			requestFailure: unknown;
 		try {
 			let response: Response;
 			try {
@@ -179,29 +248,58 @@ export function apiComplete(options: ApiOptions): Complete {
 										"Content-Type": "application/json",
 									},
 						body: encoded,
-						signal: AbortSignal.timeout(options.timeoutMs ?? 120000),
+						signal: AbortSignal.timeout(timeoutMs),
 					},
 				);
 			} catch {
 				throw new ApiFailure("transport", "API transport failed or timed out");
 			}
-			responseBody = await response.json();
-			const data = obj(responseBody);
+			httpStatus = response.status;
+			const retryAfter = response.headers.get("retry-after")?.trim();
+			if (retryAfter) {
+				// RFC 9110: delay-seconds or HTTP-date. Preserve the deadline for explicit recovery.
+				const deadline = /^\d+$/.test(retryAfter)
+					? Math.min(Date.now() + Number(retryAfter) * 1000, 8640000000000000)
+					: Date.parse(retryAfter);
+				if (Number.isFinite(deadline))
+					retryNotBefore = new Date(deadline).toISOString();
+			}
 			responseId =
-				data["id"] ??
 				response.headers.get("request-id") ??
 				response.headers.get("x-request-id");
-			if (!response.ok) {
-				// Definitive request rejection has no generated completion. Other HTTP failures remain uncertain.
-				if ([400, 401, 403, 404, 422, 429].includes(response.status))
-					charge = 0;
+			if (
+				!response.ok &&
+				[400, 401, 403, 404, 422, 429].includes(response.status)
+			)
+				charge = 0;
+			try {
+				responseBody = await response.text();
+			} catch {
 				throw new ApiFailure(
-					"http",
-					`HTTP ${response.status}: ${JSON.stringify(data["error"] ?? {})
-						.replaceAll(key, "[redacted]")
-						.slice(0, 700)}`,
+					"transport",
+					"API response body could not be read",
+					{
+						...(response.status >= 400 ? { httpStatus: response.status } : {}),
+						...(retryNotBefore ? { retryNotBefore } : {}),
+					},
 				);
 			}
+			if (!response.ok) {
+				// Definitive request rejection has no generated completion. Other HTTP failures remain uncertain.
+				throw new ApiFailure(
+					"http",
+					`HTTP ${response.status}: ${String(responseBody)
+						.replaceAll(key, "[redacted]")
+						.slice(0, 700)}`,
+					{
+						httpStatus: response.status,
+						...(retryNotBefore ? { retryNotBefore } : {}),
+					},
+				);
+			}
+			responseBody = JSON.parse(responseBody as string);
+			const data = obj(responseBody);
+			responseId = data["id"] ?? responseId;
 			rawUsage = data["usage"];
 			const usage = obj(rawUsage);
 			const inputTokens = num(
@@ -250,29 +348,39 @@ export function apiComplete(options: ApiOptions): Complete {
 			if (!raw) throw new ApiFailure("incomplete", "Missing API output");
 			JSON.parse(raw);
 			status = "completed";
-			return {
+			completion = {
 				raw,
 				threadId: null,
 				usage: { input_tokens: inputTokens, output_tokens: outputTokens },
 			};
 		} catch (error) {
 			status = error instanceof ApiFailure ? error.kind : "contract";
-			throw error;
-		} finally {
-			// Save accounting before reporting completion. No hidden SDK retry or additional call.
+			requestFailed = true;
+			requestFailure = error;
+		}
+		// Save accounting before reporting completion. No hidden SDK retry or additional call.
+		let accountingFailed = false;
+		try {
 			budget.settle(reservation, charge);
+		} catch {
+			accountingFailed = true;
+		}
+		try {
 			appendFileSync(
-				logPath,
+				logFd,
 				JSON.stringify({
 					reservation,
 					provider,
 					model: MODELS[provider],
 					task,
 					status,
+					httpStatus,
+					retryNotBefore,
 					durationMs: performance.now() - started,
 					responseId,
 					usage: rawUsage,
 					costUpperUsd: charge,
+					accountingStatus: accountingFailed ? "failed" : "settled",
 					input: prompt,
 					schema,
 					instructions,
@@ -283,8 +391,22 @@ export function apiComplete(options: ApiOptions): Complete {
 									JSON.stringify(responseBody).replaceAll(key, "[redacted]"),
 								),
 				}) + "\n",
-				{ mode: 0o600 },
 			);
+			fsyncSync(logFd);
+		} catch {
+			throw new ApiFailure(
+				"persistence",
+				"API audit log could not be saved; inspect accounting before resuming",
+			);
+		} finally {
+			closeSync(logFd);
 		}
+		if (accountingFailed)
+			throw new ApiFailure(
+				"persistence",
+				"API accounting could not be saved; received evidence is in the audit log",
+			);
+		if (requestFailed) throw requestFailure;
+		return completion!;
 	};
 }
