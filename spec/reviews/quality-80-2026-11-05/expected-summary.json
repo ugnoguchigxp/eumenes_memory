@@ -1,0 +1,145 @@
+{
+	"rubric_version": "1.1.0",
+	"technical_profile": "library",
+	"mode": "technical",
+	"assessment_kind": "expected",
+	"target": {
+		"locator": "/Users/y.noguchi/Code/eumenes_memory",
+		"snapshot": "f0357dcf1341af6bb5464729f3251b4f266575b4",
+		"reviewed_at": "2026-11-05",
+		"stage": "Internal library in use per repository documentation; broader production deployment unverified",
+		"scope": "Expected technical-only scenario, rubric1.1.0 library/deep, same applicability/weights as baseline f0357dc. Snapshot is baseline reference; improvements are hypothetical pending W1-W6 evidence. All30 technical criteria remain applicable."
+	},
+	"depth": "deep",
+	"tracks": {
+		"technical": {
+			"raw_observed_score": 81.8,
+			"provisional_score": 81.8,
+			"score": null,
+			"score_status": "provisional",
+			"coverage_percent": 100.0,
+			"excluded_dimension_weight_percent": 0.0,
+			"raw_bounds": [81.8, 81.8],
+			"bounds": [81.8, 81.8],
+			"confidence": "Medium",
+			"required_dimensions_complete": true,
+			"incomplete_required_dimensions": [],
+			"unresolved_severe_suspicions": [],
+			"gates": [],
+			"production_readiness": "hypothetical: no blocker identified in reviewed scope",
+			"dimensions": {
+				"architecture": {
+					"status": "assessed",
+					"score": 8.3,
+					"coverage_percent": 100.0,
+					"bounds": [8.3, 8.3],
+					"base_weight": 12,
+					"confidence": "Medium",
+					"effective_weight_percent": 12.0
+				},
+				"correctness": {
+					"status": "assessed",
+					"score": 7.5,
+					"coverage_percent": 100.0,
+					"bounds": [7.5, 7.5],
+					"base_weight": 20,
+					"confidence": "High",
+					"effective_weight_percent": 20.0
+				},
+				"security": {
+					"status": "assessed",
+					"score": 9.2,
+					"coverage_percent": 100.0,
+					"bounds": [9.2, 9.2],
+					"base_weight": 10,
+					"confidence": "Medium",
+					"effective_weight_percent": 10.0
+				},
+				"reliability": {
+					"status": "assessed",
+					"score": 8.3,
+					"coverage_percent": 100.0,
+					"bounds": [8.3, 8.3],
+					"base_weight": 8,
+					"confidence": "Medium",
+					"effective_weight_percent": 8.0
+				},
+				"maintainability": {
+					"status": "assessed",
+					"score": 8.3,
+					"coverage_percent": 100.0,
+					"bounds": [8.3, 8.3],
+					"base_weight": 12,
+					"confidence": "Medium",
+					"effective_weight_percent": 12.0
+				},
+				"common_components": {
+					"status": "assessed",
+					"score": 7.5,
+					"coverage_percent": 100.0,
+					"bounds": [7.5, 7.5],
+					"base_weight": 5,
+					"confidence": "High",
+					"effective_weight_percent": 5.0
+				},
+				"testing": {
+					"status": "assessed",
+					"score": 9.2,
+					"coverage_percent": 100.0,
+					"bounds": [9.2, 9.2],
+					"base_weight": 15,
+					"confidence": "High",
+					"effective_weight_percent": 15.0
+				},
+				"supply_chain": {
+					"status": "assessed",
+					"score": 7.5,
+					"coverage_percent": 100.0,
+					"bounds": [7.5, 7.5],
+					"base_weight": 10,
+					"confidence": "Medium",
+					"effective_weight_percent": 10.0
+				},
+				"performance": {
+					"status": "assessed",
+					"score": 7.5,
+					"coverage_percent": 100.0,
+					"bounds": [7.5, 7.5],
+					"base_weight": 5,
+					"confidence": "Medium",
+					"effective_weight_percent": 5.0
+				},
+				"operability": {
+					"status": "assessed",
+					"score": 7.5,
+					"coverage_percent": 100.0,
+					"bounds": [7.5, 7.5],
+					"base_weight": 3,
+					"confidence": "Medium",
+					"effective_weight_percent": 3.0
+				}
+			}
+		}
+	},
+	"confirmed_findings": {
+		"Critical": 0,
+		"High": 0,
+		"Medium": 0,
+		"Low": 0
+	},
+	"priorities": {
+		"P0": 0,
+		"P1": 0,
+		"P2": 0,
+		"P3": 0
+	},
+	"suspected_findings": 0,
+	"baseline_snapshot": "f0357dcf1341af6bb5464729f3251b4f266575b4",
+	"scenario_conditions": [
+		"All W1-W6 acceptance conditions pass on one immutable final source snapshot; source cannot change during final checks.",
+		"Baseline findings F01 and F02 are only hypothetically resolved; baseline ledger remains unchanged.",
+		"All30 technical criteria are assessed with actual target evidence in a future re-evaluation; current forecast is not a quality certification.",
+		"Runtime/core API and database scope remain unchanged except the minimal own-property fix; provider APIs are evaluation-host adapters.",
+		"No numeric advance is awarded merely for using two models or adding test counts."
+	]
+}

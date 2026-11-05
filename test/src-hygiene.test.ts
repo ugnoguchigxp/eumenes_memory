@@ -159,6 +159,7 @@ describe("src hygiene", () => {
 			"LICENSE",
 			"README.md",
 			"THIRD_PARTY_NOTICES.md",
+			"docs",
 		]);
 		expect(pkg.exports["."]).toEqual({
 			types: "./dist/index.d.ts",

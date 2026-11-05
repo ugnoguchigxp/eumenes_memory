@@ -32,7 +32,7 @@ transaction、migration の実行、非同期処理（モデル呼び出し）�
 | `migrations/` | 登録配列と 0001 foundation。手順は [migrations/README.md](migrations/README.md) |
 | `dependency.ts` / `tombstone.ts` | `addDependency` / `isTombstoned` |
 | `changes.ts` | `appendMemoryChange`（内部）/ `listMemoryChanges`・`latestMemoryChangeSeq`（公開、外部ドメイン向けフィードと最大 seq） |
-| `records.ts` `state.ts` `lifecycle.ts` | `lifecycle.ts` は target record / host_source / state_item / scope の plan・apply・reconcile・receipt、ExternalDependent の登録・解除、外部削除の記録。値の消去は表の持ち主（`scrubRecord` / `scrubStateItem`）が行い、`lifecycle.ts` が閉包を求めて呼ぶ |
+| 各ドメインの `repository/` | Lifecycle は target record / host_source / state_item / scope の plan・apply・reconcile・receipt、ExternalDependent の登録・解除、外部削除の記録。値の消去は表の持ち主（`scrubRecord` / `scrubStateItem`）が行い、`lifecycle.ts` が閉包を求めて呼ぶ |
 
 入出力の型・reasonCode・上限は各ドメインの `contracts/` と `src/contracts/external.ts`。
 

@@ -37,8 +37,8 @@ export function sourceHash(root: string): string {
 		.filter((path) => !generated.test(relative(root, path)))
 		.filter(
 			(path) =>
-				/\.(?:ts|tsx|js|json|jsonc|sql)$/.test(path) ||
-				["bun.lock", "package.json", ".gitignore"].includes(
+				/\.(?:ts|tsx|js|mjs|json|jsonc|sql|md|yml|yaml)$/.test(path) ||
+				["bun.lock", "package.json", ".gitignore", "LICENSE"].includes(
 					relative(root, path),
 				),
 		)

@@ -1,7 +1,6 @@
 /**
  * Lifecycle 入力の parse。違反は MemoryContractError。
- * S1 が実装する target は `record` と `scope`。それ以外（`host_source` / `state_item`）は形だけ検査して
- * そのまま返し、store 側が NOT_IMPLEMENTED（S6 が実装）にする。
+ * record / scope / host_source / state_item の形を検査する。所有権と閉包はrepositoryが検査する。
  */
 import { deepFreeze } from "../../../canonical/freeze.ts";
 import { readAccessContext } from "../../../contracts/parse-input.ts";

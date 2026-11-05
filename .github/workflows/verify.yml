@@ -2,8 +2,9 @@ name: verify
 
 on:
   push:
-    branches: [main]
+    branches: [main, "codex/quality-80"]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -13,15 +14,21 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
           bun-version: 1.4.4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
       - run: bun install --frozen-lockfile
       - run: bun run verify:all
+      - run: bun run verify:package
       - name: Upload verification report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: verification-report-${{ matrix.os }}
-          path: verification-reports/latest.json
+          path: |
+            verification-reports/latest.json
+            verification-reports/quality-80/package.json

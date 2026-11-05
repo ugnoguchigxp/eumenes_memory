@@ -9,7 +9,8 @@
 		"dist",
 		"LICENSE",
 		"README.md",
-		"THIRD_PARTY_NOTICES.md"
+		"THIRD_PARTY_NOTICES.md",
+		"docs"
 	],
 	"exports": {
 		".": {
@@ -24,7 +25,7 @@
 	},
 	"scripts": {
 		"build": "rm -rf dist && tsc -p tsconfig.build.json",
-		"prepack": "bun run build",
+		"prepack": "bun run build && bun scripts/release-manifest.ts",
 		"check:memory": "bun examples/standalone/main.ts",
 		"check:memory:live": "bun examples/standalone/main.ts --live",
 		"check:memory:conversations": "bun examples/standalone/main.ts --suite conversation",
@@ -40,7 +41,17 @@
 		"verify": "bun scripts/verify.ts",
 		"verify:all": "bun scripts/verify.ts --all",
 		"memory": "bun examples/standalone/memory.ts",
-		"memory:seed": "bun examples/seeds/main.ts"
+		"memory:seed": "bun examples/seeds/main.ts",
+		"verify:package": "bun scripts/verify-package.ts",
+		"check:dependencies": "bun scripts/dependencies.ts",
+		"eval:memory:freeze": "bun examples/quality/evaluate.ts freeze",
+		"eval:memory:pilot": "bun examples/quality/evaluate.ts pilot",
+		"eval:memory:run": "bun examples/quality/evaluate.ts run",
+		"eval:memory:preflight": "bun examples/quality/preflight.ts",
+		"bench:memory": "bun examples/quality/benchmark.ts",
+		"eval:memory:calibrate": "bun examples/quality/answers.ts calibrate",
+		"eval:memory:answers": "bun examples/quality/answers.ts answers",
+		"eval:memory:lifecycle": "bun examples/quality/lifecycle.ts"
 	},
 	"devDependencies": {
 		"@openai/codex-sdk": "0.163.0",

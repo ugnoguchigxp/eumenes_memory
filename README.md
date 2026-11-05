@@ -2,7 +2,11 @@
 
 Eumenes の記憶（State 台帳、再生成可能な資料 Records、忘却）を Eumenes と独立して開発するライブラリ。永続は `eumenes-memory/sqlite` の同期関数で、接続・transaction・キャッシュ容量・checkpoint はホストが所有する。World / Consolidation は別ドメイン・別リポジトリで作るため本体では実装せず、接続部（`ExternalDependent` と変更フィード `listMemoryChanges`）だけを提供する。Procedure（Rule / Skill）は指示の権限を持つため本体の対象外（Eumenes が扱う）。
 
-各機能が到達した検証段階（実装 / fixture / 実 SQL / ホスト結合 / 実モデル評価）は [検証状況](spec/verification-status.md) が正本。設計の記録は [全体設計](spec/full-system-design.md)。
+各機能が到達した検証段階（実装 / fixture / 実 SQL / ホスト結合 / 実モデル評価）は [検証状況](docs/host-guide.md#verification) が正本。設計の記録は [全体設計](docs/host-guide.md#boundaries)。
+
+配布物にはAPIと[ホスト導入手順](docs/host-guide.md)を同梱する。以下の開発・実験コマンドとseedはソースcheckoutで使用する。
+
+APIを使う検証と10 USD上限の運用は[検証手順](docs/quality-validation.md)を参照。
 
 ## 開発コマンド
 
@@ -15,17 +19,17 @@ bun run test:domain -- state      # Stateが所有するテスト
 bun run lint:fix     # 自動修正（verifyではソースを変更しない）
 ```
 
-内部は Records / State / Lifecycle / Temporal のドメイン構造。所有範囲と依存規則は [ドメイン構造](src/domains/README.md)。oxfmt / oxlintの版と共通設定は隣接Eumenesに合わせ、React向けの設定はこのライブラリに持ち込まない。検証記録は `verification-reports/` に保存する。Eumenes を模したホスト（会話 message、書き込みキュー、ジャーナル、再起動・DB 復元）は `test/runners/fake-eumenes-host.ts` にあり、実 Eumenes なしで結合の想定を試せる（実 Eumenes との結合の証明ではない）。
+内部は Records / State / Lifecycle / Temporal のドメイン構造。所有範囲と依存規則は [ドメイン構造](docs/host-guide.md#domains)。oxfmt / oxlintの版と共通設定は隣接Eumenesに合わせ、React向けの設定はこのライブラリに持ち込まない。検証記録は `verification-reports/` に保存する。Eumenes を模したホスト（会話 message、書き込みキュー、ジャーナル、再起動・DB 復元）は `test/runners/fake-eumenes-host.ts` にあり、実 Eumenes なしで結合の想定を試せる（実 Eumenes との結合の証明ではない）。
 
 ## 記憶の計画と適用
 
-通常利用は [独立ホストの入口](examples/standalone/README.md#通常利用の入口) の `bun run memory` を使う。計画と適用を分け、グループ単位の保存、再試行の記録、古い計画の拒否を適用する。以下の `check:memory` は従来方式を含む検証用コマンド。
+通常利用は [独立ホストの入口](docs/host-guide.md#development-examples) の `bun run memory` を使う。計画と適用を分け、グループ単位の保存、再試行の記録、古い計画の拒否を適用する。以下の `check:memory` は従来方式を含む検証用コマンド。
 
 ## 単体での動作チェック
 
-会話履歴から抽出した50件の候補は [Seedデータの例](examples/seeds/README.md) にあります。`bun run memory:seed load /tmp/seed-memory` でState候補28件を未確認の推定として初期化し、`bun run memory /tmp/seed-memory recall '私のAI動画の好みは？'` で参照できます。手順18件と案件情報4件はStateへ投入せず、同じデータファイルから参照できます。
+会話履歴から抽出した50件の候補は [Seedデータの例](docs/host-guide.md#development-examples) にあります。`bun run memory:seed load /tmp/seed-memory` でState候補28件を未確認の推定として初期化し、`bun run memory /tmp/seed-memory recall '私のAI動画の好みは？'` で参照できます。手順18件と案件情報4件はStateへ投入せず、同じデータファイルから参照できます。
 
-Eumenes を起動せずに試す場合は、[独立ホストの実行例](examples/standalone/README.md) を使う。
+Eumenes を起動せずに試す場合は、[独立ホストの実行例](docs/host-guide.md#development-examples) を使う。
 
 ```sh
 bun run check:memory       # 認証なし。実 SQLite で保存・訂正・忘却・復元など17項目を検査
@@ -40,7 +44,7 @@ bun run check:memory:conversations:live # 人物・話題混在、曖昧な訂�
 | import | 内容 |
 |---|---|
 | `eumenes-memory` | 純粋 API と、各 family の型・定数・reasonCode・上限。`MemoryContractError` / `isMemoryContractError`、`CONTRACT_VERSIONS`（records / state / lifecycle / external）、`LIMITS*`、`sliceUtf8Range`（UTF-8 byte 範囲の切り出し）、`verifyForgetJournal`（ジャーナルの鎖の検証）、`classifyValidity` / `periodFromStateMs`（成立期間の判定。時刻はホストが渡す） |
-| `eumenes-memory/sqlite` | 永続 API。ホストが渡す `MemoryDb`（bun:sqlite の `Database` が構造的に満たす）に対する同期関数と `migrations`。`bun:sqlite` は import しない。State（`assertUserState` / `deactivateState` / `reactivateState` / `retractState` / `listState` / `readStateFact`）、Records（`captureRecord` / `readRecord` と、再生成可能な資料の `retainRecord` / `readRetainedRecord` / `useRetainedRecord` / `retainedRecordStats` / `evictRetainedRecords`）、Lifecycle（`planForget` / `applyForget` / `reconcileForgetJournal` / `getForgetReceipt` / `recordExternalDeletion` / `registerExternalDependents` / `unregisterExternalDependents`）、`assertMemorySchema` / `checkHostMigrations` / `migrations` / `MEMORY_DB_SCHEMA_VERSION`、`listMemoryChanges` / `latestMemoryChangeSeq`（scope で可視な変更の最大 seq。ホストが内部の表を読まずに世代を見る）、`MemoryStoreError`。State の `assertUserState` の origin は `user_confirmed` / `user_edited` / `agent_inferred`（ホストのエージェントが依頼なしに推定した内容。ユーザー由来の保護は受けない。意味は [State 契約](src/domains/state/contracts/index.ts)）。起動手順と規則は [src/infrastructure/sqlite/README.md](src/infrastructure/sqlite/README.md) |
+| `eumenes-memory/sqlite` | 永続 API。ホストが渡す `MemoryDb`（bun:sqlite の `Database` が構造的に満たす）に対する同期関数と `migrations`。`bun:sqlite` は import しない。State（`assertUserState` / `deactivateState` / `reactivateState` / `retractState` / `listState` / `readStateFact`）、Records（`captureRecord` / `readRecord` と、再生成可能な資料の `retainRecord` / `readRetainedRecord` / `useRetainedRecord` / `retainedRecordStats` / `evictRetainedRecords`）、Lifecycle（`planForget` / `applyForget` / `reconcileForgetJournal` / `getForgetReceipt` / `recordExternalDeletion` / `registerExternalDependents` / `unregisterExternalDependents`）、`assertMemorySchema` / `checkHostMigrations` / `migrations` / `MEMORY_DB_SCHEMA_VERSION`、`listMemoryChanges` / `latestMemoryChangeSeq`（scope で可視な変更の最大 seq。ホストが内部の表を読まずに世代を見る）、`MemoryStoreError`。State の `assertUserState` の origin は `user_confirmed` / `user_edited` / `agent_inferred`（ホストのエージェントが依頼なしに推定した内容。ユーザー由来の保護は受けない。意味は [State 契約](docs/host-guide.md#state-origin)）。起動手順と規則は [src/infrastructure/sqlite/README.md](docs/host-guide.md#startup) |
 
 ## Eumenes からの利用
 

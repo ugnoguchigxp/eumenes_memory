@@ -24,6 +24,7 @@ import {
 	MEMORY_RECORD_REPRESENTATION,
 } from "../../../contracts/common.ts";
 import { readHostClock } from "../../../contracts/parse-store.ts";
+import { ownValue } from "../../../contracts/own.ts";
 import type {
 	RetainRecordInput,
 	RetainRecordResult,
@@ -97,7 +98,7 @@ export function retainRecord(
 	);
 	if (
 		!Number.isSafeInteger(record.clock.atMs + idle) ||
-		record.providerRef !== undefined ||
+		ownValue(record, "providerRef") !== undefined ||
 		record.captureState !== "complete"
 	)
 		fail("INVALID_VALUE", "$.record");

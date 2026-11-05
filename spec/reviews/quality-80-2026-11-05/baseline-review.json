@@ -1,0 +1,838 @@
+{
+	"rubric_version": "1.1.0",
+	"mode": "full",
+	"depth": "deep",
+	"technical_profile": "library",
+	"assessment_kind": "current",
+	"target": {
+		"locator": "/Users/y.noguchi/Code/eumenes_memory",
+		"snapshot": "f0357dcf1341af6bb5464729f3251b4f266575b4",
+		"reviewed_at": "2026-11-05",
+		"stage": "Internal library in use per repository documentation; broader production deployment unverified",
+		"scope": "Full/deep/current, library profile. Core Records/State/Lifecycle/Temporal, contracts, SQLite, packaging, offline example host and saved model experiments. Read-only original, clean before/after. Executed in disposable tracked-file copy with existing pinned node_modules, macOS arm64, Bun 1.4.4, Node 24.11.1. Excludes live model rerun, adjacent Eumenes checkout/real deployment, private user/source text, production credentials, exhaustive dependency advisory audit, actual CI service logs, power-loss testing, general-market adoption and staffing. Forecast horizon 12 months; assess internal library first, not an autonomous agent product."
+	},
+	"evidence": [
+		{
+			"id": "E01",
+			"kind": "primary_doc",
+			"locator": "README.md; spec/full-system-design.md; spec/persistence-design.md @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "Core owns deterministic memory contracts/persistence; host owns model, identity, transactions, clock, queue and journal IO. No embedding/search or procedure authority in core.",
+			"scope": "Current snapshot; source tracing plus relevant tests, subject to target scope."
+		},
+		{
+			"id": "E02",
+			"kind": "code",
+			"locator": "src/domains/README.md; scripts/boundaries.ts; test/tooling.test.ts:190-230; git log -- src/domains @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "Four domains have one-way dependencies; import/cycle checks include deliberately violating scratch modules. Extraction removal and temporal/state changes are localized to owned modules.",
+			"scope": "Current snapshot; source tracing plus relevant tests, subject to target scope."
+		},
+		{
+			"id": "E03",
+			"kind": "code",
+			"locator": "src/domains/state/repository/index.ts:680-825; src/domains/state/service/{parse,evidence,reducer}.ts @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "assertUserState parses own data, validates scope, evidence quotes/UTF8/digest, loads active/CAS state, applies pure reducer, persists item/events/dependencies/feed in host transaction. Meaning of text is not classified by product branches.",
+			"scope": "Current snapshot; source tracing plus relevant tests, subject to target scope."
+		},
+		{
+			"id": "E04",
+			"kind": "code",
+			"locator": "src/domains/records/repository/index.ts; src/infrastructure/sqlite/{db,session,schema-check}.ts @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "Records hash identity/content, retain revisions, enforce ownership/tombstones; entry checks schema hashes, writes reject known nontransactional/read-only connections. Opaque IDs and parameter binding separate data from SQL.",
+			"scope": "Current snapshot; source tracing plus relevant tests, subject to target scope."
+		},
+		{
+			"id": "E05",
+			"kind": "code",
+			"locator": "src/domains/lifecycle/repository/index.ts:637-913; service/journal.ts; test/scenario/{forget,forget-closure,fake-host}.test.ts @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "Forget recomputes dependent closure at apply, scrubs values and past digest feed, persists tombstones, external pending receipts and journal head; restore and truncated/tampered journal cases tested. Reconcile flags feed cursor resynchronization.",
+			"scope": "Current snapshot; source tracing plus relevant tests, subject to target scope."
+		},
+		{
+			"id": "E06",
+			"kind": "code",
+			"locator": "test/scenario/prototype-pollution.test.ts:111-135,461-505; src/contracts/{reader,own}.ts @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "Reader rejects accessor/symbol/unknown properties, unsafe strings/numbers; prototype test compares results and full DB dumps and includes deliberately naive negative control. Retention API is absent from tested flows.",
+			"scope": "Current snapshot; source tracing plus relevant tests, subject to target scope."
+		},
+		{
+			"id": "E07",
+			"kind": "code",
+			"locator": "src/domains/state/test/{pagination,state,evidence}.test.ts; test/scenario/{forget-property,physical-erasure}.test.ts; test/examples/execution.test.ts @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "Tests cover multi-connection read snapshot, stale revisions, graph invariants, rollback, journal-before-apply interruption, restored-file recovery, stale plan and duplicate operation IDs. Simulated faults do not establish power-loss guarantees.",
+			"scope": "Current snapshot; source tracing plus relevant tests, subject to target scope."
+		},
+		{
+			"id": "E08",
+			"kind": "execution",
+			"locator": "partial-tests.log; integration-tests.log",
+			"observed_at": "2026-11-05",
+			"observation": "Commands in disposable snapshot: bun test src/domains/state/test src/domains/lifecycle/test src/infrastructure/sqlite/test => exit 0,162 pass/0 fail,19499 assertions; then bun test test/scenario test/consumer => exit 0,162 pass/0 fail,7227 assertions. Bun1.4.4 macOS, test-only temporary SQLite/WAL.",
+			"scope": "Executed now; test sets overlap later full suite; do not add test counts."
+		},
+		{
+			"id": "E09",
+			"kind": "execution",
+			"locator": "verify.log; snapshot/verification-reports/latest.json",
+			"observed_at": "2026-11-05",
+			"observation": "bun run verify:all => exit0;548 pass/0 fail,161949 assertions,55 files,21.319s total. Format/lint/boundaries/typecheck/compatibility/test/public-surface passed. Source hash before/after 3c818b55e7fd9e0087a0454fd353b223b32d608d73e7219fbda92eccc3aa1baa.",
+			"scope": "Executed now in disposable tracked-file copy, existing node_modules. Actual GitHub run not accessed."
+		},
+		{
+			"id": "E10",
+			"kind": "execution",
+			"locator": "offline.log; snapshot/verification-reports/memory-check/",
+			"observed_at": "2026-11-05",
+			"observation": "bun run check:memory --offline --suite all => exit0,124/124 checks,30/30 scenarios,0 model calls.",
+			"scope": "Executed now; deterministic replay/storage/recovery evidence, not model semantic accuracy."
+		},
+		{
+			"id": "E11",
+			"kind": "execution",
+			"locator": "pack.log; package-probe.json; consumer/probe.mjs",
+			"observed_at": "2026-11-05",
+			"observation": "bun pm pack --destination ../package => exit0,140 files,91.83KB archive. Extracted package in isolated consumer with no source path aliases; node probe.mjs => exit0 on Node24.11.1 using node:sqlite adapter, capture/read/forget completed and later read forgotten.",
+			"scope": "Actual generated distribution tested; SQLite experimental warning in Node24 recorded; not a claimed supported backend matrix."
+		},
+		{
+			"id": "E12",
+			"kind": "execution",
+			"locator": "package-probe.json; consumer/probe.mjs; src/domains/records/repository/retention.ts:98-103 @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "retainRecord succeeds normally; defining Object.prototype.providerRef as hostile-provider and passing a record with no own providerRef causes MemoryContractError INVALID_VALUE $.record. Pollution cleaned in finally.",
+			"scope": "Current packed artifact; in-memory synthetic DB; library does not cause pollution, exploit requires pre-existing host pollution. No leak or unauthorized write established."
+		},
+		{
+			"id": "E13",
+			"kind": "execution",
+			"locator": "package-probe.json; package.json:8-12; README.md @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "Extracted tarball README has seven unique missing relative targets, including mandatory SQLite startup/journal instructions. Package includes dist, README, notices, LICENSE but no src/spec/examples.",
+			"scope": "A recipient possessing only the intended vendor tarball cannot follow these links; repository owners can use checkout as workaround."
+		},
+		{
+			"id": "E14",
+			"kind": "code",
+			"locator": "package.json; bun.lock; bunfig.toml; .github/workflows/verify.yml; git log c94a8e5 @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "Runtime dependencies zero; exact dev versions, lock and seven-day minimum release age; Bun update recorded; Linux/macOS CI pins Bun1.4.4 and runs verify. Workflow does not build/pack/test extracted package. Third-party actions referenced by major tags.",
+			"scope": "No advisory scan or actual CI logs; no claim dependencies vulnerability-free."
+		},
+		{
+			"id": "E15",
+			"kind": "primary_doc",
+			"locator": "LICENSE; THIRD_PARTY_NOTICES.md; spec/rust-core-decision.md; src/domains/state/service/reducer.ts:1-21 @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "MIT and upstream SAAA MIT notices packaged. Reducer records upstream commit/rules and TS-specific choices; no imported Rust runtime. Notices retain old paths, so traceability can be clearer.",
+			"scope": "Engineering provenance assessment, not legal advice."
+		},
+		{
+			"id": "E16",
+			"kind": "primary_doc",
+			"locator": "examples/experiments/evidence-followup/{RESULTS.md,PREREGISTRATION.md}; examples/experiments/results/2026-10-16-evidence-followup-B.json @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "Saved gpt-6-luna medium paired B experiment: fresh synthetic100,77->92; existing100 regression95->95,17 wins/2 losses on fresh cases,family p=.010742. after median11.466s,p95 17.370s,total3619586 tokens/100. Case text fixed before evaluation, failures retained, transport recovery distinct; current retrieval instructions match adopted B description.",
+			"scope": "Historical2026-10-16 model results, not rerun now;25 patterns x4 synthesized questions; measures slots/evidence not freeform answer accuracy, not100 independent people."
+		},
+		{
+			"id": "E17",
+			"kind": "primary_doc",
+			"locator": "examples/experiments/README.md; verification-reports/experiments/final-scale-storage/report.json; examples/standalone/retrieval.ts @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "Historical storage probes999/1000/1001/10000 all enumerate and restore without forgotten item;10000 read48ms,seed9922ms on that run. Current recallSnapshot sends entire authorized snapshot once, no silent truncation; model input cost grows with snapshot.",
+			"scope": "Historical storage environment not a current performance guarantee; no declared production memory/latency/cost budget, no10k semantic evaluation."
+		},
+		{
+			"id": "E18",
+			"kind": "primary_doc",
+			"locator": "examples/standalone/README.md:378-424; spec/verification-status.md @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "Documents distinguish offline/model/host evidence, logical/physical deletion and host responsibilities. Real Eumenes integration claimed for most domains; this checkout contains a fake host, not independent evidence of current real deployment.",
+			"scope": "Author claims treated as such; original source logs, snapshots and external-provider copies are beyond core erase guarantee."
+		},
+		{
+			"id": "E19",
+			"kind": "primary_doc",
+			"locator": "README.md distribution integration; verification-reports/seed50/end-to-end.json; examples/seeds/README.md; git log @ f0357dcf1341af6bb5464729f3251b4f266575b4",
+			"observed_at": "2026-11-05",
+			"observation": "Declared internal Eumenes consumer uses vendor archive; saved seed50 run imports28 candidate State entries and excludes18 procedures/4 continuity items, repeat import unchanged; saved live recall probe successful. Recent delivery includes JS packaging and measured prompt adoption/rejection.",
+			"scope": "Single internal target and saved integration probe; no retained-user cohort, onboarding cost measurement or operational benefit baseline. Private seed text intentionally not reproduced."
+		},
+		{
+			"id": "E20",
+			"kind": "external_observation",
+			"locator": "https://docs.mem0.ai/core-concepts/memory-operations/delete ; https://docs.letta.com/v1-sdk/memory/memory-blocks ; https://docs.langchain.com/oss/javascript/concepts/memory ; https://github.com/langchain-ai/docs/blob/main/src/oss/langgraph/stores.mdx",
+			"observed_at": "2026-11-05",
+			"observation": "Primary documentation retrieved2026-11-05: Mem0 exposes scoped deletion in platform and OSS; Letta V1 docs describe always-visible editable/read-only blocks; LangGraph exposes namespaced long-term stores distinct from checkpoints.",
+			"scope": "Feature documentation only, no head-to-head workload or proof alternatives lack cascade/restore safeguards; Letta source explicitly legacyV1."
+		},
+		{
+			"id": "E21",
+			"kind": "execution",
+			"locator": "git status --short; git diff --stat; git rev-parse HEAD",
+			"observed_at": "2026-11-05",
+			"observation": "Original checkout clean before and after, HEAD remains f0357dcf1341af6bb5464729f3251b4f266575b4. Review artifacts and probes live outside target.",
+			"scope": "No product code/requirements/tests changed."
+		}
+	],
+	"claims": [
+		{
+			"id": "C01",
+			"type": "Fact",
+			"statement": "Current isolated offline gates pass; retained-record prototype sensitivity and missing packaged docs are reproducible.",
+			"evidence_ids": ["E08", "E09", "E10", "E11", "E12", "E13"],
+			"limitations": "Not a live-provider or real-host certification."
+		},
+		{
+			"id": "C02",
+			"type": "Inference",
+			"statement": "Strongest internal value is verifiable correction and cascading forget within the host transaction, including replay after restoring old DB.",
+			"evidence_ids": ["E01", "E03", "E05", "E07", "E11"],
+			"limitations": "Host must preserve journal and honor startup transaction/identity contracts; physical erasure is outside guarantee."
+		},
+		{
+			"id": "C03",
+			"type": "Inference",
+			"statement": "The one-shot LLM example is well investigated for synthesized memory questions, but whole-snapshot input is a likely expansion cost boundary.",
+			"evidence_ids": ["E16", "E17"],
+			"limitations": "No extrapolation to unmeasured10k semantic precision or real-user answer accuracy."
+		},
+		{
+			"id": "C04",
+			"type": "Unknown",
+			"statement": "Long-term user retention, quantified operational benefit, comparative advantage on a shared external benchmark, and maintenance succession/resources.",
+			"limitations": "Unavailable in reviewed repository; no claim these capabilities or users are absent."
+		},
+		{
+			"id": "C05",
+			"type": "Assumption",
+			"statement": "Evaluate mainly as an internal library for a trusted host with a serialized SQLite writer, not a directly network-exposed autonomous agent.",
+			"limitations": "Matches declared package and contracts; changes in deployment require separate security/concurrency review."
+		}
+	],
+	"findings": [
+		{
+			"id": "F01",
+			"status": "confirmed",
+			"severity": "Medium",
+			"priority": "P2",
+			"priority_reason": "Close a demonstrated gap in the declared prototype defense before extending retention use to additional hosts.",
+			"confidence": "High",
+			"title": "Retention reads inherited providerRef and rejects valid input after host prototype pollution",
+			"root_cause": "parseCaptureRecordInput returns a frozen ordinary object but retainRecord checks record.providerRef directly instead of the existing ownValue utility.",
+			"evidence_ids": ["E06", "E12"],
+			"condition": "Object.prototype already has providerRef; a retention record omits the optional field.",
+			"consequence": "Valid retainRecord call fails INVALID_VALUE; regenerable-record cache write is unavailable in that polluted host. No leakage demonstrated.",
+			"counterevidence": "Clean host passes, regular captureRecord uses ownValue; library does not itself create the pollution. Current adversarial regression flow omits retention.",
+			"fix": "Use existing ownValue(record,\"providerRef\") at retention boundary; add retention to the existing hostile-property regression flow.",
+			"verification": "Same valid JSON-derived record succeeds with/without inherited providerRef and own explicit providerRef still rejects; compare DB state and return values.",
+			"impacts": [
+				{
+					"track": "technical",
+					"dimension": "security",
+					"criterion": "input_secrets",
+					"reason": "Own-data trust boundary is incomplete for one public path."
+				}
+			]
+		},
+		{
+			"id": "F02",
+			"status": "confirmed",
+			"severity": "Low",
+			"priority": "P2",
+			"priority_reason": "Improve distribution self-sufficiency before another consumer adopts a vendor tarball.",
+			"confidence": "High",
+			"title": "Published package README links to host safety procedures excluded from distribution",
+			"root_cause": "package files includes dist/root docs only; README uses repository-relative src/spec/examples links.",
+			"evidence_ids": ["E01", "E11", "E13"],
+			"condition": "Consumer receives only documented vendor tgz and uses bundled README.",
+			"consequence": "Seven relative targets are missing, including mandatory journal reconciliation startup procedure; adopting host must locate source checkout separately.",
+			"counterevidence": "Checkout users can read all target files; packaged code itself works on the independent Node consumer.",
+			"fix": "Bundle a short host integration guide and link README to it, or use stable source URLs tied to artifact version; verify links after extraction.",
+			"verification": "Pack/extract in fresh consumer, follow startup/recovery guide with no source aliases; all safety-related links resolve.",
+			"impacts": [
+				{
+					"track": "technical",
+					"dimension": "operability",
+					"criterion": "lifecycle",
+					"reason": "Self-contained installation/recovery guidance fails for intended distribution mode."
+				}
+			]
+		}
+	],
+	"tracks": {
+		"technical": {
+			"dimensions": {
+				"architecture": {
+					"criteria": {
+						"boundaries": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "High",
+							"evidence_ids": ["E01", "E02", "E09"],
+							"rationale": "Four domain directions and stateless IO port are clear and automatically checked; actual extraction removal and later State additions retain ownership.",
+							"countercheck": "Deliberately cyclic/computed/unresolved imports are rejected in tooling tests; host/example authority kept outside src."
+						},
+						"flow": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "High",
+							"evidence_ids": ["E03", "E04", "E05", "E07"],
+							"rationale": "Primary write, dependency/feed and two-phase erase transitions are explicit and tested across restore, rollback and stale plan boundaries.",
+							"countercheck": "Host owns writer/journal, and absent inTransaction cannot be enforced by this port; documented contract rather than hidden atomicity assumption."
+						},
+						"fit": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E11", "E17"],
+							"rationale": "Synchronous connection-free core fits shared-host transactions; actual Bun test and independent Node SQLite adapter run. Runtime dependency surface zero.",
+							"countercheck": "Whole-snapshot model example scales differently from core SQLite and is deliberately excluded from broader scaling assurance."
+						}
+					}
+				},
+				"correctness": {
+					"criteria": {
+						"contracts": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "High",
+							"evidence_ids": ["E03", "E04", "E08", "E09", "E11"],
+							"rationale": "Observed State/Record/Forget operations and public contract errors satisfy normal and representative negative paths.",
+							"countercheck": "Independent packed consumer checks storage path without tsconfig aliases; F01 remains an adversarial retention failure, preventing exceptional rating."
+						},
+						"edge_cases": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "High",
+							"evidence_ids": ["E03", "E06", "E07", "E09"],
+							"rationale": "Evidence UTF8/digest mismatch, migration changes, graph erasure, stale CAS and forgotten resurrection have meaningful checks.",
+							"countercheck": "Prototype tests include negative control but omit retention, discovered by separate probe."
+						},
+						"concurrency": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "High",
+							"evidence_ids": ["E04", "E07", "E09"],
+							"rationale": "Serialized-host writes, transaction-required checks, CAS and two-connection read pagination demonstrate declared ordering.",
+							"countercheck": "Direct inspection confirms host write/read transaction responsibility; no multiple-writer guarantee claimed."
+						}
+					}
+				},
+				"security": {
+					"criteria": {
+						"access": {
+							"status": "assessed",
+							"value": 4,
+							"confidence": "High",
+							"evidence_ids": ["E03", "E04", "E05", "E07", "E09"],
+							"rationale": "Principal/scope checks precede data exposure; foreign forget targets, forged entries, unauthorized State/Records and feed lookups have direct adversarial tests under trusted host identity.",
+							"countercheck": "apply/reconcile are privileged trusted-journal operations, not authentication endpoints; source identities remain host supplied. Cross-principal and cross-scope tests include foreign record/item/receipt and closure cases.",
+							"anchor_support": "Current source trace plus executed adversarial ownership/forget/receipt tests cover important in-scope boundary and lifecycle cases; external host auth is expressly outside claim."
+						},
+						"input_secrets": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "High",
+							"evidence_ids": ["E03", "E04", "E06", "E12"],
+							"rationale": "Strict own-property input reader, bounded UTF8 data, parameterized SQL and text-free contract errors are strong; retention inherited-property read remains a limited confirmed defect.",
+							"countercheck": "Clean-host retention and regular capture succeed; hostile inherited providerRef reproduces denial without leak. F01 prevents4."
+						},
+						"abuse": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E06", "E14"],
+							"rationale": "Per-call source/text/array limits and limited synchronous core authority provide basic protection within trusted host scope. No model/network/file authority in core."
+						}
+					}
+				},
+				"reliability": {
+					"criteria": {
+						"failure": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "High",
+							"evidence_ids": ["E04", "E05", "E07", "E09"],
+							"rationale": "Expected invalid schema, read-only connection, stale plan and failed groups are visible; writes roll back in host transactions and incomplete erase intent remains resumable.",
+							"countercheck": "Examples preserve raw source logs on some failures as documented; physical wipe and external service deletion not inferred from local success."
+						},
+						"recovery": {
+							"status": "assessed",
+							"value": 4,
+							"confidence": "High",
+							"evidence_ids": ["E05", "E07", "E09", "E10", "E11"],
+							"rationale": "Real SQLite snapshot restore/reconcile, repeated apply, interrupted journal flow, duplicate IDs and changed external state preserve documented memory invariants.",
+							"countercheck": "Tests also truncate/tamper/miss journal and test stale feed cursor. Host journal deletion plus old DB is a documented undetectable condition; OS power loss not tested.",
+							"anchor_support": "Executed real-file restore and WAL test paths plus complete offline host flow and independent packaged erase path; verified limits cover host-provided journal and known replay behavior."
+						},
+						"resilience": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E04", "E07"],
+							"rationale": "Core transaction/read-only/schema errors and bounded call inputs have controlled results; host owns busy handling, queue saturation and dependency retry."
+						}
+					}
+				},
+				"maintainability": {
+					"criteria": {
+						"clarity": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E02", "E03", "E18"],
+							"rationale": "Typed contracts and domain ownership explain principal behavior, trust assumptions and evidence levels; minor obsolete implementation-era comments remain.",
+							"countercheck": "Checked README claims against source and explicit host responsibility; docs H marks were not accepted as independently proven deployment."
+						},
+						"change": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "High",
+							"evidence_ids": ["E02", "E07", "E09", "E14"],
+							"rationale": "Domain dependency closure, fixtures, compatible schema upgrade tests and full checks give change-local regression paths.",
+							"countercheck": "Negative import/cycle and source-change tests show tooling can reject violations; packed consumer is an added review probe rather than current CI gate."
+						},
+						"debt": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E02", "E15"],
+							"rationale": "Core remains four domains without unused model/retrieval framework; larger SQL repositories are traceable. Historical comments and notices paths create bounded navigation debt."
+						}
+					}
+				},
+				"common_components": {
+					"criteria": {
+						"duplication": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "High",
+							"evidence_ids": ["E03", "E04", "E05", "E06", "E12"],
+							"rationale": "Shared access/input/seq/schema/hash mechanisms are reused; SQL schemas checked against exported vocabularies. A retention-specific own-read divergence is known.",
+							"countercheck": "Independent retention probe shows where reuse was missed; not claiming perfect consistency."
+						},
+						"reuse": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "High",
+							"evidence_ids": ["E01", "E03", "E07", "E11"],
+							"rationale": "Actual host, tests and Node consumer use same public contracts; host transaction boundary reused rather than second queue/store.",
+							"countercheck": "Source-based consumers can mask packaging failures, so separate extracted consumer verified the artifact."
+						},
+						"abstraction": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "High",
+							"evidence_ids": ["E01", "E02", "E04", "E11"],
+							"rationale": "Minimal MemoryDb structural port and thin entrypoints support Bun and direct Node adapter, while clock/IO stay caller controlled.",
+							"countercheck": "No promise every SQLite driver implements the port or requirements without adapter; Node probe independently validates one alternative."
+						}
+					}
+				},
+				"testing": {
+					"criteria": {
+						"risk_coverage": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "High",
+							"evidence_ids": ["E07", "E08", "E09", "E10", "E12"],
+							"rationale": "Current548 tests cover contracts, adversarial input, actual SQLite restore and host execution; discovered retention omission prevents exceptional coverage.",
+							"countercheck": "Offline124 checks are replay, not additional proof of Japanese meaning accuracy; no assertion-count-based quality claim."
+						},
+						"quality": {
+							"status": "assessed",
+							"value": 4,
+							"confidence": "High",
+							"evidence_ids": ["E06", "E07", "E09"],
+							"rationale": "Hand-written fixture expectations, generated closure invariants, complete DB dumps under hostile prototype and negative controls check behavior rather than only code structure.",
+							"countercheck": "Deliberately naive inherited read changes output; synthetic invalid cycle/import modules are rejected. Independent review probe exposes an untested API, separated from assertion quality.",
+							"anchor_support": "Executed behavior assertions and meaningful negative controls independently establish defect detection across state, lifecycle and tooling; not claiming all risks covered."
+						},
+						"automation": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E09", "E14"],
+							"rationale": "Reproducible full/domain checks record tool versions, source hashes and staged exits; configured Linux/macOS CI runs pinned verify.",
+							"countercheck": "Local current run and saved history pass with stable hashes; actual remote CI service/release gate and extracted-package test are not established."
+						}
+					}
+				},
+				"supply_chain": {
+					"criteria": {
+						"dependencies": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E14"],
+							"rationale": "Runtime dependencies zero; locked exact tool versions, minimum release age, recorded Bun update and known sources support basic dependency hygiene."
+						},
+						"build_release": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "High",
+							"evidence_ids": ["E11", "E13", "E14"],
+							"rationale": "Prepack rebuild and scoped files produce usable JS/d.ts archive with recorded pack integrity. Current workflow does not exercise pack or extracted imports; guidance omitted."
+						},
+						"license": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E15", "E11"],
+							"rationale": "MIT package and upstream design attribution are present in actual archive and reducer; responsibilities/source commit identifiable. Old notice paths limit traceability."
+						}
+					}
+				},
+				"performance": {
+					"criteria": {
+						"budget": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No current declared end-to-end latency/memory/token budget against representative production load; historical local timing cannot establish budget compliance."
+						},
+						"hot_path": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E03", "E05", "E07", "E17"],
+							"rationale": "Scoped indexes, keyset State paging and indexed closure query fit declared internal use; current paging tests plus historical10k storage evidence establish basic feasibility."
+						},
+						"measurement": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E16", "E17"],
+							"rationale": "Versioned storage-size and paired model token/median/p95 experiments provide useful bounded baselines; no continuous production performance gate."
+						}
+					}
+				},
+				"operability": {
+					"criteria": {
+						"signals": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "High",
+							"evidence_ids": ["E04", "E05", "E09", "E18"],
+							"rationale": "Stable reason codes, forget external pending/confirmed states, resync flag and source-hashed verify reports expose useful failures without source text.",
+							"countercheck": "Missing/corrupt journals fail closed in example; erasure receipt does not promise physical wipe."
+						},
+						"lifecycle": {
+							"status": "assessed",
+							"value": 1,
+							"confidence": "High",
+							"evidence_ids": ["E11", "E13", "E18"],
+							"rationale": "Actual archive imports work, but seven README links including required host startup/recovery guide do not exist for tarball-only consumers. Checkout is workaround."
+						},
+						"interaction": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E10", "E18"],
+							"rationale": "Explicit versioned API, plan/apply separation, CLI help and partial/failed statuses support target developer tasks; host integration remains deliberate manual work."
+						}
+					}
+				}
+			}
+		},
+		"project": {
+			"dimensions": {
+				"problem": {
+					"criteria": {
+						"need": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E19"],
+							"rationale": "Internal Eumenes agents have a concrete job: preserve evidence-backed user state, correct it and forget derived content without resurrecting on restore."
+						},
+						"impact": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No measured real operational baseline for losses avoided, repeated-user effort or task-success improvement. Synthetic quality gains do not establish magnitude of user value."
+						},
+						"validation": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Internal usage is claimed and saved seed probe exists; no inspected live user/operational evidence establishing repeated problem incidence."
+						}
+					}
+				},
+				"solution": {
+					"criteria": {
+						"mechanism": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E03", "E05", "E09", "E11"],
+							"rationale": "Public mechanisms and tests directly implement evidence checks, CAS correction and erase closure/replay for the intended internal job.",
+							"countercheck": "Try plain storage: independent packed erase/receipt works, and restore tests demonstrate additional guarantees conditional on host journal."
+						},
+						"experience": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E10", "E11", "E13", "E18"],
+							"rationale": "Developers can use examples and package APIs; manual migration/journal integration and omitted packaged docs impose a concrete but solvable adoption cost."
+						},
+						"outcomes": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E09", "E10", "E16"],
+							"rationale": "Real storage/recovery and saved paired model experiments demonstrate representative technical outcomes within synthetic tasks. Longitudinal real-user benefit remains unverified."
+						}
+					}
+				},
+				"differentiation": {
+					"criteria": {
+						"alternatives": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E11", "E20"],
+							"rationale": "Credible narrow option versus Mem0 memory API, Letta editable blocks, LangGraph namespaced stores and custom SQLite; not feature-universal competitor."
+						},
+						"advantage": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E05", "E11", "E20"],
+							"rationale": "Demonstrated useful choice under one condition: embed deterministic erase/evidence guarantees in an existing host SQLite transaction without separate service/runtime dependencies. No benchmark superiority inferred."
+						},
+						"tradeoffs": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E16", "E17", "E20"],
+							"rationale": "Explicit host-control/privacy and transaction integration advantages trade against journal integration work and absence of built-in retrieval framework. Whole-snapshot model cost measured separately.",
+							"countercheck": "Generic namespaced stores or editable profile may suffice when cascading erasure/restore guarantees are unnecessary; competing erase guarantees remain unknown."
+						}
+					}
+				},
+				"novelty": {
+					"criteria": {
+						"prior_art": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E05", "E15", "E20"],
+							"rationale": "Incremental systems contribution combines evidence spans, scoped state transitions, dependency closure and external-journal replay; component techniques and reducer provenance are established."
+						},
+						"substance": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E05", "E07", "E11"],
+							"rationale": "Combination has useful observed effect: restored DB cannot expose forgotten items after supplied-journal replay; not novelty for novelty sake."
+						},
+						"verification": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E05", "E07", "E15", "E20"],
+							"rationale": "Source and executable recovery support incremental integration difference. No claim globally novel algorithm or first memory system, no matched benchmark versus rivals."
+						}
+					}
+				},
+				"adoption": {
+					"criteria": {
+						"entry": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E11", "E13", "E18"],
+							"rationale": "Internal trusted-host adoption reuses connection/writer and JS artifact; required migrations and external journal are explicit nontrivial integration tasks. Tarball guide deficiency known."
+						},
+						"reach": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E19"],
+							"rationale": "Identified internal Eumenes consumer and documented vendor/standalone entry provide feasible channel to a motivated host owner. No broader acquisition claim."
+						},
+						"retention": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No longitudinal cohorts or retained-use outcomes in reviewed evidence; seed import/reimport and live smoke do not establish sustained adoption."
+						}
+					}
+				},
+				"defensibility": {
+					"criteria": {
+						"assets": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E02", "E07", "E16", "E19"],
+							"rationale": "Fixtures, scoped contracts, migration compatibility and preregistered failure corpus form maintainable accumulated engineering assets for internal reuse."
+						},
+						"substitution": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No comparable measured total integration cost or durable advantage against platform memory APIs/custom stores."
+						},
+						"incentives": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Resource commitment, maintenance incentives and successor ownership unavailable; no assumption of revenue/funding."
+						}
+					}
+				},
+				"execution": {
+					"criteria": {
+						"delivery": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E09", "E10", "E11", "E19"],
+							"rationale": "Delivered package/core API, durable example executor and reproducible test gates substantially realize current narrowed scope.",
+							"countercheck": "External World/Consolidation deliberately non-goal; real Eumenes current deployment not independently rerun."
+						},
+						"focus": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E02", "E19"],
+							"rationale": "Scope narrowed by removing unused extraction/search machinery, reuse host queue and IO, prioritization demonstrably implemented with limited external dependencies; staffing unknown."
+						},
+						"feedback": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E16", "E19"],
+							"rationale": "Recorded model failures feed preregistered paired comparisons; effective slot instructions adopted and ineffective semantic/compact representations rejected with unchanged regression sets.",
+							"countercheck": "This is a real-model experimental learning loop, not independently measured user-feedback loop. Saved results rather than rerun this review."
+						}
+					}
+				},
+				"timing": {
+					"criteria": {
+						"drivers": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E19", "E20"],
+							"rationale": "Current official ecosystems implement durable agent memory, and current internal package/paired model experiments demonstrate enabling technology. No market-size claim."
+						},
+						"readiness": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E11", "E16", "E19"],
+							"rationale": "Pinned Bun/TS package works locally and independent Node adapter works; saved real-model results support attainable internal integration conditions."
+						},
+						"window": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No resourced external launch/adoption window or platform substitution response plan was inspected."
+						}
+					}
+				},
+				"health": {
+					"criteria": {
+						"ownership": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E02", "E19"],
+							"rationale": "Recent history identifies a consistent maintainer; domain contracts and executable checks retain essential technical knowledge. No successor continuity established."
+						},
+						"activity": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E02", "E09", "E14", "E19"],
+							"rationale": "Recent appropriate maintenance includes runtime update, JS distribution, feature pruning and accepted/rejected measured prompt changes.",
+							"countercheck": "Commit quantity alone not used; current checks plus targeted history verify meaningful changes, no remote issue-response SLA inferred."
+						},
+						"governance": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Decision authority apparent in single-maintainer history but sustained budget, support/handover and resource commitments not evidenced."
+						}
+					}
+				},
+				"expansion": {
+					"criteria": {
+						"adjacency": {
+							"status": "assessed",
+							"value": 2,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E05", "E11", "E19"],
+							"rationale": "Records retention and state-memory share verified core, and external dependency/feed port plus independent Node adapter permit credible adjacent host reuse."
+						},
+						"scalability": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "Storage10k probe and all-snapshot model experiments do not establish broader deployment/integration/support costs, memory budget or10k semantic correctness."
+						},
+						"path": {
+							"status": "unknown",
+							"value": null,
+							"unknown_reason": "No resourced staged expansion plan with measurable entry/exit conditions; separate domains are explicitly excluded from current promise."
+						}
+					}
+				}
+			}
+		}
+	},
+	"backlog": [
+		{
+			"reference": "F01",
+			"priority": "P2",
+			"action": "Reuse existing ownValue at retention providerRef read; expand current hostile-property test to retention.",
+			"dependencies": "None beyond current input helper.",
+			"acceptance": "Equal result/state with inherited optional field; own providerRef remains invalid.",
+			"criteria": ["security.input_secrets"],
+			"effort_basis": "S: one read site and one existing scenario extension; no semantic branching."
+		},
+		{
+			"reference": "F02",
+			"priority": "P2",
+			"action": "Bundle essential host guide and check extracted README safety links.",
+			"dependencies": "Current pack workflow.",
+			"acceptance": "Independent extracted-package install/recovery tutorial resolves its links.",
+			"criteria": ["operability.lifecycle", "supply_chain.build_release"],
+			"effort_basis": "S: packaging/docs plus archive-consumer check."
+		},
+		{
+			"reference": "E16 E17 / performance.budget",
+			"priority": "P1 before expanding to long-lived or high-volume use",
+			"action": "Define intended memory volume, acceptable p95/input-token budget and workload; measure current one-shot path using existing harness, then compare any alternative before adoption.",
+			"dependencies": "Actual intended workload/budget; do not add keyword routing.",
+			"acceptance": "Recorded budgets and workload sizes, tails/resources, no forgotten/unauthorized items and measured answer/evidence failures.",
+			"criteria": ["performance.budget", "expansion.scalability"],
+			"effort_basis": "M: existing benchmark reuse, representative workload and model calls required."
+		},
+		{
+			"reference": "E18 E19 / problem.validation",
+			"priority": "P1 before claiming real-user efficacy or expanding externally",
+			"action": "Gather consented internal operational evidence on repeated remember/correct/forget tasks, host upgrade/restore, retained use and final-answer quality; reuse current fixtures/executor.",
+			"dependencies": "Actual host and approved usage evidence.",
+			"acceptance": "Separate synthetic tests from longitudinal task outcomes, onboarding/maintenance burden and user impact.",
+			"criteria": [
+				"problem.impact",
+				"problem.validation",
+				"adoption.retention",
+				"solution.outcomes"
+			],
+			"effort_basis": "M/L: requires observations over usage duration, not more source code."
+		},
+		{
+			"reference": "E11 E14 / testing.automation",
+			"priority": "P2 before next distribution",
+			"action": "Promote current build/pack/extracted-consumer probe to regular verification; keep existing source tests.",
+			"dependencies": "Package build then isolated consumer.",
+			"acceptance": "Archive alone imports public entries and completes storage/forget flow under declared supported runtimes.",
+			"criteria": ["testing.automation", "supply_chain.build_release"],
+			"effort_basis": "S/M: uses existing test operations; matrix depends on actual supported drivers."
+		}
+	]
+}

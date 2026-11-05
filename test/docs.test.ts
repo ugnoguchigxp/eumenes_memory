@@ -5,6 +5,8 @@ import { dirname, join, resolve, sep } from "node:path";
 const root = join(import.meta.dir, "..");
 // Living docs only: design/verification records keep the paths of their time.
 const DOCS = [
+	"docs/host-guide.md",
+	"docs/quality-validation.md",
 	"README.md",
 	"src/domains/README.md",
 	"src/infrastructure/sqlite/README.md",

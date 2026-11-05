@@ -24,6 +24,13 @@ import {
 } from "../../src/domains/lifecycle/sqlite.ts";
 import { captureRecord, readRecord } from "../../src/domains/records/sqlite.ts";
 import {
+	retainRecord,
+	readRetainedRecord,
+	useRetainedRecord,
+	retainedRecordStats,
+	evictRetainedRecords,
+} from "../../src/domains/records/repository/retention.ts";
+import {
 	assertUserState,
 	deactivateState,
 	listState,
@@ -459,6 +466,64 @@ describe("Object.prototype pollution: sites that need a targeted hostile value",
 });
 
 describe("Object.prototype pollution does not change results", () => {
+	test("Retention: capture / read / adoption / stats / eviction", () => {
+		expectInvariant((store, log) => {
+			const common = {
+				contractVersion: 1 as const,
+				access: RECORD_ACCESS,
+				scopeKey: "scope:a",
+				clock: { atMs: 1 },
+			};
+			const captured = store.write((db) =>
+				retainRecord(db, {
+					record: {
+						...common,
+						origin: { namespace: "web", kind: "page", id: "retention" },
+						mediaType: "text/plain",
+						captureState: "complete",
+						content: "regenerable synthetic content",
+					},
+					freshUntilMs: 100,
+					idleTtlMs: 50,
+				}),
+			);
+			log("retain", captured);
+			if (
+				captured.status !== "captured" ||
+				captured.retentionRevision === undefined
+			)
+				throw Error("retention failed");
+			const retentionRevision = captured.retentionRevision;
+			const input = { ...common, recordId: captured.recordId };
+			log(
+				"read",
+				store.read((db) => readRetainedRecord(db, input)),
+			);
+			log(
+				"use",
+				store.write((db) =>
+					useRetainedRecord(db, {
+						...input,
+						retentionRevision,
+					}),
+				),
+			);
+			log(
+				"stats",
+				store.read((db) => retainedRecordStats(db, common)),
+			);
+			log(
+				"evict",
+				store.write((db) =>
+					evictRetainedRecords(db, {
+						...common,
+						clock: { atMs: 101 },
+						limit: 10,
+					}),
+				),
+			);
+		});
+	});
 	test("State: assert / status changes / list", () => {
 		expectInvariant(stateFlow);
 	});
