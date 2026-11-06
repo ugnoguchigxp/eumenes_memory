@@ -5,6 +5,7 @@ import {
 	isRecordId,
 	recordIdOf,
 	recordSourceKey,
+	recordSourceKeyAffixes,
 	recordSourceRef,
 } from "../service/identity.ts";
 import { sliceUtf8Range } from "../service/range.ts";
@@ -29,6 +30,14 @@ describe("record identity", () => {
 		expect(recordSourceKey(id)).toBe(
 			JSON.stringify(["memory", "record", id, "text"]),
 		);
+		const { prefix, suffix } = recordSourceKeyAffixes();
+		for (const recordId of [
+			id,
+			`rec:${"0".repeat(64)}`,
+			`rec:${"f".repeat(64)}`,
+		]) {
+			expect(prefix + recordId + suffix).toBe(recordSourceKey(recordId));
+		}
 		expect(
 			recordSourceRef(id, revision, digest, { startByte: 0, endByte: 3 }),
 		).toEqual({

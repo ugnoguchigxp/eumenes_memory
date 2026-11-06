@@ -6,25 +6,19 @@ import {
 } from "../../../infrastructure/sqlite/session.ts";
 import { appendMemoryChange } from "../../../infrastructure/sqlite/changes.ts";
 import {
-	parseCaptureRecordInput,
-	parseReadRecordInput,
+	parseEvictRetainedRecordsInput,
+	parseRetainRecordInput,
+	parseRetainedRecordRead,
+	parseRetainedRecordStatsInput,
+	parseRetainedRecordUse,
 } from "../service/parse.ts";
-import { recordIdOf, recordSourceKey } from "../service/identity.ts";
+import {
+	recordIdOf,
+	recordSourceKey,
+	recordSourceKeyAffixes,
+} from "../service/identity.ts";
 import { captureRecord, readRecord } from "./index.ts";
-import {
-	readSafeInteger,
-	readRecord as parseObject,
-	requiredField,
-	checkKeys,
-	fail,
-} from "../../../contracts/reader.ts";
-import {
-	MEMORY_SOURCE_NAMESPACE,
-	MEMORY_RECORD_SOURCE_KIND,
-	MEMORY_RECORD_REPRESENTATION,
-} from "../../../contracts/common.ts";
-import { readHostClock } from "../../../contracts/parse-store.ts";
-import { ownValue } from "../../../contracts/own.ts";
+import { fail } from "../../../contracts/reader.ts";
 import type {
 	RetainRecordInput,
 	RetainRecordResult,
@@ -35,46 +29,19 @@ import type {
 	RetainedRecordStats,
 } from "../contracts/retention.ts";
 
-const integer = (
-	value: unknown,
-	path: string,
-	min = 0,
-	max = Number.MAX_SAFE_INTEGER,
-) => readSafeInteger(value, path, min, max);
-function header(
-	raw: unknown,
-	extra: readonly string[] = [],
-	withRecord = true,
-) {
-	const obj = parseObject(raw, "$");
-	checkKeys(obj, "$", [
-		"contractVersion",
-		"access",
-		"scopeKey",
-		"clock",
-		...(withRecord ? ["recordId"] : []),
-		...extra,
-	]);
-	const parsed = parseReadRecordInput({
-		contractVersion: requiredField(obj, "$", "contractVersion"),
-		access: requiredField(obj, "$", "access"),
-		scopeKey: requiredField(obj, "$", "scopeKey"),
-		recordId: withRecord
-			? requiredField(obj, "$", "recordId")
-			: `rec:${"0".repeat(64)}`,
-	});
-	const clock = readHostClock(requiredField(obj, "$", "clock"), "$.clock");
-	return { obj, input: { ...parsed, clock } };
+/** 依存辺の出典キー、または外部送付の記録がある資料。 */
+function protectedSourceSql(
+	dependencyIdSql: string,
+	recordIdSql: string,
+): string {
+	return `(EXISTS(SELECT 1 FROM memory_dependency d WHERE d.dependency_type='source' AND d.dependency_id=${dependencyIdSql}) OR EXISTS(SELECT 1 FROM memory_record_provider p WHERE p.record_id=${recordIdSql}))`;
 }
 
-function protectedSource(db: MemoryDb, recordId: string) {
-	return Boolean(
-		db
-			.query(
-				"SELECT 1 FROM memory_dependency WHERE dependency_type='source' AND dependency_id=? UNION ALL SELECT 1 FROM memory_record_provider WHERE record_id=? LIMIT 1",
-			)
-			.get(recordSourceKey(recordId), recordId),
-	);
+function protectedSource(db: MemoryDb, recordId: string): boolean {
+	const row = db
+		.query(`SELECT ${protectedSourceSql("?", "?")} AS protected_source`)
+		.get(recordSourceKey(recordId), recordId);
+	return readInteger(row, "protected_source") !== 0;
 }
 
 /** Host transaction required. Retained records cannot be external-provider exports or State dependencies. */
@@ -82,26 +49,7 @@ export function retainRecord(
 	db: MemoryDb,
 	raw: RetainRecordInput,
 ): RetainRecordResult {
-	const obj = parseObject(raw, "$");
-	checkKeys(obj, "$", ["record", "freshUntilMs", "idleTtlMs"]);
-	const record = parseCaptureRecordInput(requiredField(obj, "$", "record"));
-	const fresh = integer(
-		requiredField(obj, "$", "freshUntilMs"),
-		"$.freshUntilMs",
-		record.clock.atMs,
-	);
-	const idle = integer(
-		requiredField(obj, "$", "idleTtlMs"),
-		"$.idleTtlMs",
-		1,
-		365 * 86400000,
-	);
-	if (
-		!Number.isSafeInteger(record.clock.atMs + idle) ||
-		ownValue(record, "providerRef") !== undefined ||
-		record.captureState !== "complete"
-	)
-		fail("INVALID_VALUE", "$.record");
+	const { record, freshUntilMs, idleTtlMs } = parseRetainRecordInput(raw);
 	enterWrite(db);
 	if (!record.access.scopeKeys.includes(record.scopeKey))
 		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
@@ -134,10 +82,10 @@ export function retainRecord(
 		idle_expires_at_ms=excluded.idle_expires_at_ms, retention_revision=excluded.retention_revision`).run(
 		recordId,
 		captured.revision,
-		fresh,
+		freshUntilMs,
 		record.clock.atMs,
-		idle,
-		record.clock.atMs + idle,
+		idleTtlMs,
+		record.clock.atMs + idleTtlMs,
 		revision,
 	);
 	// Regenerable records keep only the current body, unlike durable Records.
@@ -155,7 +103,7 @@ export function readRetainedRecord(
 	db: MemoryDb,
 	raw: RetainedRecordRead,
 ): RetainedRecordResult {
-	const { input } = header(raw);
+	const input = parseRetainedRecordRead(raw);
 	enterRead(db);
 	const row = db
 		.query("SELECT * FROM memory_record_retention WHERE record_id=?")
@@ -189,24 +137,28 @@ export function useRetainedRecord(
 	db: MemoryDb,
 	raw: RetainedRecordUse,
 ): boolean {
-	const { input, obj } = header(raw, ["retentionRevision"]);
-	const revision = integer(
-		requiredField(obj, "$", "retentionRevision"),
-		"$.retentionRevision",
-		1,
-	);
+	const parsed = parseRetainedRecordUse(raw);
 	enterWrite(db);
-	const current = readRetainedRecord(db, input);
-	if (current.status !== "available" || current.retentionRevision !== revision)
+	const current = readRetainedRecord(db, {
+		contractVersion: parsed.contractVersion,
+		access: parsed.access,
+		scopeKey: parsed.scopeKey,
+		clock: parsed.clock,
+		recordId: parsed.recordId,
+	});
+	if (
+		current.status !== "available" ||
+		current.retentionRevision !== parsed.retentionRevision
+	)
 		return false;
 	const row = db
 		.query("SELECT idle_ttl_ms FROM memory_record_retention WHERE record_id=?")
-		.get(input.recordId);
-	const expires = input.clock.atMs + readInteger(row, "idle_ttl_ms");
+		.get(parsed.recordId);
+	const expires = parsed.clock.atMs + readInteger(row, "idle_ttl_ms");
 	if (!Number.isSafeInteger(expires)) fail("INVALID_VALUE", "$.clock");
 	db.query(
 		"UPDATE memory_record_retention SET last_used_at_ms=?, idle_expires_at_ms=? WHERE record_id=?",
-	).run(input.clock.atMs, expires, input.recordId);
+	).run(parsed.clock.atMs, expires, parsed.recordId);
 	return true;
 }
 
@@ -215,7 +167,7 @@ export function retainedRecordStats(
 	raw: Omit<RetainedRecordRead, "recordId">,
 ): RetainedRecordStats {
 	// Validate the common header without exposing any entry outside the authorized scope.
-	const { input } = header(raw, [], false);
+	const input = parseRetainedRecordStatsInput(raw);
 	enterRead(db);
 	if (!input.access.scopeKeys.includes(input.scopeKey))
 		return { entries: 0, bytes: 0 };
@@ -235,33 +187,14 @@ export function evictRetainedRecords(
 	db: MemoryDb,
 	raw: EvictRetainedInput,
 ): { deleted: string[]; blocked: string[] } {
-	const { input, obj } = header(raw, ["limit", "oldest", "recordId"], false);
-	const limit = integer(requiredField(obj, "$", "limit"), "$.limit", 1, 100);
-	const targetId =
-		obj["recordId"] === undefined
-			? null
-			: parseReadRecordInput({
-					contractVersion: input.contractVersion,
-					access: input.access,
-					scopeKey: input.scopeKey,
-					recordId: obj["recordId"],
-				}).recordId;
-	if (obj["oldest"] !== undefined && typeof obj["oldest"] !== "boolean")
-		fail("INVALID_VALUE", "$.oldest");
+	const input = parseEvictRetainedRecordsInput(raw);
 	enterWrite(db);
 	if (!input.access.scopeKeys.includes(input.scopeKey))
 		return { deleted: [], blocked: [] };
-	// IDs are constrained to rec:<hex>; build the canonical source key in SQL without requiring JSON extensions.
-	const prefix =
-		JSON.stringify([MEMORY_SOURCE_NAMESPACE, MEMORY_RECORD_SOURCE_KIND]).slice(
-			0,
-			-1,
-		) + ',"';
-	const suffix = '",' + JSON.stringify(MEMORY_RECORD_REPRESENTATION) + "]";
+	const { prefix, suffix } = recordSourceKeyAffixes();
 	const rows = db
 		.query(`SELECT r.record_id,
-		(EXISTS(SELECT 1 FROM memory_dependency d WHERE d.dependency_type='source' AND d.dependency_id=? || r.record_id || ?)
-		 OR EXISTS(SELECT 1 FROM memory_record_provider p WHERE p.record_id=r.record_id)) AS protected_source
+		${protectedSourceSql("? || r.record_id || ?", "r.record_id")} AS protected_source
 		FROM memory_record r JOIN memory_record_retention t USING(record_id)
 		WHERE r.principal=? AND r.scope_key=? AND (?=1 OR t.idle_expires_at_ms<=?) AND (? IS NULL OR r.record_id=?)
 		ORDER BY protected_source, t.last_used_at_ms, t.retention_revision, r.record_id LIMIT ?`)
@@ -270,11 +203,11 @@ export function evictRetainedRecords(
 			suffix,
 			input.access.principal,
 			input.scopeKey,
-			obj["oldest"] ? 1 : 0,
+			input.oldest ? 1 : 0,
 			input.clock.atMs,
-			targetId,
-			targetId,
-			limit,
+			input.recordId,
+			input.recordId,
+			input.limit,
 		);
 	const deleted: string[] = [],
 		blocked: string[] = [];

@@ -71,3 +71,26 @@ export function recordSourceKey(recordId: string): SourceKey {
 		representation: MEMORY_RECORD_REPRESENTATION,
 	});
 }
+
+/**
+ * `recordSourceKey(recordId)` を SQL の連結で作るときの前後。
+ * recordId は `rec:` と hex だけなので JSON のエスケープは要らない。
+ * 前後の文字列は `recordSourceKey` の結果から切り出す。
+ */
+export function recordSourceKeyAffixes(): {
+	readonly prefix: string;
+	readonly suffix: string;
+} {
+	const marker = `rec:${"a".repeat(64)}`;
+	const encoded = recordSourceKey(marker);
+	const at = encoded.indexOf(marker);
+	if (at < 0 || encoded.includes(marker, at + marker.length)) {
+		throw new TypeError(
+			"recordSourceKeyAffixes: marker is not a single literal",
+		);
+	}
+	return {
+		prefix: encoded.slice(0, at),
+		suffix: encoded.slice(at + marker.length),
+	};
+}

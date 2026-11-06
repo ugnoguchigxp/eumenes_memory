@@ -1126,14 +1126,21 @@ export function listStateItemIdsInScope(
 	).map((entry) => readText(entry, "item_id"));
 }
 
-/** item が principal と scope のものとして存在するか（forget の target 検査用）。 */
+/**
+ * item の principal、scope、status（forget の target 検査と、忘却済み依存の拒否用）。
+ * 行がなければ null。status の語彙はここでは絞らない。
+ */
 export function stateItemScope(
 	db: MemoryDb,
 	itemId: string,
-): { readonly principal: string; readonly scopeKey: string } | null {
+): {
+	readonly principal: string;
+	readonly scopeKey: string;
+	readonly status: string;
+} | null {
 	const row = selectFirst(
 		db,
-		"SELECT principal, scope_key FROM memory_state_item WHERE item_id = ?",
+		"SELECT principal, scope_key, status FROM memory_state_item WHERE item_id = ?",
 		[itemId],
 	);
 	return row === null
@@ -1141,5 +1148,6 @@ export function stateItemScope(
 		: {
 				principal: readText(row, "principal"),
 				scopeKey: readText(row, "scope_key"),
+				status: readText(row, "status"),
 			};
 }
