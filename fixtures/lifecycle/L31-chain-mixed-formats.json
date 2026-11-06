@@ -1,0 +1,72 @@
+{
+	"id": "L31-chain-mixed-formats",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"chain",
+		"host-intent"
+	],
+	"kind": "chain",
+	"description": "One chain may mix format 1 and format 2 entries",
+	"input": {
+		"entries": [
+			{
+				"journalFormat": 1,
+				"seq": 1,
+				"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+				"forgetId": "forget:f6e9938e246ec3a9e4d8d8548baabafd734f800a18d6b09e2b1392d625b0b881",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "state_item",
+						"id": "state:a",
+						"scopeKey": "conversation:c1"
+					}
+				],
+				"hash": "3890af2634f05bd5a5bd84b098f7eba07f37a31df7729d9b140a3865e14e1099"
+			},
+			{
+				"journalFormat": 2,
+				"seq": 2,
+				"prevHash": "3890af2634f05bd5a5bd84b098f7eba07f37a31df7729d9b140a3865e14e1099",
+				"forgetId": "forget:076bf7e3a09e9c35006d1aa73811e45fa7dee68b7f42394850d4f407de4965e5",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "state_item",
+						"id": "state:b",
+						"scopeKey": "conversation:c1"
+					}
+				],
+				"hostIntent": {
+					"messageIds": [
+						"m:1"
+					]
+				},
+				"hash": "9466fc57d229948a412677dbe402b00d895ba26cd7e4e6552370ef58bc500539"
+			},
+			{
+				"journalFormat": 1,
+				"seq": 3,
+				"prevHash": "9466fc57d229948a412677dbe402b00d895ba26cd7e4e6552370ef58bc500539",
+				"forgetId": "forget:cc52500f07c7f79a69b6c9973c1e01dee533bb255fcd7ddeedab761bf5dae1bc",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "state_item",
+						"id": "state:c",
+						"scopeKey": "conversation:c1"
+					}
+				],
+				"hash": "f34c4fad63e1fe0dcfe7c2adff7d1c0b8a9182ade7f821b2c9e181f5b68bc7ae"
+			}
+		]
+	},
+	"expect": {
+		"status": "ok",
+		"head": {
+			"seq": 3,
+			"hash": "f34c4fad63e1fe0dcfe7c2adff7d1c0b8a9182ade7f821b2c9e181f5b68bc7ae"
+		}
+	}
+}

@@ -4,13 +4,27 @@
  * 規則（S1 / S6 実装者はこの JSDoc を契約として扱う）:
  * - 忘却は 2 相。`planForget`（read のみ）→ ホストがジャーナルへ追記して fsync → `applyForget`（write）。
  *   順序はジャーナル先行。`applyForget` は entry を要求するので「DB にあるがジャーナルにない」は起きない。
+ *   plan・追記・apply は単一 Writer の同じ write transaction の中で行う（entry の `seq` / `prevHash` は plan 時点の
+ *   head の次で、間に別の忘却が入ると apply できない entry がジャーナルに残る）。ジャーナルの書き込みは DB の
+ *   rollback では戻らず、残った entry は次の起動時の `reconcileForgetJournal` が適用する。
  * - ジャーナル entry の hash 規則:
- *   `hash = sha256Hex(canonicalJson({ journalFormat, seq, prevHash, forgetId, principal, targets }))`、
- *   `forgetId = "forget:" + sha256Hex(canonicalJson({ principal, seq, targets }))`。
- *   最初の entry の `prevHash` は `GENESIS_JOURNAL_HASH`。`seq` は 1 始まりで連続。
+ *   format 1: `hash = sha256Hex(canonicalJson({ journalFormat, seq, prevHash, forgetId, principal, targets }))`。
+ *   format 2: 上記に `hostIntent` を加える（無いときはキーごと含めない）。
+ *   `forgetId = "forget:" + sha256Hex(canonicalJson({ principal, seq, targets }))`（両 format 共通）。
+ *   最初の entry の `prevHash` は `GENESIS_JOURNAL_HASH`。`seq` は 1 始まりで連続。1 本の鎖に format 1 と 2 が混在してよい。
  *   `targets` は (type, scopeKey, id) の UTF-16 コード単位順に整列し重複を除く。entry は本文・digest を含まない。
+ *   format 1 は targets 1 件以上。format 2 は 0 件を許すが、そのときは `hostIntent` が必須。
+ * - `hostIntent`（format 2）はホストが自分の派生物を忘れる意図（キー → 不透明な ID の集合）。本体は意味を解釈せず、
+ *   形と大きさだけを検査する。hash の鎖（鍵なし）で、偶発的な破損・切り詰め・食い違いを検出する（悪意のある書き換えの防止はホストの責任）。本文を入れない責任はホストにある。正規化: 各配列は
+ *   重複を除いて UTF-16 コード単位順に並べ、空の配列のキーは除く。キーが残らなければ「無し」。
+ * - 契約版: `planForget` は契約版 1 で format 1（`target` 1 件）、契約版 2 で format 2（`target` / `targets` /
+ *   `hostIntent`）の entry を作る。他の Lifecycle 関数は契約版 1・2 を同じに扱い、どちらの format の entry も受ける。
+ *   `targets` の全要素は同じ `scopeKey` でなければならない。
  * - `planForget` が付ける `seq` / `prevHash` は DB の `memory_journal_state` の head の次。ホストは
  *   plan → 追記 → apply を直列化し、起動時に必ず `reconcileForgetJournal` を済ませる。
+ *   reconcile が今回適用した entry のうち `hostIntent` を持つものは `hostIntentsToReapply` で返る。ホストは同じ
+ *   write transaction の中で自分の消去を冪等に再実行する（head 以前の entry は、ホストの消去も同じ transaction で
+ *   DB に入っているので再実行は要らない）。
  * - `applyForget` は冪等で、墓標の有無に関係なく本文削除・閉包の無効化を毎回行う。
  *   閉包は apply 時点で再計算する（plan 後に増えた派生物も漏らさない）。`enabled` に依存しない。
  *   `seq <= head` の entry は、DB に同じ `forgetId` / `hash` があれば再適用（結果は同一）、
@@ -21,7 +35,7 @@
  * - 閉包の起点: `host_source` はその SourceKey、`state_item` はその item、
  *   `scope` は scope の record の出典キーと scope の state_item / external。
  *   `host_source` の SourceKey が Records の record のものなら、その record も忘れる。
- * - 閉包内の値の消去: state_item は value / polarity / 有効期間を NULL・semantic_key を ''・attribute と evidence の行を削除・
+ * - 閉包内の値の消去: state_item は value / polarity / 有効期間を NULL・semantic_key を ''・他人の subject を `other:`・attribute と evidence の行を削除・
  *   event は action と seq だけ残す。依存辺は残す（再適用の入力）。
  * - 外部削除の確認: 外部へ送った record の `providerRef` と閉包内の外部派生物を
  *   `memory_forget_external` に `pending` で載せる。`recordExternalDeletion` は最後に記録した状態が有効。
@@ -31,22 +45,49 @@
  */
 import type { AccessContext } from "../../../contracts/types.ts";
 import type {
-	ContractVersion,
 	HostClock,
 	SourceKey,
 	StoreAccessReasonCode,
 } from "../../../contracts/common.ts";
 
 export const LIMITS_LIFECYCLE = Object.freeze({
-	/** ジャーナル entry の targets 件数上限。 */
+	/** ジャーナル entry の targets 件数上限（`planForget` の `targets` も同じ）。 */
 	maxJournalTargets: 64,
 	/** reconcile / verify に渡せる entry 数。 */
 	maxJournalEntries: 100000,
 	maxProviderRefBytes: 64,
 	maxExternalIdBytes: 256,
+	/** `hostIntent` のキー数。 */
+	maxHostIntentKeys: 16,
+	/** `hostIntent` のキーの UTF-8 bytes。 */
+	maxHostIntentKeyBytes: 64,
+	/** `hostIntent` の ID 1 個の UTF-8 bytes。 */
+	maxHostIntentIdBytes: 256,
+	/**
+	 * `hostIntent` の ID の総数（全キーの合計）。ホストは 1 つの忘却の意図（版の多い事実のすべての版を含む）を
+	 * 最初の entry に載せるので、targets（64 件）より大きくとる。
+	 */
+	maxHostIntentIds: 65536,
 });
 
+/** Lifecycle の契約版。`CONTRACT_VERSIONS.lifecycle` は最新（2）。 */
+export const LIFECYCLE_CONTRACT_VERSIONS = Object.freeze([1, 2] as const);
+export type LifecycleContractVersion =
+	(typeof LIFECYCLE_CONTRACT_VERSIONS)[number];
+
+/** format 1: `targets` だけを hash に含める。契約版 1 の `planForget` が作る。 */
 export const JOURNAL_FORMAT = 1 as const;
+/** format 2: `hostIntent` も hash に含める。契約版 2 の `planForget` が作る。 */
+export const JOURNAL_FORMAT_HOST_INTENT = 2 as const;
+export type JournalFormat =
+	| typeof JOURNAL_FORMAT
+	| typeof JOURNAL_FORMAT_HOST_INTENT;
+
+/**
+ * ホストが自分の派生物を忘れる意図。キー → 不透明な ID の集合。本体は意味を解釈しない。本文を入れない。
+ * 上限は `LIMITS_LIFECYCLE.maxHostIntent*`。
+ */
+export type HostForgetIntent = Readonly<Record<string, readonly string[]>>;
 /** ジャーナルの先頭 entry の `prevHash`、および DB の初期 head hash（SHA-256 hex 長の 0 埋め）。 */
 export const GENESIS_JOURNAL_HASH =
 	"0000000000000000000000000000000000000000000000000000000000000000" as const;
@@ -137,12 +178,14 @@ export interface ForgetJournalTarget {
 }
 
 export interface ForgetJournalEntry {
-	readonly journalFormat: typeof JOURNAL_FORMAT;
+	readonly journalFormat: JournalFormat;
 	readonly seq: number;
 	readonly prevHash: string;
 	readonly forgetId: string;
 	readonly principal: string;
 	readonly targets: readonly ForgetJournalTarget[];
+	/** format 2 だけ。正規化済み（整列・重複除去・空配列なし）。 */
+	readonly hostIntent?: HostForgetIntent;
 	readonly hash: string;
 }
 
@@ -175,10 +218,18 @@ export interface ForgetPlan {
 	}[];
 }
 
+/**
+ * 契約版 1: `target` が必須で、`targets` / `hostIntent` は書けない。
+ * 契約版 2: `target` と `targets` は排他。`targets` は 1〜`maxJournalTargets` 件で全要素が同じ `scopeKey`。
+ * どちらも無いときは `hostIntent` が必須（正規化後にキーが残ること）。target の無い entry は本体の行を何も消さず、
+ * scope の検査もしない（意図の持ち主は `access.principal` だけで決まる。意図の中身の権限はホストが検査する）。
+ */
 export interface PlanForgetInput {
-	readonly contractVersion: ContractVersion;
+	readonly contractVersion: LifecycleContractVersion;
 	readonly access: AccessContext;
-	readonly target: ForgetTarget;
+	readonly target?: ForgetTarget;
+	readonly targets?: readonly ForgetTarget[];
+	readonly hostIntent?: HostForgetIntent;
 	readonly clock: HostClock;
 }
 
@@ -187,15 +238,21 @@ export type PlanForgetResult =
 	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
 
 export interface ApplyForgetInput {
-	readonly contractVersion: ContractVersion;
+	readonly contractVersion: LifecycleContractVersion;
 	readonly entry: ForgetJournalEntry;
 	readonly clock: HostClock;
 }
 
 export interface ReconcileForgetJournalInput {
-	readonly contractVersion: ContractVersion;
+	readonly contractVersion: LifecycleContractVersion;
 	readonly entries: readonly ForgetJournalEntry[];
 	readonly clock: HostClock;
+}
+
+/** reconcile が今回適用した entry のうち、`hostIntent` を持つもの（ジャーナルの順）。 */
+export interface HostIntentToReapply {
+	readonly forgetId: string;
+	readonly hostIntent: HostForgetIntent;
 }
 
 /**
@@ -214,6 +271,11 @@ export type ReconcileForgetJournalResult =
 			readonly reapplied: number;
 			/** `reapplied > 0` のときだけ `true`（それ以外は省略）。変更フィードの購読者は全再同期する。 */
 			readonly feedResyncRequired?: true;
+			/**
+			 * 今回適用した entry のうち `hostIntent` を持つもの（1 件以上のときだけ。それ以外は省略）。ホストは同じ
+			 * write transaction の中で、各 `hostIntent` の消去を冪等に再実行する。
+			 */
+			readonly hostIntentsToReapply?: readonly HostIntentToReapply[];
 	  }
 	| {
 			readonly status: "inconsistent";
@@ -232,7 +294,7 @@ export type VerifyForgetJournalResult =
 	  };
 
 export interface RecordExternalDeletionInput {
-	readonly contractVersion: ContractVersion;
+	readonly contractVersion: LifecycleContractVersion;
 	readonly access: AccessContext;
 	readonly clock: HostClock;
 	readonly forgetId: string;
@@ -249,7 +311,7 @@ export type RecordExternalDeletionResult =
 	  };
 
 export interface GetForgetReceiptInput {
-	readonly contractVersion: ContractVersion;
+	readonly contractVersion: LifecycleContractVersion;
 	readonly access: AccessContext;
 	readonly forgetId: string;
 }

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
+import { STATE_KINDS } from "eumenes-memory";
 import {
 	existsSync,
 	mkdtempSync,
@@ -10,6 +11,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	DEFAULT_SEED_PATH,
+	loadSeedData,
 	parseSeedData,
 	seedSummary,
 	type MemorySeed,
@@ -18,6 +21,11 @@ import { importSeedData } from "../../examples/seeds/import.ts";
 import { seedCommand } from "../../examples/seeds/main.ts";
 import { StandaloneHost } from "../../examples/standalone/host.ts";
 import { recallMemory } from "../../examples/standalone/retrieval.ts";
+
+// Seed の subject は "self" 固定で、other_person_note は他者を主体にするため seed では使えない。
+const STATE_KIND_SET = new Set<string>(
+	STATE_KINDS.filter((kind) => kind !== "other_person_note"),
+);
 
 // Synthetic input only: personal history is example data, never a regression oracle.
 function seed(id: string, overrides: Partial<MemorySeed> = {}): MemorySeed {
@@ -281,4 +289,47 @@ test("initialization is atomic and refuses an existing host without a seed recei
 		other.close();
 		rmSync(existing, { recursive: true, force: true });
 	}
+});
+
+test("default seed is the synthetic sample: no local paths, covers every target, category and state kind", () => {
+	const raw = readFileSync(DEFAULT_SEED_PATH, "utf8");
+	expect(raw).not.toContain("/Users/");
+	expect(raw).not.toContain(".codex");
+	const seeds = loadSeedData();
+	expect(seeds.length).toBeGreaterThanOrEqual(12);
+	for (const target of ["state", "host_procedure", "continuity"] as const)
+		expect(seeds.some((s) => s.proposed_target === target)).toBe(true);
+	expect(new Set(seeds.map((s) => s.category))).toEqual(
+		new Set([
+			"collaboration",
+			"architecture",
+			"evaluation",
+			"ui",
+			"information",
+			"context",
+		]),
+	);
+	expect(
+		new Set<string>(
+			seeds.flatMap((s) =>
+				s.proposed_state_kind ? [s.proposed_state_kind] : [],
+			),
+		),
+	).toEqual(STATE_KIND_SET);
+	for (const s of seeds)
+		for (const e of s.evidence) {
+			expect(e.source_path.startsWith("synthetic/")).toBe(true);
+			expect(e.source_text_sha256).toBe(
+				createHash("sha256").update(e.quote).digest("hex"),
+			);
+		}
+	expect(seedSummary(seeds)).toEqual({
+		total: 18,
+		state: 10,
+		host_procedure: 5,
+		continuity: 3,
+	});
+	expect(seedCommand(["inspect"])).toMatchObject({
+		summary: seedSummary(seeds),
+	});
 });

@@ -39,14 +39,27 @@ describe("MemoryDb port", () => {
 		});
 	});
 
-	test("a db without inTransaction skips the transaction check", () => {
+	test("a db without inTransaction is rejected instead of skipping the check", () => {
 		const s = open();
-		const bare: MemoryDb = {
+		// 型では必須だが、JavaScript のアダプタは値を持たないことがある。検査を黙って省かない。
+		const bare = {
+			exec: (sql: string) => s.writer.exec(sql),
+			query: (sql: string) => s.writer.query(sql),
+		} as unknown as MemoryDb;
+		expect(() => assertWritable(bare)).toThrow(
+			new MemoryStoreError("NOT_IN_TRANSACTION"),
+		);
+		const flagged: MemoryDb = {
 			exec: (sql) => s.writer.exec(sql),
 			query: (sql) => s.writer.query(sql),
+			inTransaction: true,
 		};
-		expect(() => assertWritable(bare)).not.toThrow();
-		expect(issueSeq(bare)).toBe(1);
+		expect(() => assertWritable(flagged)).not.toThrow();
+		expect(issueSeq(flagged)).toBe(1);
+		const outside: MemoryDb = { ...flagged, inTransaction: false };
+		expect(() => assertWritable(outside)).toThrow(
+			new MemoryStoreError("NOT_IN_TRANSACTION"),
+		);
 	});
 });
 

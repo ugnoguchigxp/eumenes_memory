@@ -422,3 +422,9 @@ bun examples/experiments/identity.ts --live verification-reports/cycles/new-iden
 ```sh
 bun examples/experiments/execution.ts --live verification-reports/cycles/new-execution
 ```
+
+## 結果の保存方針
+
+`results/` の既存ファイル（`*.json`）は、過去の実験の記録としてそのまま残します。今後の実行で出る生データ（試行ごとの入出力や全件の応答）は、`results/` へ保存してコミットしません。生データは git の対象外である `verification-reports/` へ保存し、git には要約（`RESULTS.md` や要約JSON）と、生データの sha256 一覧だけを入れます。
+
+`test/tooling.test.ts` が、git で追跡する各ファイルを512 KiB以下に制限します。例外は、方針の決定前から追跡している既存の大きな結果ファイルだけで、許可リストに明示しています。新しい大きなファイルを足すと試験が失敗します。

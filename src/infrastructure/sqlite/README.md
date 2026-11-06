@@ -9,7 +9,8 @@ transaction、migration の実行、非同期処理（モデル呼び出し）�
 - `bun:sqlite` を import しない。`MemoryDb`（`db.ts`）の構造的型付けで満たす。`BEGIN` / `COMMIT` / `SAVEPOINT` /
   `db.transaction()`、`async`、グローバル状態、接続の保持を持たない（`test/src-hygiene.test.ts` が検査）。
 - 書き込み系の公開操作の入口は `enterWrite(db)`（`session.ts`）: transaction 内 → スキーマ版 → seq 発行。
-  transaction 外は `MemoryStoreError("NOT_IN_TRANSACTION")`、読み取り専用接続は `READONLY_CONNECTION`。
+  transaction 外（`inTransaction` が `true` でない。値を持たない接続も含む）は `MemoryStoreError("NOT_IN_TRANSACTION")`、
+  読み取り専用接続は `READONLY_CONNECTION`。
 - 読み取り系の入口は `enterRead(db)`。transaction は要求しない。複数文の読み出しの一貫性はホストの
   read transaction に依存する（その関数の JSDoc に明記する）。
 - 読み出し SQL は status 列に加え、`NOT EXISTS (SELECT 1 FROM memory_tombstone ...)` を必須条件にする。
@@ -44,8 +45,10 @@ transaction、migration の実行、非同期処理（モデル呼び出し）�
    ホスト側のテストで `expect(checkHostMigrations(hostMigrationsArray)).toEqual([])` を呼ぶ（欠落・重複・順序違い・改変を文字列で返す。空なら正しい）。
 2. `assertMemorySchema(db)` を呼ぶ（版が新しい DB や migration の中身が違う DB は `SCHEMA_TOO_NEW` / `SCHEMA_MISMATCH` で拒否）。
 3. 墓標ジャーナル（DB の外のファイル、所有はホスト）を読み、`reconcileForgetJournal` を **queue / worker の起動前**に実行する。
-   `inconsistent` が返ったら Memory の読み出し・書き込みを止める（fail closed）。
+   `inconsistent` が返ったら Memory の読み出し・書き込みを止める（fail closed）。`hostIntentsToReapply` が返ったら、
+   同じ transaction の中で各 `hostIntent` に対するホスト自身の消去を冪等に再実行する。
 4. 以後、書き込み系は `store.write` の同期 op（1 transaction）内、読み取り系は read transaction 内で呼ぶ。
+   忘却は plan → ジャーナルへの追記（fsync）→ apply を同じ write transaction の中で行う（間に別の忘却を入れない）。
 
 運用の推奨: `PRAGMA secure_delete=ON`、忘却後の `wal_checkpoint(TRUNCATE)`。物理消去（空き領域・WAL・OS のスナップショット）は保証しない。
 ジャーナルは DB のバックアップに含めない（古い DB とは別媒体で保管する）。
@@ -70,7 +73,7 @@ transaction、migration の実行、非同期処理（モデル呼び出し）�
 - 起点: record は出典キー、host_source は出典キー、state_item は item、scope は scope の全 record / state_item / external（辺の scope_key が scope のもの）。
   `memory_dependency` を dependency → dependent に再帰 CTE で辿る（`reach` を外側にして `memory_dependency_by_dependency`
   で引く順に固定している。固定しないと辺の全走査が二乗になる）。
-- 閉包内: state_item は value / polarity / 有効期間を NULL、semantic_key を ''、attribute / evidence の行を削除、event は action と seq だけ残す。
+- 閉包内: state_item は value / polarity / 有効期間を NULL、semantic_key を ''・他人の subject を `other:`、attribute / evidence の行を削除、event は action と seq だけ残す。
   墓標は state_item / external / source / record に書く。
 - 依存辺は消さない（再適用の入力であり、`ID` 以外を持たない）。
 - 限界: 物理消去（SQLite の空き領域、WAL、OS のスナップショット、Time Machine）は保証しない。外部の確認状況は DB の中にだけあるので、

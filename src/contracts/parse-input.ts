@@ -2,6 +2,11 @@
  * 入力の parse（parse-don't-validate）。入力は読むだけで、検査済みの新しい
  * deep-frozen オブジェクトを返す。
  */
+import {
+	MEMORY_RECORD_REPRESENTATION,
+	MEMORY_RECORD_SOURCE_KIND,
+	MEMORY_SOURCE_NAMESPACE,
+} from "./common.ts";
 import { LIMITS } from "./constants.ts";
 import {
 	checkKeys,
@@ -52,6 +57,18 @@ export function readSourceCore(record: Rec, path: string): SourceCore {
 				LIMITS.maxRepresentationBytes,
 			)
 		: undefined;
+	// memory record の出典の鍵は representation "text" つき（record の忘却が閉包を始める鍵と一致させる）。
+	// 省略や別の値を黙って受けると、その record を忘れても派生した State に届かない。
+	if (
+		namespace === MEMORY_SOURCE_NAMESPACE &&
+		kind === MEMORY_RECORD_SOURCE_KIND &&
+		representation !== MEMORY_RECORD_REPRESENTATION
+	) {
+		return fail(
+			representation === undefined ? "MISSING_KEY" : "INVALID_VALUE",
+			keyPath(path, "representation"),
+		);
+	}
 	const revision = readIdentifier(
 		requiredField(record, path, "revision"),
 		keyPath(path, "revision"),

@@ -241,6 +241,63 @@ try {
 		"TOMBSTONED",
 	);
 	checks.push("restore replay idempotence truncated journal and tombstone");
+	// 契約版 2: hostIntent を鎖に載せた entry（ホストは JSON 行として保存し、読み戻して渡す）。
+	db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+	copyFileSync(join(dir, "before.db"), join(dir, "before-intent.db"));
+	const intentPlan = planForget(db, {
+		contractVersion: 2,
+		access,
+		hostIntent: { messageIds: ["m:2", "m:1", "m:2"] },
+		clock: { atMs: 400 },
+	});
+	assert.equal(intentPlan.status, "planned");
+	assert.equal(intentPlan.plan.entry.journalFormat, 2);
+	assert.deepEqual(intentPlan.plan.entry.targets, []);
+	const intentJournal = [
+		...journal,
+		JSON.parse(JSON.stringify(intentPlan.plan.entry)),
+	];
+	assert.equal(verifyForgetJournal(intentJournal).status, "ok");
+	write(() =>
+		applyForget(db, {
+			contractVersion: 2,
+			entry: intentJournal[1],
+			clock: { atMs: 400 },
+		}),
+	);
+	native.close();
+	native = new DatabaseSync(join(dir, "before-intent.db"));
+	const intentRecovered = write(() =>
+		reconcileForgetJournal(db, {
+			contractVersion: 2,
+			entries: intentJournal,
+			clock: { atMs: 500 },
+		}),
+	);
+	assert.equal(intentRecovered.status, "ok");
+	assert.equal(intentRecovered.reapplied, 1);
+	assert.deepEqual(
+		JSON.parse(JSON.stringify(intentRecovered.hostIntentsToReapply)),
+		[
+			{
+				forgetId: intentPlan.plan.entry.forgetId,
+				hostIntent: { messageIds: ["m:1", "m:2"] },
+			},
+		],
+	);
+	const tamperedJournal = [
+		journal[0],
+		{ ...intentJournal[1], hostIntent: { messageIds: ["m:9"] } },
+	];
+	assert.equal(verifyForgetJournal(tamperedJournal).status, "inconsistent");
+	checks.push("host intent journal format 2 and restore");
+	// inTransaction を持たない接続への書き込みは、検査を省かずに拒否する。
+	const bare = { exec: db.exec, query: db.query };
+	assert.throws(
+		() => captureRecord(bare, capture),
+		(error) => error?.code === "NOT_IN_TRANSACTION",
+	);
+	checks.push("missing inTransaction rejected");
 	console.log(
 		JSON.stringify({
 			status: "passed",

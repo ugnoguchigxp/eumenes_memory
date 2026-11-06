@@ -473,8 +473,10 @@ function insertEvidence(
 	ctx: WriteContext,
 	itemId: string,
 	evidence: readonly Pick<EvidenceSpan, "source">[],
+	firstIdx = 0,
 ): void {
-	for (const [index, span] of evidence.entries()) {
+	for (const [offset, span] of evidence.entries()) {
+		const index = firstIdx + offset;
 		const ref = span.source;
 		const range = ownValue(ref, "range");
 		if (range === undefined) throw new MemoryStoreError("CORRUPT_ROW");
@@ -519,6 +521,42 @@ function itemExists(db: MemoryDb, itemId: string): boolean {
 	return row !== null && row !== undefined;
 }
 
+/**
+ * 既存の evidence の後ろに追記する（同じ出典・同じ範囲は足さない）。origin の格上げで、確認に使った出典を
+ * 根拠と依存辺に残すため（その出典の忘却が item に届くように）。格上げは item ごとに一度なので件数は有界。
+ */
+function appendEvidence(
+	db: MemoryDb,
+	ctx: WriteContext,
+	itemId: string,
+	evidence: readonly Pick<EvidenceSpan, "source">[],
+): void {
+	const existing = selectAll(
+		db,
+		"SELECT idx, source_key, start_byte, end_byte FROM memory_state_evidence WHERE item_id = ?",
+		[itemId],
+	);
+	const seen = new Set(
+		existing.map(
+			(row) =>
+				`${readText(row, "source_key")}\u0001${readInteger(row, "start_byte")}\u0001${readInteger(row, "end_byte")}`,
+		),
+	);
+	const fresh = evidence.filter((span) => {
+		const range = ownValue(span.source, "range");
+		if (range === undefined) throw new MemoryStoreError("CORRUPT_ROW");
+		const key = `${sourceKey(span.source)}\u0001${range.startByte}\u0001${range.endByte}`;
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
+	const next = existing.reduce<number>(
+		(max, row) => Math.max(max, readInteger(row, "idx") + 1),
+		0,
+	);
+	insertEvidence(db, ctx, itemId, fresh, next);
+}
+
 function writeItem(
 	db: MemoryDb,
 	ctx: WriteContext,
@@ -526,6 +564,7 @@ function writeItem(
 	result: Extract<StateTransitionResult, { ok: true }>,
 	extras: NewItemExtras | null,
 	replacedEvidence: readonly Pick<EvidenceSpan, "source">[] | null,
+	appendedEvidence: readonly Pick<EvidenceSpan, "source">[] | null = null,
 ): void {
 	if (itemExists(db, view.itemId)) {
 		run(
@@ -560,6 +599,8 @@ function writeItem(
 					view.itemId,
 				]);
 				insertEvidence(db, ctx, view.itemId, replacedEvidence);
+			} else if (appendedEvidence !== null) {
+				appendEvidence(db, ctx, view.itemId, appendedEvidence);
 			}
 		}
 		return;
@@ -632,9 +673,18 @@ function persist(
 	result: Extract<StateTransitionResult, { ok: true }>,
 	extras: NewItemExtras | null,
 	replacedEvidence: readonly Pick<EvidenceSpan, "source">[] | null,
+	appendedEvidence: readonly Pick<EvidenceSpan, "source">[] | null = null,
 ): void {
 	for (const view of result.items) {
-		writeItem(db, ctx, view, result, extras, replacedEvidence);
+		writeItem(
+			db,
+			ctx,
+			view,
+			result,
+			extras,
+			replacedEvidence,
+			appendedEvidence,
+		);
 	}
 	for (const draft of result.events) writeEvent(db, ctx, draft);
 	for (const view of result.items) {
@@ -713,12 +763,19 @@ export function assertUserState(
 	input: AssertUserStateInput,
 ): StateWriteResult {
 	const parsed = parseAssertUserStateInput(input);
-	const seq = enterWrite(db);
+	let seq = enterWrite(db);
 	if (!isPermitted(parsed.access, parsed.scopeKey)) {
 		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
 	}
 	const principal = parsed.access.principal;
 	const scopeKey = parsed.scopeKey;
+	// 古い DB を復元すると seq が巻き戻り、新しい item の ID が reconcile の付け直した墓標とぶつかりうる。
+	// 墓標の無い ID になるまで seq を取り直す（ID の式は変えない。衝突の回数は state_item の墓標の数を超えない）。
+	while (
+		isTombstoned(db, "state_item", stateItemId(principal, scopeKey, seq))
+	) {
+		seq = issueSeq(db);
+	}
 	if (!isSubjectKindConsistent(parsed.subject, parsed.kind)) {
 		return { status: "rejected", reasonCode: "SUBJECT_KIND_MISMATCH" };
 	}
@@ -798,6 +855,8 @@ export function assertUserState(
 			...assertedValidity(parsed),
 		},
 		null,
+		// origin の格上げ（既存 item の edit）では、確認に使った出典を根拠に追記する。
+		parsed.evidence,
 	);
 	return {
 		status: "applied",
@@ -1019,6 +1078,7 @@ export function scrubStateItem(
 	run(
 		db,
 		`UPDATE memory_state_item SET status = 'forgotten', semantic_key = '', value_text = NULL,
+			subject = CASE WHEN subject = 'self' THEN 'self' ELSE 'other:' END,
 			polarity = NULL, valid_from_ms = NULL, valid_until_ms = NULL,
 			valid_from_text = NULL, valid_until_text = NULL, valid_basis = NULL,
 			revision = CASE WHEN status = 'forgotten' THEN revision ELSE revision + 1 END,

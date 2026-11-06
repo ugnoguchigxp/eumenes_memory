@@ -23,6 +23,8 @@ import {
 	DEPENDENT_NODE_TYPES,
 	DEPENDENCY_NODE_TYPES,
 	EXTERNAL_DELETION_STATES,
+	JOURNAL_FORMAT,
+	JOURNAL_FORMAT_HOST_INTENT,
 } from "../contracts/index.ts";
 import type {
 	ApplyForgetInput,
@@ -35,8 +37,10 @@ import type {
 	ForgetJournalTarget,
 	ForgetPlan,
 	ForgetReceipt,
+	ForgetTarget,
 	GetForgetReceiptInput,
 	GetForgetReceiptResult,
+	HostIntentToReapply,
 	PlanForgetInput,
 	PlanForgetResult,
 	RecordExternalDeletionInput,
@@ -468,7 +472,7 @@ function hasForeignTarget(
 
 // ---- plan ----
 
-function targetOf(input: PlanForgetInput["target"]): ForgetJournalTarget {
+function targetOf(input: ForgetTarget): ForgetJournalTarget {
 	switch (input.type) {
 		case "record":
 			return { type: "record", id: input.recordId, scopeKey: input.scopeKey };
@@ -492,19 +496,27 @@ export function planForget(
 ): PlanForgetResult {
 	const input = parsePlanForgetInput(rawInput);
 	enterRead(db);
-	if (!input.access.scopeKeys.includes(input.target.scopeKey)) {
+	if (
+		input.targets.some(
+			(target) => !input.access.scopeKeys.includes(target.scopeKey),
+		)
+	) {
 		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
 	}
 	const principal = input.access.principal;
-	if (hasForeignTarget(db, principal, [targetOf(input.target)])) {
+	const targets = input.targets.map(targetOf);
+	if (hasForeignTarget(db, principal, targets)) {
 		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
 	}
 	const head = readJournalHead(db);
 	const entry = buildJournalEntry({
+		journalFormat:
+			input.contractVersion === 1 ? JOURNAL_FORMAT : JOURNAL_FORMAT_HOST_INTENT,
 		seq: head.seq + 1,
 		prevHash: head.hash,
 		principal,
-		targets: [targetOf(input.target)],
+		targets,
+		hostIntent: input.hostIntent,
 	});
 	const set = resolveForgetSet(db, principal, entry, null);
 	const providerRefs = new Set<string>();
@@ -834,7 +846,7 @@ export function applyForget(
 /**
  * 書き込み。起動時（worker 起動前）に呼ぶ。ジャーナルの鎖を検証し、DB の head より進んでいる entry を順に再適用する。
  * `inconsistent` の場合は何も書かない（呼び出したホストは Memory の読み出し・抽出を止める）:
- * - 鎖が壊れている・entry が改ざんされている・DB の記録と食い違う → `JOURNAL_CHAIN_BROKEN`
+ * - 鎖が壊れている・entry が書き換わっている・DB の記録と食い違う → `JOURNAL_CHAIN_BROKEN`（鍵なしの鎖なので、検出できるのは偶発的な破損と食い違い）
  * - ジャーナルが DB の head より短い → `JOURNAL_TRUNCATED`
  * - ジャーナルが空なのに DB に適用記録／墓標がある → `JOURNAL_MISSING`
  * `inconsistent` でも `enterWrite` が操作 seq（`memory_seq`）を 1 つ進める（行は書かない）。
@@ -892,18 +904,27 @@ export function reconcileForgetJournal(
 		}
 	}
 	let reapplied = 0;
+	const hostIntentsToReapply: HostIntentToReapply[] = [];
 	for (let index = head.seq; index < entries.length; index += 1) {
-		applyEntry(
-			db,
-			entries[index] as ForgetJournalEntry,
-			input.clock.atMs,
-			opSeq,
-		);
+		const entry = entries[index] as ForgetJournalEntry;
+		applyEntry(db, entry, input.clock.atMs, opSeq);
 		reapplied += 1;
+		if (entry.hostIntent !== undefined) {
+			hostIntentsToReapply.push({
+				forgetId: entry.forgetId,
+				hostIntent: entry.hostIntent,
+			});
+		}
 	}
-	return reapplied > 0
-		? { status: "ok", reapplied, feedResyncRequired: true }
-		: { status: "ok", reapplied };
+	if (reapplied === 0) return { status: "ok", reapplied };
+	return hostIntentsToReapply.length > 0
+		? {
+				status: "ok",
+				reapplied,
+				feedResyncRequired: true,
+				hostIntentsToReapply,
+			}
+		: { status: "ok", reapplied, feedResyncRequired: true };
 }
 
 // ---- receipt ----

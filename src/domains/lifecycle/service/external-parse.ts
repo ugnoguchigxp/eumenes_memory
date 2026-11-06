@@ -6,6 +6,7 @@ import { deepFreeze } from "../../../canonical/freeze.ts";
 import { readAccessContext } from "../../../contracts/parse-input.ts";
 import {
 	readContractVersion,
+	readContractVersionIn,
 	readHostClock,
 	readScopeKey,
 } from "../../../contracts/parse-store.ts";
@@ -33,7 +34,10 @@ import type {
 	RegisterExternalDependentsInput,
 	UnregisterExternalDependentsInput,
 } from "../../../contracts/external.ts";
-import { EXTERNAL_DELETION_STATES } from "../contracts/index.ts";
+import {
+	EXTERNAL_DELETION_STATES,
+	LIFECYCLE_CONTRACT_VERSIONS,
+} from "../contracts/index.ts";
 import type { RecordExternalDeletionInput } from "../contracts/index.ts";
 import { CONTRACT_VERSIONS } from "../../../contracts/versions.ts";
 
@@ -216,10 +220,10 @@ export function parseRecordExternalDeletionInput(
 		"externalId",
 		"state",
 	]);
-	const contractVersion = readContractVersion(
+	const contractVersion = readContractVersionIn(
 		record,
 		PATH,
-		CONTRACT_VERSIONS.lifecycle,
+		LIFECYCLE_CONTRACT_VERSIONS,
 	);
 	const access = readAccessContext(
 		requiredField(record, PATH, "access"),

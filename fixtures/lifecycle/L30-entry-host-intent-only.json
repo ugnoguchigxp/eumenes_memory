@@ -1,0 +1,39 @@
+{
+	"id": "L30-entry-host-intent-only",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"host-intent"
+	],
+	"kind": "entry",
+	"description": "A format 2 entry may have no targets when it carries a host intent",
+	"input": {
+		"journalFormat": 2,
+		"seq": 2,
+		"prevHash": "a08b2a4b09d0d63952f9116a7d3bbe4efe2f97819474146f70b07b9af383cc4e",
+		"principal": "local:owner",
+		"targets": [],
+		"hostIntent": {
+			"messageIds": [
+				"m:3"
+			]
+		}
+	},
+	"expect": {
+		"entry": {
+			"journalFormat": 2,
+			"seq": 2,
+			"prevHash": "a08b2a4b09d0d63952f9116a7d3bbe4efe2f97819474146f70b07b9af383cc4e",
+			"forgetId": "forget:800496b52f74667b03c370ba3e84aa7564ea49ddc3139fc3dbcce9e858f22dd5",
+			"principal": "local:owner",
+			"targets": [],
+			"hostIntent": {
+				"messageIds": [
+					"m:3"
+				]
+			},
+			"hash": "ce024e4dced1a359f64f0d1483c9237365c9b12e4f791bfb5ea461f6a6c66958"
+		},
+		"hashInput": "{\"forgetId\":\"forget:800496b52f74667b03c370ba3e84aa7564ea49ddc3139fc3dbcce9e858f22dd5\",\"hostIntent\":{\"messageIds\":[\"m:3\"]},\"journalFormat\":2,\"prevHash\":\"a08b2a4b09d0d63952f9116a7d3bbe4efe2f97819474146f70b07b9af383cc4e\",\"principal\":\"local:owner\",\"seq\":2,\"targets\":[]}"
+	}
+}

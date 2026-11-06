@@ -1,0 +1,40 @@
+{
+	"id": "L33-chain-format1-with-host-intent",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"chain",
+		"tamper",
+		"host-intent"
+	],
+	"kind": "chain",
+	"description": "A format 1 entry must not carry a host intent (its hash would not cover it)",
+	"input": {
+		"entries": [
+			{
+				"journalFormat": 1,
+				"seq": 1,
+				"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+				"forgetId": "forget:f6e9938e246ec3a9e4d8d8548baabafd734f800a18d6b09e2b1392d625b0b881",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "state_item",
+						"id": "state:a",
+						"scopeKey": "conversation:c1"
+					}
+				],
+				"hash": "3890af2634f05bd5a5bd84b098f7eba07f37a31df7729d9b140a3865e14e1099",
+				"hostIntent": {
+					"messageIds": [
+						"m:1"
+					]
+				}
+			}
+		]
+	},
+	"expect": {
+		"status": "inconsistent",
+		"reasonCode": "JOURNAL_CHAIN_BROKEN"
+	}
+}

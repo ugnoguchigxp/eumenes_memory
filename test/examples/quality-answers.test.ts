@@ -172,6 +172,7 @@ test("persisted invalid verdicts and evidence cannot be counted as quality passe
 			);
 			await expect(
 				answerTrials(s.directory, {
+					onProgress: () => {},
 					completeFor: () => async () => {
 						calls++;
 						throw Error("must reject before dispatch");
@@ -193,6 +194,7 @@ test("duplicate calibration controls cannot substitute for missing boundary cont
 		writeFileSync(path, JSON.stringify(rows));
 		await expect(
 			answerTrials(s.directory, {
+				onProgress: () => {},
 				completeFor: () => async () => {
 					throw Error("must reject before dispatch");
 				},
@@ -225,6 +227,7 @@ test("calibration needs an observed verdict for every control, even within error
 		writeFileSync(summary, JSON.stringify(saved));
 		await expect(
 			answerTrials(s.directory, {
+				onProgress: () => {},
 				completeFor: () => async () => {
 					calls++;
 					return {
@@ -248,6 +251,7 @@ test("checkpoint failure retains the run lock until all dispatched workers settl
 	});
 	let calls = 0;
 	const first = answerTrials(s.directory, {
+		onProgress: () => {},
 		completeFor: (provider) => async () => {
 			calls++;
 			if (provider === "claude") await waiting;
@@ -321,6 +325,7 @@ test("blocked accounting prevents new trials without altering evidence", async (
 		budget.settle(budget.reserve(0.01), null);
 		await expect(
 			answerTrials(s.directory, {
+				onProgress: () => {},
 				completeFor: () => async () => {
 					calls++;
 					throw Error("not dispatched");
@@ -398,6 +403,7 @@ test("judge failure retains generated answer and prior verdict, with no reroll o
 		fail = true;
 	try {
 		const report = await answerTrials(s.directory, {
+			onProgress: () => {},
 			completeFor: (provider, task) => async (prompt) => {
 				if (task === "recall") {
 					generated++;
@@ -429,6 +435,7 @@ test("judge failure retains generated answer and prior verdict, with no reroll o
 		expect(generated).toBe(120);
 		expect(report.status).toBe("incomplete");
 		await answerTrials(s.directory, {
+			onProgress: () => {},
 			completeFor: () => async () => {
 				throw Error("must not dispatch again");
 			},
@@ -444,6 +451,7 @@ test("unconfirmed in-flight state and uncalibrated judges block dispatch", async
 	const s = fixture();
 	let calls = 0;
 	const options = {
+		onProgress: () => {},
 		completeFor: () => async () => {
 			calls++;
 			throw Error("unexpected request");
@@ -483,6 +491,7 @@ test("reviewed transport recovery reuses the answer and retains the failed attem
 		fail = true;
 	try {
 		await answerTrials(s.directory, {
+			onProgress: () => {},
 			completeFor: (provider, task) => async () => {
 				if (task === "recall") {
 					generated++;
@@ -517,6 +526,7 @@ test("reviewed transport recovery reuses the answer and retains the failed attem
 			"Reviewed transient failure",
 		);
 		const report = await answerTrials(s.directory, {
+			onProgress: () => {},
 			completeFor: (_provider, task) => async () => {
 				if (task === "recall") {
 					generated++;

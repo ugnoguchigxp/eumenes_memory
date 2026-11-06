@@ -40,6 +40,21 @@ export function readContractVersion(
 	return 1;
 }
 
+/** 複数の版を受ける family 用の `contractVersion` 検査。`accepted` に無い版は UNSUPPORTED_SCHEMA_VERSION。 */
+export function readContractVersionIn<const T extends number>(
+	record: Rec,
+	path: string,
+	accepted: readonly T[],
+): T {
+	const field = keyPath(path, "contractVersion");
+	const value = requiredField(record, path, "contractVersion");
+	if (typeof value !== "number") return fail("INVALID_TYPE", field);
+	if (!Number.isSafeInteger(value)) return fail("INVALID_INTEGER", field);
+	const found = accepted.find((version) => version === value);
+	if (found === undefined) return fail("UNSUPPORTED_SCHEMA_VERSION", field);
+	return found;
+}
+
 export function readScopeKey(value: unknown, path: string): string {
 	return readIdentifier(value, path, LIMITS.maxScopeKeyBytes);
 }

@@ -1,0 +1,28 @@
+{
+	"id": "L34-chain-empty-entry",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"chain",
+		"host-intent"
+	],
+	"kind": "chain",
+	"description": "An entry with neither targets nor a host intent is refused even when its hash is right",
+	"input": {
+		"entries": [
+			{
+				"journalFormat": 2,
+				"seq": 1,
+				"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+				"forgetId": "forget:157a42edeec948ceadb81243a7b3f830372685d47c36f3372e648e0088ba018c",
+				"principal": "local:owner",
+				"targets": [],
+				"hash": "6a7d91fd32c01865d9ddcda4a599b964ccc90005af76258f2e2ad3b27d2f93ea"
+			}
+		]
+	},
+	"expect": {
+		"status": "inconsistent",
+		"reasonCode": "JOURNAL_CHAIN_BROKEN"
+	}
+}

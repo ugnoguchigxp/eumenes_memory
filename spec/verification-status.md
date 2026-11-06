@@ -16,14 +16,14 @@
 
 | 機能 | C | I | F | S | H | 備考 |
 |---|---|---|---|---|---|---|
-| MemoryDb ポート、`MemoryStoreError`、writable 検査、seq 発行 | ● | ● | — | ● | — | unit + 実 SQLite（readonly 接続・transaction 外の拒否） |
+| MemoryDb ポート、`MemoryStoreError`、writable 検査、seq 発行 | ● | ● | — | ● | — | unit + 実 SQLite（readonly 接続・transaction 外の拒否）。2026-11-06 から `inTransaction` は必須で、値を持たない接続も拒否する |
 | `assertMemorySchema`（migration hash 検査）、`checkHostMigrations` | ● | ● | — | ● | — | hash 不一致・版が新しい・版が古い・表なしを検出。ホストの配列への追記の検査 |
 | テスト用 Writer（`test/support/store.ts`） | ● | ● | — | ● | — | WAL ファイル DB、書き込み 1 + 読み取り専用 1、`snapshotTo` で複製 |
 | 変更フィード（`listMemoryChanges` / `latestMemoryChangeSeq`） | ● | ● | — | ● | ● | 本文なし。`latestMemoryChangeSeq` は scope で可視な変更の最大 seq で、ホストが内部の表を読まずに世代を見る |
 | ExternalDependent（`registerExternalDependents` / `unregisterExternalDependents` / `recordExternalDeletion`） | ● | ● | ● | ● | ● | 外部派生物 `(providerRef, externalId)` を node 種別 `external` で登録し、forget の閉包に入ると `memory_forget_external` に `pending`。receipt は failed > pending > unverified > confirmed に集約 |
 | Records（`captureRecord` / `readRecord`、再生成可能な資料の retention） | ● | ● | ● | ● | ● | fixture E01–E10（`sliceUtf8Range` を含む）、復元シナリオ（古い DB + 最新ジャーナル）。Eumenes 結合: Web 調査のキャッシュが retention を使う |
 | State 台帳（`assertUserState` / `deactivateState` / `reactivateState` / `retractState` / `listState` / `readStateFact`、reducer） | ● | ● | ● | ● | ● | fixture S01–S07・S11–S16・S20・S21・S24。origin `agent_inferred`（ユーザー由来の保護は受けない）。既存 DB の `disputed` / `invalidated` / `admitted_extraction` の行の読み取りと遷移も実 SQLite で試験 |
-| Lifecycle / Forget（plan / apply / reconcile / receipt、外部削除） | ● | ● | ● | ● | ● | target は record / host_source / state_item / scope。閉包は state_item / external に届き、値を消す。論理的な削除で、物理消去は保証しない。Eumenes 結合: state_item の忘却を外部 journal（fsync）経由で適用、起動時 reconcile、古い DB 復元で再適用、journal 改ざんで Memory を使わない |
+| Lifecycle / Forget（plan / apply / reconcile / receipt、外部削除） | ● | ● | ● | ● | ● | target は record / host_source / state_item / scope。閉包は state_item / external に届き、値を消す。論理的な削除で、物理消去は保証しない。Eumenes 結合: state_item の忘却を外部 journal（fsync）経由で適用、起動時 reconcile、古い DB 復元で再適用、journal の破損・食い違いで Memory を使わない。2026-11-06 契約版 2（同じ scope の複数 target、`hostIntent` と journal format 2、`hostIntentsToReapply`）: C/I/F/S は本リポジトリの試験と fixture L29〜L34・配布物の Bun/Node consumer で確認。H は Eumenes の block journal 廃止（忘却1回を1行に、旧 block journal の取り込み）の試験で確認（[改善設計](improvement-design.md) §1） |
 | 時間判定（temporal: 精度つき期間、現在/過去/未来/時点不明） | ● | ● | — | ● | ● | 成立期間の精度・根拠は State に永続（`assertUserState` の `validity`）。Eumenes 結合で期限切れ項目を現在の理解から除外 |
 | World / Consolidation | — | — | — | — | — | **本体では作らない**（別ドメイン・別リポジトリ）。接続部は ExternalDependent と変更フィードだけ |
 

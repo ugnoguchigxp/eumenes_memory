@@ -23,7 +23,7 @@ describe("family contracts", () => {
 		expect(api.CONTRACT_VERSIONS).toEqual({
 			records: 1,
 			state: 1,
-			lifecycle: 1,
+			lifecycle: 2,
 			external: 1,
 		});
 		for (const name of Object.keys(api)) {

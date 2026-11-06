@@ -95,7 +95,7 @@ export function readOf(
 /** plan → apply（ホストのジャーナル追記を省いた形）。entry を返し、呼び出し側がジャーナル配列へ積む。 */
 export function forgetRecord(
 	store: TestStore,
-	target: Parameters<typeof planForget>[1]["target"],
+	target: NonNullable<Parameters<typeof planForget>[1]["target"]>,
 	atMs = 100,
 ): {
 	readonly plan: ForgetPlan;

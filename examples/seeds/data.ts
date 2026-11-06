@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { STATE_KINDS, type StateKind } from "eumenes-memory";
 
 export const DEFAULT_SEED_PATH = new URL(
-	"./data/codex-user-50.jsonl",
+	"./data/synthetic-seed.jsonl",
 	import.meta.url,
 );
 

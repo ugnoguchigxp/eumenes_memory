@@ -6,6 +6,7 @@ import {
 	readFileSync,
 	renameSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -350,5 +351,63 @@ describe("extractSpecifiers", () => {
 			"const r = obj['from'] ?? 'x';",
 		].join("\n");
 		expect(extractSpecifiers(source)).toEqual(["./a.ts", "./b.ts", "./c.ts"]);
+	});
+});
+
+// 生データを git へ入れない方針の検査。実験の生データは verification-reports/（git の対象外）へ置き、
+// git には要約と生データの sha256 だけを入れる。下の許可リストは、方針の前から追跡している既存ファイルで、
+// 新しいファイルを足してはならない。
+const TRACKED_SIZE_LIMIT_BYTES = 512 * 1024;
+const LARGE_TRACKED_FILE_ALLOWLIST: ReadonlySet<string> = new Set([
+	"examples/experiments/results/2026-10-16-evidence-followup-A.json",
+	"examples/experiments/results/2026-10-16-evidence-followup-B.json",
+	"examples/experiments/results/2026-10-16-holdout-100.json",
+	"examples/experiments/results/2026-10-16-representation.json",
+	"examples/standalone/results/2026-10-16-intent-grading-improvement.json",
+	"examples/standalone/results/2026-10-16-structured-review.json",
+]);
+
+describe("tracked file size policy", () => {
+	test("no git-tracked file exceeds 512 KiB unless it is allowlisted", () => {
+		const repoRoot = join(import.meta.dir, "..");
+		let listed: ReturnType<typeof Bun.spawnSync> | undefined;
+		try {
+			listed = Bun.spawnSync(["git", "ls-files", "-z"], {
+				cwd: repoRoot,
+				stdout: "pipe",
+				stderr: "pipe",
+			});
+		} catch {
+			listed = undefined;
+		}
+		if (!listed || listed.exitCode !== 0) {
+			console.warn(
+				"skipped: not a git checkout (git ls-files failed), tracked file size policy not checked",
+			);
+			return;
+		}
+		const tracked = String(listed.stdout)
+			.split("\0")
+			.filter((name) => name.length > 0);
+		const oversized: string[] = [];
+		for (const name of tracked) {
+			let size: number;
+			try {
+				size = statSync(join(repoRoot, name)).size;
+			} catch {
+				continue; // 追跡済みだが作業ツリーから消えているファイル
+			}
+			if (
+				size > TRACKED_SIZE_LIMIT_BYTES &&
+				!LARGE_TRACKED_FILE_ALLOWLIST.has(name)
+			)
+				oversized.push(`${name} (${size} bytes)`);
+		}
+		expect(
+			oversized,
+			`git-tracked files over ${TRACKED_SIZE_LIMIT_BYTES / 1024} KiB: ${oversized.join(", ")}. ` +
+				"Raw experiment output must go to verification-reports/ (gitignored); commit only a summary and the sha256 of the raw files " +
+				"(see examples/experiments/README.md and examples/standalone/README.md, section 結果の保存方針).",
+		).toEqual([]);
 	});
 });

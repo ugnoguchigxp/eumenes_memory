@@ -58,7 +58,7 @@ describe("public API: pure runtime", () => {
 		expect(CONTRACT_VERSIONS).toEqual({
 			records: 1,
 			state: 1,
-			lifecycle: 1,
+			lifecycle: 2,
 			external: 1,
 		});
 		expect(Object.isFrozen(CONTRACT_VERSIONS)).toBe(true);

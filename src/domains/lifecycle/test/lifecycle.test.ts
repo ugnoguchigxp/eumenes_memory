@@ -65,7 +65,7 @@ function put(
 
 function plan(
 	s: TestStore,
-	target: Parameters<typeof planForget>[1]["target"],
+	target: NonNullable<Parameters<typeof planForget>[1]["target"]>,
 	access = ACCESS,
 ) {
 	return s.read((db) =>

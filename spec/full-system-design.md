@@ -90,11 +90,11 @@ export type SqlValue = string | number | bigint | null | Uint8Array;
 export interface MemoryDb {
   exec(sql: string): void;
   query(sql: string): MemoryStatement;
-  readonly inTransaction?: boolean;      // bun:sqlite の Database は持つ。無ければ検査を省略
+  readonly inTransaction: boolean;       // 必須。bun:sqlite の Database は持つ。他のドライバのアダプタはホストの transaction の状態を返す
 }
 ```
 
-- 書き込み関数は入口で `assertWritable(db)`: `inTransaction === false` なら `MemoryStoreError("NOT_IN_TRANSACTION")`。続く最初の文が `UPDATE memory_seq SET value = value + 1 WHERE id = 1 RETURNING value`（seq 発行を兼ねる）で、`SQLITE_READONLY` を `READONLY_CONNECTION` に変換。
+- 書き込み関数は入口で `assertWritable(db)`: `inTransaction !== true`（値が無い場合を含む）なら `MemoryStoreError("NOT_IN_TRANSACTION")`。検査を黙って省かない（2026-11-06 変更。以前は値が無ければ省略していた）。続く最初の文が `UPDATE memory_seq SET value = value + 1 WHERE id = 1 RETURNING value`（seq 発行を兼ねる）で、`SQLITE_READONLY` を `READONLY_CONNECTION` に変換。
 - 読み取り関数は `inTransaction` を要求しない（ホストが read transaction で囲む責任）。複数文読み出しを行う関数は「一貫性はホストの transaction に依存」と JSDoc に明記。
 - 行は `unknown` として受け、小さな row reader で型検査（列欠落・型違いは `CORRUPT_ROW`）。
 
@@ -128,14 +128,15 @@ export interface MemoryDb {
 1. **読み出しの墓標除外**: Records / State を返す全 SQL は、status 列に加えて `NOT EXISTS (SELECT 1 FROM memory_tombstone ...)` を必須条件にする（二重化）。status を `active` に戻した（古い行を復元した）DB でも出ない。
 2. **完全な再適用**: `applyForget(db, entry)` は冪等で、墓標の有無に関係なく本文削除・閉包の無効化を毎回実行する。
 3. **墓標ジャーナル（DB の外）**: 忘却は 2 相。
-   - `planForget(db, request) → ForgetPlan`（読み取りのみ、決定的）: 対象と閉包を計算し、ジャーナル entry（`journalFormat, seq, prevHash, forgetId, principal, targets, hash`。本文・digest を含まない）を返す。`hash = sha256(canonicalJson(entry 本体))`、`prevHash` で鎖にする。
-   - ホストが entry をジャーナルへ追記して fsync（transaction の外）。
+   - `planForget(db, request) → ForgetPlan`（読み取りのみ、決定的）: 対象と閉包を計算し、ジャーナル entry（`journalFormat, seq, prevHash, forgetId, principal, targets, hash`。format 2 は任意の `hostIntent` を持つ。本文・digest を含まない）を返す。`hash = sha256(canonicalJson(entry 本体))`、`prevHash` で鎖にする。
+   - ホストが entry をジャーナルへ追記して fsync する。plan・追記・apply は単一 Writer の**同じ write transaction の中**で行う（entry の `seq` / `prevHash` は plan 時点の head の次なので、間に別の忘却が入ると apply できない entry がジャーナルに残り、次の reconcile が `JOURNAL_CHAIN_BROKEN` になる）。ジャーナルの書き込みは DB の rollback では戻らない。fsync の間は Writer を保持する（R-C）。
    - `applyForget(db, entry)`（write transaction 内、同期）: 閉包を**その時点で再計算**して適用し、`memory_journal_state` の head を進める。
-   - 起動時: `reconcileForgetJournal(db, entries)`。DB の head がジャーナルより古ければ不足 entry を順に再適用する。ジャーナルが短い、鎖が壊れている、DB に墓標があるのにジャーナルが空、のいずれかなら `inconsistent`。ホストは Memory を止める（fail closed）。
+   - 起動時: `reconcileForgetJournal(db, entries)`。DB の head がジャーナルより古ければ不足 entry を順に再適用する。ジャーナルが短い、鎖が壊れている、DB に墓標があるのにジャーナルが空、のいずれかなら `inconsistent`。ホストは Memory を止める（fail closed）。再適用した entry のうち `hostIntent` を持つものは `hostIntentsToReapply` で返り、ホストは同じ transaction でその消去を再実行する。
+   - format 2 と `hostIntent`（2026-11-06、[改善設計](.archived/improvement-design-host-burden.md) A2）: ホストが所有する派生物（会話 message の非表示、ベクトル、利用記録など）を忘れる意図を、同じ鎖に載せる。キー → 不透明な ID の配列で、本体は意味を解釈せず、形と大きさだけを検査する。ホストが第2のジャーナルを持たずに済む。
    - 制約: 本体は状態を持たないため、復元直後で reconcile 未実行の DB は読み出し関数だけでは検出できない。fail closed の責任はホストの起動手順（[sqlite README](../src/infrastructure/sqlite/README.md)）に置く。
 4. ジャーナルのファイル操作（tempfile → fsync → rename → dir fsync）はホストの実装。本体は entry の生成・検査・鎖検証（`verifyForgetJournal`）だけを純粋関数で提供する。
 
-受入: capture → forget → 「忘却前に複製した DB ファイル」を復元 → 最新ジャーナルで reconcile → read / list に出ない。reconcile を 2 回実行しても結果同一。ジャーナルの末尾切り詰め・1 entry 改ざん・空ジャーナルで `inconsistent`。
+受入: capture → forget → 「忘却前に複製した DB ファイル」を復元 → 最新ジャーナルで reconcile → read / list に出ない。reconcile を 2 回実行しても結果同一。ジャーナルの末尾切り詰め・1 entry の書き換え・空ジャーナルで `inconsistent`（鍵なしの鎖なので、悪意のある書き換えの防止はホストの責任）。
 
 物理消去: 本体は PRAGMA を持たない。論理的な削除（行の値の消去と墓標）を保証し、SQLite の空きページ・WAL・OS のスナップショットからの消去は保証しない。ホストは `PRAGMA secure_delete=ON` と、忘却後の `wal_checkpoint(TRUNCATE)` / VACUUM を実施する。
 
@@ -169,14 +170,14 @@ export interface MemoryDb {
 ### 3.9 Lifecycle / Forget
 
 ```ts
-planForget(db, { contractVersion; access; target: ForgetTarget; clock }): PlanForgetResult   // read のみ
+planForget(db, { contractVersion; access; target?: ForgetTarget; targets?: ForgetTarget[]; hostIntent?: HostForgetIntent; clock }): PlanForgetResult   // read のみ。v1 は target のみ、v2 は target / targets（同じ scope、最大 64）/ hostIntent
 type ForgetTarget =
   | { type: "record"; recordId: string; scopeKey: string }
   | { type: "host_source"; sourceKey: SourceKey; scopeKey: string }   // 会話 message 等、ホストが消す出典
   | { type: "state_item"; itemId: string; scopeKey: string }
   | { type: "scope"; scopeKey: string }                                 // scope 内の本体所有データ全部
 applyForget(db, { contractVersion; entry; clock }): ForgetReceipt        // write tx。冪等。enabled に依存しない
-reconcileForgetJournal(db, { contractVersion; entries; clock }): { status: "ok"; reapplied; feedResyncRequired? } | { status: "inconsistent"; reasonCode }
+reconcileForgetJournal(db, { contractVersion; entries; clock }): { status: "ok"; reapplied; feedResyncRequired?; hostIntentsToReapply? } | { status: "inconsistent"; reasonCode }
 recordExternalDeletion(db, { ...; forgetId; providerRef; externalId?; state }) / getForgetReceipt(db, { ...; forgetId })
 registerExternalDependents / unregisterExternalDependents                // 外部派生物を閉包に参加させる
 ```

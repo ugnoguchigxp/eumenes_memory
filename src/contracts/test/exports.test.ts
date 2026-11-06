@@ -15,7 +15,9 @@ const EXPECTED_EXPORTS = [
 	"GENESIS_JOURNAL_HASH",
 	"HOST_STATE_ORIGINS",
 	"JOURNAL_FORMAT",
+	"JOURNAL_FORMAT_HOST_INTENT",
 	"JOURNAL_REASON_CODES",
+	"LIFECYCLE_CONTRACT_VERSIONS",
 	"LIMITS",
 	"LIMITS_EXTERNAL",
 	"LIMITS_LIFECYCLE",
@@ -78,7 +80,7 @@ describe("public runtime exports", () => {
 		expect(api.CONTRACT_VERSIONS).toEqual({
 			records: 1,
 			state: 1,
-			lifecycle: 1,
+			lifecycle: 2,
 			external: 1,
 		});
 	});

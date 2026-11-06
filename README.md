@@ -43,15 +43,15 @@ bun run check:memory:conversations:live # 人物・話題混在、曖昧な訂�
 
 | import | 内容 |
 |---|---|
-| `eumenes-memory` | 純粋 API と、各 family の型・定数・reasonCode・上限。`MemoryContractError` / `isMemoryContractError`、`CONTRACT_VERSIONS`（records / state / lifecycle / external）、`LIMITS*`、`sliceUtf8Range`（UTF-8 byte 範囲の切り出し）、`verifyForgetJournal`（ジャーナルの鎖の検証）、`classifyValidity` / `periodFromStateMs`（成立期間の判定。時刻はホストが渡す） |
-| `eumenes-memory/sqlite` | 永続 API。ホストが渡す `MemoryDb`（bun:sqlite の `Database` が構造的に満たす）に対する同期関数と `migrations`。`bun:sqlite` は import しない。State（`assertUserState` / `deactivateState` / `reactivateState` / `retractState` / `listState` / `readStateFact`）、Records（`captureRecord` / `readRecord` と、再生成可能な資料の `retainRecord` / `readRetainedRecord` / `useRetainedRecord` / `retainedRecordStats` / `evictRetainedRecords`）、Lifecycle（`planForget` / `applyForget` / `reconcileForgetJournal` / `getForgetReceipt` / `recordExternalDeletion` / `registerExternalDependents` / `unregisterExternalDependents`）、`assertMemorySchema` / `checkHostMigrations` / `migrations` / `MEMORY_DB_SCHEMA_VERSION`、`listMemoryChanges` / `latestMemoryChangeSeq`（scope で可視な変更の最大 seq。ホストが内部の表を読まずに世代を見る）、`MemoryStoreError`。State の `assertUserState` の origin は `user_confirmed` / `user_edited` / `agent_inferred`（ホストのエージェントが依頼なしに推定した内容。ユーザー由来の保護は受けない。意味は [State 契約](docs/host-guide.md#state-origin)）。起動手順と規則は [src/infrastructure/sqlite/README.md](docs/host-guide.md#startup) |
+| `eumenes-memory` | 純粋 API と、各 family の型・定数・reasonCode・上限。`MemoryContractError` / `isMemoryContractError`、`CONTRACT_VERSIONS`（records / state / lifecycle / external。lifecycle は 2 で、Lifecycle の関数は 1 も受ける）、`LIMITS*`、`sliceUtf8Range`（UTF-8 byte 範囲の切り出し）、`verifyForgetJournal`（ジャーナルの鎖の検証）、`classifyValidity` / `periodFromStateMs`（成立期間の判定。時刻はホストが渡す） |
+| `eumenes-memory/sqlite` | 永続 API。ホストが渡す `MemoryDb`（bun:sqlite の `Database` が構造的に満たす。`inTransaction` は必須）に対する同期関数と `migrations`。`bun:sqlite` は import しない。State（`assertUserState` / `deactivateState` / `reactivateState` / `retractState` / `listState` / `readStateFact`）、Records（`captureRecord` / `readRecord` と、再生成可能な資料の `retainRecord` / `readRetainedRecord` / `useRetainedRecord` / `retainedRecordStats` / `evictRetainedRecords`）、Lifecycle（`planForget` / `applyForget` / `reconcileForgetJournal` / `getForgetReceipt` / `recordExternalDeletion` / `registerExternalDependents` / `unregisterExternalDependents`。契約版 2 の `planForget` は同じ scope の複数 target と、ホストの忘却意図 `hostIntent` を1つの entry にまとめる。[忘却とバックアップ復元](docs/host-guide.md#忘却とバックアップ復元)）、`assertMemorySchema` / `checkHostMigrations` / `migrations` / `MEMORY_DB_SCHEMA_VERSION`、`listMemoryChanges` / `latestMemoryChangeSeq`（scope で可視な変更の最大 seq。ホストが内部の表を読まずに世代を見る）、`MemoryStoreError`。State の `assertUserState` の origin は `user_confirmed` / `user_edited` / `agent_inferred`（ホストのエージェントが依頼なしに推定した内容。ユーザー由来の保護は受けない。意味は [State 契約](docs/host-guide.md#state-origin)）。起動手順と規則は [src/infrastructure/sqlite/README.md](docs/host-guide.md#startup) |
 
 ## Eumenes からの利用
 
 Eumenes はビルド済みの配布物（`artifacts/eumenes-memory-<version>.tgz`）を `vendor/eumenes-memory/` に置いて取り込む。配布物の中身はビルド済みの JavaScript と型宣言（`dist/`。`exports["."]` は `./dist/index.js`、型は `./dist/index.d.ts`）で、`package.json` の `files` に含まれるものだけが入る。Node（Playwright など）からも読み込める。作るときは `bun pm pack --destination artifacts`（`prepack` が `bun run build` で `dist/` を作り直す）。このリポジトリの examples は `tsconfig.json` の `paths` でソースを直接読むので、開発中にビルドは要らない。
 
 ```json
-{ "dependencies": { "eumenes-memory": "file:vendor/eumenes-memory/eumenes-memory-0.0.2-<sha256の先頭12桁>.tgz" } }
+{ "dependencies": { "eumenes-memory": "file:vendor/eumenes-memory/eumenes-memory-0.0.4-<sha256の先頭12桁>.tgz" } }
 ```
 
 ```ts

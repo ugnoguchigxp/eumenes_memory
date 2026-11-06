@@ -1,0 +1,76 @@
+{
+	"id": "L29-entry-host-intent",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"host-intent"
+	],
+	"kind": "entry",
+	"description": "Format 2 sorts and dedupes targets and host-intent ids, drops empty host-intent keys, and hashes the host intent",
+	"input": {
+		"journalFormat": 2,
+		"seq": 1,
+		"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+		"principal": "local:owner",
+		"targets": [
+			{
+				"type": "state_item",
+				"id": "state:b",
+				"scopeKey": "conversation:c1"
+			},
+			{
+				"type": "state_item",
+				"id": "state:a",
+				"scopeKey": "conversation:c1"
+			},
+			{
+				"type": "state_item",
+				"id": "state:b",
+				"scopeKey": "conversation:c1"
+			}
+		],
+		"hostIntent": {
+			"messageIds": [
+				"m:2",
+				"m:1",
+				"m:2"
+			],
+			"conversationId": [
+				"c1"
+			],
+			"unused": []
+		}
+	},
+	"expect": {
+		"entry": {
+			"journalFormat": 2,
+			"seq": 1,
+			"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+			"forgetId": "forget:e9cece1281f7ed623db0277503685f36c89e1bf3263a14dec7114abb3d2c7727",
+			"principal": "local:owner",
+			"targets": [
+				{
+					"type": "state_item",
+					"id": "state:a",
+					"scopeKey": "conversation:c1"
+				},
+				{
+					"type": "state_item",
+					"id": "state:b",
+					"scopeKey": "conversation:c1"
+				}
+			],
+			"hostIntent": {
+				"conversationId": [
+					"c1"
+				],
+				"messageIds": [
+					"m:1",
+					"m:2"
+				]
+			},
+			"hash": "a08b2a4b09d0d63952f9116a7d3bbe4efe2f97819474146f70b07b9af383cc4e"
+		},
+		"hashInput": "{\"forgetId\":\"forget:e9cece1281f7ed623db0277503685f36c89e1bf3263a14dec7114abb3d2c7727\",\"hostIntent\":{\"conversationId\":[\"c1\"],\"messageIds\":[\"m:1\",\"m:2\"]},\"journalFormat\":2,\"prevHash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"principal\":\"local:owner\",\"seq\":1,\"targets\":[{\"id\":\"state:a\",\"scopeKey\":\"conversation:c1\",\"type\":\"state_item\"},{\"id\":\"state:b\",\"scopeKey\":\"conversation:c1\",\"type\":\"state_item\"}]}"
+	}
+}

@@ -8,7 +8,8 @@
 export const CONTRACT_VERSIONS = Object.freeze({
 	records: 1,
 	state: 1,
-	lifecycle: 1,
+	/** 2: `planForget` の `targets` / `hostIntent` と journal format 2。Lifecycle の関数は 1 も受ける。 */
+	lifecycle: 2,
 	/** ExternalDependent の登録と変更フィード（`listMemoryChanges`）。 */
 	external: 1,
 } as const);

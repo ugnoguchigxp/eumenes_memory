@@ -18,8 +18,11 @@ export interface MemoryStatement {
 export interface MemoryDb {
 	exec(sql: string): void;
 	query(sql: string): MemoryStatement;
-	/** bun:sqlite の Database は持つ。無い実装では transaction 外の検査を省略する。 */
-	readonly inTransaction?: boolean;
+	/**
+	 * 今 transaction の中か（必須）。bun:sqlite の Database はそのまま持つ。他のドライバのアダプタは、ホストが開いた
+	 * transaction の状態を返すこと。書き込み系の公開操作は `true` でなければ `NOT_IN_TRANSACTION` で拒否する。
+	 */
+	readonly inTransaction: boolean;
 }
 
 /** SQLite の例外を MemoryStoreError に変換する。変換できないものはそのまま返す。 */
@@ -51,9 +54,12 @@ export function guarded<T>(operation: () => T): T {
 	}
 }
 
-/** 書き込み系の入口の検査 1: transaction の中であること（`inTransaction === false` なら拒否）。 */
+/**
+ * 書き込み系の入口の検査 1: transaction の中であること。`inTransaction` が `true` でなければ拒否する
+ * （値を持たないアダプタも拒否する。検査を黙って省かない）。
+ */
 export function assertWritable(db: MemoryDb): void {
-	if (db.inTransaction === false) {
+	if (db.inTransaction !== true) {
 		throw new MemoryStoreError("NOT_IN_TRANSACTION");
 	}
 }

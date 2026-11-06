@@ -578,7 +578,9 @@ describe("review findings", () => {
 			items: [{ id: "i1", evidence: ["m:m1"] }],
 		});
 		const recordId = g.recordIds.get("r1") as string;
-		const plan = (target: Parameters<typeof planForget>[1]["target"]) =>
+		const plan = (
+			target: NonNullable<Parameters<typeof planForget>[1]["target"]>,
+		) =>
 			s.read((db) =>
 				planForget(db, {
 					contractVersion: 1,

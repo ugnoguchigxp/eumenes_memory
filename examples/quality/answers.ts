@@ -489,7 +489,16 @@ export function parseAnswer(
 }
 interface RunOptions {
 	completeFor?: (provider: Provider, task: "recall" | "judge") => Complete;
+	/** 進捗の通知先。CLI の既定は console.log、試験は何もしない関数を渡す。 */
+	onProgress?: (progress: AnswerProgress) => void;
 }
+export interface AnswerProgress {
+	crossJudged: number;
+	planned: number;
+	costLiabilityUsd: number;
+}
+const logProgress = (progress: AnswerProgress) =>
+	console.log(JSON.stringify(progress));
 function runtime(directory: string, options: RunOptions) {
 	const manifest = loadAnswerRun(directory),
 		budget = new Budget(join(manifest.budgetDirectory, "cost-ledger.json"));
@@ -999,14 +1008,11 @@ async function answerTrialsLocked(directory: string, options: RunOptions) {
 						save(rowsPath, results);
 					}
 					if (results.filter((r) => r.judges.length === 2).length % 10 === 0)
-						console.log(
-							JSON.stringify({
-								crossJudged: results.filter((r) => r.judges.length === 2)
-									.length,
-								planned: manifest.trials.length,
-								costLiabilityUsd: liability(budget.snapshot()),
-							}),
-						);
+						(options.onProgress ?? logProgress)({
+							crossJudged: results.filter((r) => r.judges.length === 2).length,
+							planned: manifest.trials.length,
+							costLiabilityUsd: liability(budget.snapshot()),
+						});
 				}
 			})
 			.map((worker) =>
