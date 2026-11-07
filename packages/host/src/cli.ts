@@ -11,7 +11,7 @@ const usage = `Usage:
   eumenes-memory init <directory> [scope ...]
   eumenes-memory serve <directory>
   eumenes-memory --profile <profile.json> mcp
-  eumenes-memory --profile <profile.json> status|source|context|read|plan|apply|operation|recall --input <file|->
+  eumenes-memory --profile <profile.json> status|source|context|read|plan|apply|operation|recall|recall-size --input <file|->
 All operation output is JSON. plan validates only; apply performs mutations.
 `;
 export async function main(raw: string[]): Promise<void> {
@@ -83,6 +83,7 @@ export async function main(raw: string[]): Promise<void> {
 	}
 	const result =
 		command === "recall" ||
+		command === "recall-size" ||
 		(command === "plan" &&
 			typeof params === "object" &&
 			params !== null &&

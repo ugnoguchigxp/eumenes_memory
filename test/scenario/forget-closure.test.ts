@@ -540,6 +540,107 @@ describe("invariants over a real pipeline", () => {
 	});
 });
 
+describe("external connector restore acceptance contract", () => {
+	test("post-backup copies must be re-registered before replay and independently confirmed absent", () => {
+		const { store: live, before, itemId } = scene();
+		const dependency = [
+			{ type: "state_item" as const, id: idOf(itemId, "コーヒー") },
+		];
+		// This inventory belongs to the connector and survives a rollback of Memory's DB.
+		const external = new Set(["copy-after-backup", "unrelated-copy"]);
+		expect(
+			register(live, "connector", "copy-after-backup", dependency).status,
+		).toBe("registered");
+		const { entry } = forgetRecord(live, {
+			type: "state_item",
+			itemId: dependency[0]!.id,
+			scopeKey: SCOPE,
+		});
+		expect(receiptOf(live, entry.forgetId).completed).toBe(false);
+
+		// Negative control: a successful journal replay cannot discover an unregistered copy.
+		const omitted = openTestStore({ fromFile: before });
+		stores.push(omitted);
+		expect(reconcile(omitted, [entry]).status).toBe("ok");
+		expect(receiptOf(omitted, entry.forgetId).completed).toBe(true);
+		expect(external.has("copy-after-backup")).toBe(true);
+		expect(
+			register(omitted, "connector", "copy-after-backup", dependency),
+		).toMatchObject({
+			status: "rejected",
+			reasonCode: "TOMBSTONED",
+		});
+
+		const restored = openTestStore({ fromFile: before });
+		stores.push(restored);
+		expect(
+			register(restored, "connector", "copy-after-backup", dependency),
+		).toMatchObject({
+			status: "registered",
+			registered: 1,
+		});
+		expect(
+			register(restored, "connector", "copy-after-backup", dependency),
+		).toMatchObject({
+			status: "registered",
+			registered: 0,
+			unchanged: 1,
+		});
+		expect(reconcile(restored, [entry])).toMatchObject({
+			status: "ok",
+			reapplied: 1,
+		});
+		expect(receiptOf(restored, entry.forgetId)).toMatchObject({
+			external: "pending",
+			completed: false,
+			externalDeletions: [
+				{
+					providerRef: "connector",
+					externalId: "copy-after-backup",
+					state: "pending",
+				},
+			],
+		});
+		const confirm = (state: "failed" | "unverified" | "confirmed") =>
+			restored.write((db) =>
+				recordExternalDeletion(db, {
+					contractVersion: 1,
+					access: ACCESS,
+					forgetId: entry.forgetId,
+					providerRef: "connector",
+					externalId: "copy-after-backup",
+					state,
+					clock: { atMs: 300 },
+				}),
+			);
+		for (const state of ["failed", "unverified"] as const) {
+			confirm(state);
+			expect(receiptOf(restored, entry.forgetId).completed).toBe(false);
+		}
+		external.delete("copy-after-backup");
+		expect(external.has("copy-after-backup")).toBe(false);
+		confirm("confirmed");
+		expect(receiptOf(restored, entry.forgetId).completed).toBe(true);
+		expect(external.has("unrelated-copy")).toBe(true);
+		expect(reconcile(restored, [entry])).toEqual({
+			status: "ok",
+			reapplied: 0,
+		});
+
+		// A second restore loses the confirmation; repeat the inventory/replay/absence check.
+		const again = openTestStore({ fromFile: before });
+		stores.push(again);
+		register(again, "connector", "copy-after-backup", dependency);
+		reconcile(again, [entry]);
+		expect(receiptOf(again, entry.forgetId)).toMatchObject({
+			external: "pending",
+			completed: false,
+		});
+		expect(external.has("copy-after-backup")).toBe(false);
+		expect(activeItems(again)).not.toContain("コーヒー");
+	});
+});
+
 describe("a damaged journal stops Memory and writes nothing", () => {
 	test("empty, truncated and tampered journals are inconsistent; the intact journal is accepted and idempotent", () => {
 		const { store, itemId, before } = scene();

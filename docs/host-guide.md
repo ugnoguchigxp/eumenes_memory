@@ -51,6 +51,18 @@ Stateは`assertUserState`へsubject、kind、semanticKey、値、出典の本文
 
 journalのhashの鎖は鍵なしで、検出できるのは偶発的な破損・切り詰め・食い違いだけ。悪意のある書き換えの防止は、journalを保護された媒体に置くホストの責任。復元前のDBと短縮journalを同時に戻した状況は本体だけでは検出できない。journalを別の保護された媒体で保持する。deactivateは可逆の停止であり、忘却ではない。忘却は論理消去で、SQLite空き領域・WAL・OS snapshot・ログの物理消去を保証しない。ホストはsecure_delete、checkpoint、VACUUM、バックアップ保持を運用要件に合わせて管理する。
 
+<a id="external-connector-acceptance"></a>
+### 外部接続の必須受入契約
+
+World、Consolidation、他エージェント、索引・キャッシュ等がMemory由来の情報を保持する接続では、次を接続先ごとに満たす。単一ホストでもDBと外部コピーの復元時点が異なれば同じ制約がある。
+
+1. 外部所有者が`providerRef`・`externalId`・依存先IDの台帳を管理し、コピーの作成・更新・削除に合わせて`registerExternalDependents`／`unregisterExternalDependents`を呼ぶ。台帳はMemoryの古いDBだけから復元する方式にしない。台帳自体も識別子に限定し、本文を残す場合は消去対象に含める。
+2. 復元時は通常の読取・書込・外部提供を止め、最新journalを保持する。外部台帳と復元DBを照合し、バックアップ後に増えた依存を再登録してから`reconcileForgetJournal`を実行する。登録不能・台帳欠落・照合不能は復旧未完了として扱う。先にreconcileすると依存先が墓標化され、後からの登録は`TOMBSTONED`で拒否される。その場合、外部所有者が対象コピーを直接削除して不在を検証するまで利用を再開しない。復元DBに依存先が存在しないコピーも、再登録成功を推測せず同じ手順で解決する。
+3. receiptの外部対象を冪等に削除し、接続先でIDを照会して不在を確認したときだけ`recordExternalDeletion(..., state: "confirmed")`を記録する。削除要求の受理だけではconfirmedにしない。失敗は`failed`、結果不明は`unverified`として再確認し、完了を推測しない。復元で確認記録がpendingへ戻った場合も不在確認を繰り返す。
+4. 接続受入試験では「DBバックアップ→外部コピー作成・依存登録→忘却→旧DB復元→外部依存再登録→journal再適用→pending→外部削除・不在確認→confirmed」を通す。再登録省略でコピーを見落とす対照、削除失敗・結果不明、二重実行、再復元、無関係なコピーの保持も確認する。共通の参照試験は`test/scenario/forget-closure.test.ts`の`external connector restore acceptance contract`。模擬接続の成功は実接続先の受入完了を意味しない。
+
+`completed`は登録済みの依存・送付先の範囲の結果であり、未登録コピーが存在しない証明ではない。`hostIntent`も記録されていない外部コピーを発見しない。物理消去の非保証はこの契約でも変わらず、SQLiteの空き領域・WAL・OSバックアップや外部側の保持領域は各所有者の運用対象となる。
+
 忘却の範囲と前提（ホストの責任）:
 
 - 本体は単一principalを前提に検証している。墓標はprincipalをまたいで効くので、複数principalで同じ出典IDを使わない。

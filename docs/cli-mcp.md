@@ -52,11 +52,25 @@ applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持�
 
 Completeはstdinのversion/prompt/schema/task/instructions/maxOutputTokensを受け、stdoutへ`{"raw":"schema準拠JSON文字列"}`を返す。資格情報・provider金額予算はCompleteが所有する。ホスト側は入力128KiB・出力64KiB・120秒、同時実行1、永続台帳で日次回数を予約する。自動再生成は行わない。recallはsupported/unknown/conflictを項目ごとに返し、返却前の状態照合でモデル待ち中の変更を拒否する。
 
+自然文recallは指定した許可scopeの全Stateを渡す。snapshotの上限（10000項目／8MiB）と、モデル入力の上限（131072 UTF-8 bytes）は別であり、snapshotを取得できても自然文recallを実行できるとは限らない。モデル上限は記憶本文・ID・origin等の付帯情報、質問、指示、schema、JSONのエスケープを含む送信データ全体に適用する。128K tokenを意味しない。超過時はモデルを呼ぶ前に`blocked/MODEL_INPUT_TOO_LARGE`で拒否し、記憶を切り捨てたりunknownへ変換したりしない。
+
+モデルを設定せずに、実ストアと質問から入力容量を測定できる。
+
+```sh
+printf '%s' '{"scopeKey":"personal","message":"私の通勤手段は？"}' | bunx --no-install eumenes-memory --profile /tmp/shared-memory/profile.json recall-size --input -
+```
+
+`measurement`は件数、本文の平均文字数（Unicode符号位置）・平均／p95／最大bytes、質問bytes、実際の送信データの`modelInputBytes`、残容量、`fitsModelInput`を返す。本文や資格情報は返さず、モデルの呼出し・日次予約は行わない。上限超過でも測定自体の成功は終了コード0であり、利用可否は`fitsModelInput`で確認する。権限・snapshotの完全性・鮮度は通常のrecallと同じ条件で検査する。代表的な質問と長文の分布で測定し、実ストアが収まる間は全件方式を維持する。超過が確認された場合に、既存のページ走査やLLMによる候補取得と精度・費用を比較する。件数だけから一律の利用上限を保証しない。
+
+`inputFormatSha256`は指示・schemaと、空の質問・記憶を使った送信形式の識別値。測定値を保存する場合は上限bytesと共に残し、将来の入力形式変更を区別する。記憶本文や質問内容のhashではない。
+
 ## アプリとの共有と復元
 
 アプリ所有のDBでは、CLIからDBを開かず、アプリの既存Writer/readSnapshot/journal/purgeをMemoryHostへ渡す。実EumenesのMemoryService.sharedHostがこのportを公開する。アプリのforget purge hookからMemoryHost.invalidateDerivedInTransactionを呼ぶ。アプリ出典はsharedHost.resolveSourceで解決し、hostIntentは同じtransaction内でアプリ由来の派生物とforget fenceへ再適用する。接続transportの開始はアプリの所有者が明示的に行う。
 
 最新のDB外journalを保持してからDBを復元する。所有者はjournal照合、完全な消去意図の再開、アプリ由来の消去を終えてreadyになる。journalが不整合なら起動を拒否する。記憶の本文を含む計画・実行payloadにも寿命と忘却依存を持たせ、使用済み操作IDと本文を分離する。
+
+Worldや他エージェント等が独自コピーを持つ接続では、[外部接続の必須受入契約](host-guide.md#external-connector-acceptance)も満たす必要がある。外部所有者による依存の再登録は、起動時のjournal照合より前に完了させる。既定のホスト起動が任意の外部台帳を自動復旧するわけではない。再登録できない接続は復元後の利用を停止し、接続所有者が削除・照合を解決する。`hostIntent`は記録済みのホスト消去意図を再適用する仕組みであり、未登録コピーの検出を保証しない。
 
 ## 検証
 

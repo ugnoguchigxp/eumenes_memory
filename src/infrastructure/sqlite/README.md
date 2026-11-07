@@ -57,6 +57,8 @@ transaction、migration の実行、非同期処理（モデル呼び出し）�
 
 本体は外部ドメインの型・表を持たない。接続は 2 つだけ（契約: `src/contracts/external.ts`）。
 
+外部接続の追加時は[必須受入契約](../../../docs/host-guide.md#external-connector-acceptance)を適用する。復元後の依存再登録はjournal再適用より前に行い、外部で不在を確認してから削除をconfirmedにする。登録済み対象についてのreceiptと、未登録コピーの不存在を混同しない。台帳・再登録・不在確認が未完了なら接続を利用可能として公開しない。
+
 - `registerExternalDependents` / `unregisterExternalDependents` / `recordExternalDeletion`（S6、実装済み）: 外部派生物
   `(providerRef, externalId)` を依存閉包に登録（置き換え。忘却済みの対象には登録できない）。forget の閉包に入ると
   `memory_forget_external` に `pending` で載り、外部が削除を確認したら `recordExternalDeletion` で

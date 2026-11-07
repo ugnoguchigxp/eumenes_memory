@@ -1,19 +1,13 @@
 /** Final-answer evaluation is separate from the library's ID-selection contract. */
 import { createHash } from "node:crypto";
-import {
-	closeSync,
-	existsSync,
-	fsyncSync,
-	mkdirSync,
-	openSync,
-	readFileSync,
-	renameSync,
-	unlinkSync,
-	writeFileSync,
-} from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { sourceHash } from "../../scripts/verify.ts";
 import { Budget, liability } from "./budget.ts";
+import {
+	saveCheckpoint as save,
+	acquireRunLock as lockRun,
+} from "./checkpoint.ts";
 import { apiComplete, ApiFailure, MODELS, type Provider } from "./api.ts";
 import { freshCases } from "./cases.ts";
 import { answerGeneralizationCases } from "./answer-cases.ts";
@@ -402,38 +396,8 @@ function contents(budgetDirectory: string) {
 		budgetUsd: 10,
 	};
 }
-function save(path: string, data: unknown): void {
-	const fd = openSync(path + ".tmp", "w", 0o600);
-	try {
-		writeFileSync(fd, JSON.stringify(data, null, 2) + "\n");
-		fsyncSync(fd);
-	} finally {
-		closeSync(fd);
-	}
-	renameSync(path + ".tmp", path);
-	const directoryFd = openSync(dirname(path), "r");
-	try {
-		fsyncSync(directoryFd);
-	} finally {
-		closeSync(directoryFd);
-	}
-}
 function acquireRunLock(directory: string): () => void {
-	const path = join(directory, "answer-run.lock");
-	let fd: number;
-	try {
-		fd = openSync(path, "wx", 0o600);
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "EEXIST")
-			throw Error(
-				"Answer run already active or unconfirmed; inspect evidence before removing its lock",
-			);
-		throw error;
-	}
-	return () => {
-		closeSync(fd);
-		unlinkSync(path);
-	};
+	return lockRun(directory, "answer-run.lock");
 }
 export function freezeAnswerRun(directory: string, budgetDirectory = base) {
 	mkdirSync(directory, { recursive: true });

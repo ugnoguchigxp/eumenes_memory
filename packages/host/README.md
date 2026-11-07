@@ -35,6 +35,8 @@ serveは専用の前景プロセスです。MCP接続が終わっても所有者
 
 `plan --input -`に`{scopeKey,message,sourceHandle}`、`recall --input -`に`{scopeKey,message}`を渡します。既存の意味計画・根拠選択を使い、保存は別途applyが必要です。1操作につき1回のモデル呼出し、ストア単位の同時実行1、日次予約台帳、入力128KiB・出力64KiB・120秒上限で、自動再生成はしません。recallは回答項目ごとにsupported/unknown/conflictと根拠IDを返し、モデル待ち中の変更はstaleとして拒否します。モデル未設定でも構造化操作とMCPは利用できます。
 
+`recall-size --input -`に`{scopeKey,message}`を渡すと、モデルを呼ばずに全件投入の容量を測定できます。件数・本文の平均文字数／bytes・p95／最大bytesと、質問・指示・schema・JSONを含む送信全体の`modelInputBytes`、`fitsModelInput`を返します。入力上限は131072 UTF-8 bytesであり、128K tokenではありません。測定の成功は入力が収まることを意味しないため、`fitsModelInput`を確認してください。snapshot上限10000項目／8MiBは、自然文recallが扱える量の保証ではありません。
+
 ## MCP接続設定の例
 
 利用するコーディングエージェントだけに、次の実行内容を登録します。秘密は引数へ展開せずprofileのパスを指定します。

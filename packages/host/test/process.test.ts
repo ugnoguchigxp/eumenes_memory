@@ -136,6 +136,36 @@ test("CLI and two independent MCP processes share one owner; closing one connect
 		expect(two).toEqual(one);
 		const fromB = await tool(b, "context");
 		expect(fromB["items"] as unknown[]).toHaveLength(1);
+		const measured = await command(
+			["--profile", profile, "recall-size", "--input", "-"],
+			{
+				scopeKey: "personal",
+				message: "陶芸の頻度は？",
+			},
+		);
+		expect(measured.code).toBe(0);
+		expect(measured.result).toMatchObject({
+			status: "found",
+			measurement: { itemCount: 1, fitsModelInput: true },
+		});
+		const oversized = await command(
+			["--profile", profile, "recall-size", "--input", "-"],
+			{
+				scopeKey: "personal",
+				message: "長い質問".repeat(15000),
+			},
+		);
+		expect(oversized.code).toBe(0);
+		expect(oversized.result).toMatchObject({
+			status: "found",
+			measurement: { itemCount: 1, fitsModelInput: false },
+		});
+		expect(
+			await command(["--profile", profile, "recall-size", "--input", "-"], {
+				scopeKey: "not-granted",
+				message: "何を覚えている？",
+			}),
+		).toMatchObject({ code: 4, result: { status: "blocked" } });
 		const old = (fromB["items"] as { itemId: string }[])[0]!;
 		const updatedText = "一週間に三回、陶芸を楽しみます";
 		const updateSource = await tool(b, "source", {

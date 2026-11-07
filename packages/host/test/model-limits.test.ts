@@ -8,8 +8,40 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { commandComplete } from "../src/model.ts";
+import { commandComplete, encodeModelInput } from "../src/model.ts";
 import { HOST_LIMITS, type Profile } from "../src/contracts.ts";
+
+test("the exact model input limit is admitted; UTF-8 overflow is rejected before a second reservation", async () => {
+	const dir = mkdtempSync(join(tmpdir(), "em-model-input-"));
+	try {
+		const profile: Profile = {
+			version: 1,
+			socketPath: join(dir, "m.sock"),
+			credential: "unused",
+			modelDailyCalls: 1,
+			modelCommand: [
+				process.execPath,
+				"-e",
+				"const input=await Bun.stdin.text(); console.log(JSON.stringify({raw:String(Buffer.byteLength(input))}));",
+			],
+		};
+		const base = Buffer.byteLength(encodeModelInput("", {}, "recall"));
+		const prompt = "x".repeat(HOST_LIMITS.modelInputBytes - base);
+		const complete = commandComplete(profile);
+		expect((await complete(prompt, {}, "recall")).raw).toBe(
+			String(HOST_LIMITS.modelInputBytes),
+		);
+		await expect(complete(prompt + "あ", {}, "recall")).rejects.toMatchObject({
+			code: "MODEL_INPUT_TOO_LARGE",
+			status: "blocked",
+		});
+		await expect(complete("", {}, "recall")).rejects.toMatchObject({
+			code: "MODEL_BUDGET_EXHAUSTED",
+		});
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
 
 test("G5 model deadline includes inherited output pipes and stops remaining child processes", async () => {
 	const dir = mkdtempSync(join(tmpdir(), "em-model-deadline-"));

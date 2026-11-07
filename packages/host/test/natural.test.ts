@@ -7,6 +7,10 @@ import { request, startStandalone } from "../src/transport.ts";
 import { natural } from "../src/natural.ts";
 import { commandComplete } from "../src/model.ts";
 import type { StateItem } from "eumenes-memory";
+import { measureRecallInput, encodeModelInput } from "../src/model.ts";
+import { modelItems } from "../src/meaning/model-input.ts";
+import { evidenceSchema } from "../src/meaning/support.ts";
+import { recallPrompt } from "../src/meaning/retrieval.ts";
 
 test("natural CLI bridge uses shared proposals, explicit repeated occurrence, grounding and durable model admission", async () => {
 	const dir = mkdtempSync(join(tmpdir(), "emn-"));
@@ -87,6 +91,24 @@ test("natural CLI bridge uses shared proposals, explicit repeated occurrence, gr
 		});
 		expect(answer.status).toBe("found");
 		expect(answer["parts"]).toEqual(parts);
+		const measured = await natural(
+			profile,
+			"recall-size",
+			{
+				scopeKey: "personal",
+				message: "いつ、どのくらい飲みますか",
+			},
+			async () => {
+				throw Error("measurement must not call a model");
+			},
+		);
+		expect(measured.status).toBe("found");
+		const sent = JSON.parse(readFileSync(capture, "utf8"));
+		expect(measured["measurement"]).toMatchObject({
+			itemCount: 1,
+			modelInputBytes: Buffer.byteLength(JSON.stringify(sent)),
+			fitsModelInput: true,
+		});
 		expect(readFileSync(capture, "utf8")).toContain("agent_inferred");
 		await expect(
 			commandComplete(configured)("{}", {}, "recall"),
@@ -98,6 +120,24 @@ test("natural CLI bridge uses shared proposals, explicit repeated occurrence, gr
 		await owner.close();
 		rmSync(dir, { recursive: true, force: true });
 	}
+});
+
+test("recall size measures UTF-8, escaped JSON and instructions even when no facts fit", () => {
+	const empty = measureRecallInput([], "");
+	expect(empty.itemCount).toBe(0);
+	expect(empty.averageTextCharacters).toBe(0);
+	expect(empty.modelInputBytes).toBeGreaterThan(0);
+	const items = modelItems([]);
+	const message = 'あ😀"\\\n'.repeat(20000);
+	const measured = measureRecallInput(items, message);
+	expect(measured.questionBytes).toBe(Buffer.byteLength(message));
+	expect(measured.modelInputBytes).toBe(
+		Buffer.byteLength(
+			encodeModelInput(recallPrompt(items, message), evidenceSchema, "recall"),
+		),
+	);
+	expect(measured.fitsModelInput).toBe(false);
+	expect(measured.remainingBytes).toBeLessThan(0);
 });
 test("recall cannot return model output from a snapshot forgotten during model latency", async () => {
 	const dir = mkdtempSync(join(tmpdir(), "emr-"));

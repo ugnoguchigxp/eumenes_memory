@@ -26,6 +26,8 @@ source登録は出典を保存するだけでStateを作らない。planは期�
 
 snapshotはread transaction内で構築してメモリーへ保持し、RPC間でtransactionを保持しない。上限超過はcoverage.complete=falseとし、提供できないcursorは発行しない。epochは起動ごとに生成する。永続参照は変更せず、旧epochの未着手plan/cursorは失効。既存の操作記録をepochより先に照会し、旧epochで記録不在ならindeterminate。参照範囲のState・出典・policyを照合し、無関係scopeの更新をstale理由にしない。
 
+自然文CLIのモデル入力上限は128K tokenではなく、外部Completeへ送るJSON全体131072 UTF-8 bytes。`recall-size`はrecallと同じscope限定・完全snapshot・ModelItem投影・prompt/schema/instructionsの直列化を用い、モデル呼出し・予算予約なしで件数、本文長の分布、質問と全送信bytes、残容量、fitsModelInputを返す。上限を超えても測定成功はfoundで、recall実行可能性はfitsModelInputで区別する。自然文recallは上限超過をblocked/MODEL_INPUT_TOO_LARGEとして拒否する。snapshot上限はモデル入力の対応量を保証しない。
+
 ## 実装と検証
 
 意味契約をexamplesから移して互換試験を通し、ホスト部分試験→Unix socket結合→CLIと2つのMCP client→配布物だけの通し試験→Codex CLI→実Eumenes port結合の順に進む。本体のverify/配布検証も通す。R01〜R14の対応と結果を`verification-reports/host`へ保存する。

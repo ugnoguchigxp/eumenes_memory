@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { HostItem } from "./meaning/model-input.ts";
 import { demand, type HostResult, type Profile } from "./contracts.ts";
-import { commandComplete } from "./model.ts";
+import { commandComplete, measureRecallInput } from "./model.ts";
 import { request } from "./transport.ts";
 import { modelItems } from "./meaning/model-input.ts";
 import { parsePlan, planningSchema } from "./meaning/planning.ts";
@@ -37,13 +37,24 @@ async function snapshot(profile: Profile, scopeKey: string) {
 }
 export async function natural(
 	profile: Profile,
-	method: "plan" | "recall",
+	method: "plan" | "recall" | "recall-size",
 	raw: unknown,
 	complete: Complete = commandComplete(profile),
 ): Promise<HostResult> {
 	const input = inputSchema.parse(raw);
 	const view = await snapshot(profile, input.scopeKey);
 	const items = modelItems(view.items, [], { provenance: true });
+	if (method === "recall-size") {
+		const measurement = measureRecallInput(items, input.message);
+		const fresh = await request(profile, "read", { snapshotId: view.id });
+		if (fresh.status !== "found") return fresh;
+		return {
+			status: "found",
+			snapshotId: view.id,
+			epoch: fresh["epoch"],
+			measurement,
+		};
+	}
 	if (method === "recall") {
 		let answer: Awaited<ReturnType<typeof recallSnapshot>>;
 		try {

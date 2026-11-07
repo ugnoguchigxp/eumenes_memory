@@ -1,9 +1,66 @@
 import { readBoundedText } from "./io.ts";
+import { createHash } from "node:crypto";
 import { Database } from "bun:sqlite";
 import { demand, HOST_LIMITS, HostError, type Profile } from "./contracts.ts";
 import { hostPlanningInstructions } from "./meaning/planning.ts";
-import { hostGroundingInstructions } from "./meaning/retrieval.ts";
+import {
+	hostGroundingInstructions,
+	recallPrompt,
+} from "./meaning/retrieval.ts";
+import { evidenceSchema } from "./meaning/support.ts";
+import type { ModelItem } from "./meaning/model-input.ts";
 import type { Complete } from "./meaning/protocol.ts";
+
+/** The measured payload is the exact UTF-8 envelope sent to the external adapter. */
+export function encodeModelInput(
+	prompt: string,
+	schema: Parameters<Complete>[1],
+	task: Parameters<Complete>[2],
+) {
+	return JSON.stringify({
+		version: 1,
+		prompt,
+		schema,
+		task,
+		instructions:
+			task === "decide" ? hostPlanningInstructions : hostGroundingInstructions,
+		maxOutputTokens: 4096,
+	});
+}
+
+export function measureRecallInput(
+	items: readonly ModelItem[],
+	message: string,
+) {
+	const textBytes = items
+		.map((x) => Buffer.byteLength(x.value.text))
+		.sort((a, b) => a - b);
+	const textCharacters = items.map((x) => [...x.value.text].length);
+	const totalTextBytes = textBytes.reduce((sum, n) => sum + n, 0);
+	const prompt = recallPrompt(items, message);
+	const modelInputBytes = Buffer.byteLength(
+		encodeModelInput(prompt, evidenceSchema, "recall"),
+	);
+	return {
+		inputFormatSha256: createHash("sha256")
+			.update(encodeModelInput(recallPrompt([], ""), evidenceSchema, "recall"))
+			.digest("hex"),
+		itemCount: items.length,
+		totalTextBytes,
+		averageTextBytes: items.length ? totalTextBytes / items.length : 0,
+		averageTextCharacters: items.length
+			? textCharacters.reduce((sum, n) => sum + n, 0) / items.length
+			: 0,
+		p95TextBytes: textBytes[Math.ceil(textBytes.length * 0.95) - 1] ?? 0,
+		maxTextBytes: textBytes.at(-1) ?? 0,
+		questionBytes: Buffer.byteLength(message),
+		promptBytes: Buffer.byteLength(prompt),
+		modelInputBytes,
+		modelInputLimitBytes: HOST_LIMITS.modelInputBytes,
+		remainingBytes: HOST_LIMITS.modelInputBytes - modelInputBytes,
+		fitsModelInput: modelInputBytes <= HOST_LIMITS.modelInputBytes,
+	};
+}
 
 /** A configured executable implements Complete. No shell, model key or provider fallback. */
 export function commandComplete(profile: Profile): Complete {
@@ -12,17 +69,7 @@ export function commandComplete(profile: Profile): Complete {
 			profile.modelCommand?.length && profile.modelDailyCalls,
 			"MODEL_NOT_CONFIGURED",
 		);
-		const input = JSON.stringify({
-			version: 1,
-			prompt,
-			schema,
-			task,
-			instructions:
-				task === "decide"
-					? hostPlanningInstructions
-					: hostGroundingInstructions,
-			maxOutputTokens: 4096,
-		});
+		const input = encodeModelInput(prompt, schema, task);
 		demand(
 			Buffer.byteLength(input) <= HOST_LIMITS.modelInputBytes,
 			"MODEL_INPUT_TOO_LARGE",

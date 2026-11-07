@@ -61,6 +61,9 @@ export class UnavailableEvidenceError extends Error {
 		super("EVIDENCE_UNAVAILABLE");
 	}
 }
+export function recallPrompt(items: readonly ModelItem[], message: string) {
+	return JSON.stringify({ message, items });
+}
 /** Supply the entire authorized snapshot once. Provider limits/failures are surfaced, never truncated. */
 export async function recallSnapshot(
 	input: readonly ModelItem[],
@@ -71,7 +74,7 @@ export async function recallSnapshot(
 	const ids = items.map((x) => x.itemId);
 	if (new Set(ids).size !== ids.length) throw Error("Duplicate snapshot IDs");
 	const response = await complete(
-		JSON.stringify({ message, items }),
+		recallPrompt(items, message),
 		evidenceSchema,
 		"recall",
 	);
