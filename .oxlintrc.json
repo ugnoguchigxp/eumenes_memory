@@ -10,6 +10,8 @@
 		"artifacts/**",
 		"coverage/**",
 		"verification-reports/**",
-		".serena/**"
+		".serena/**",
+		"**/node_modules/**",
+		"**/dist/**"
 	]
 }

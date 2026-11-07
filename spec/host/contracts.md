@@ -1,0 +1,71 @@
+# CLIとメモリーMCPの実装契約
+
+2026年11月7日。導入計画P0の確定内容。本体の公開契約は変更しない。
+
+## 配置と接続
+
+`packages/host`に独立した`eumenes-memory-host`配布物を作り、Bun 1.4.4以上/macOS・Linuxで動作させる。CLI名は`eumenes-memory`、MCP入口は同CLIの`mcp`。MCP server/client SDKは2.4.0、Zodは4.6.7で固定する。実エージェントはこの環境のCodex CLIを一時設定で接続し、既存チャット・設定は変更しない。
+
+独立所有者は専用SQLiteとDB外journalを持つ。独立した所有権lock DBのSQLite exclusive transactionで排他を取り、異常終了時はOSのlock解放を利用する。IPCはUnix socket上のHTTPで、外部TCP listenerは開かない。アプリ所有時は既存WriterのreadSnapshot/write portを注入し、アプリDBを別プロセスから開かない。
+
+プロファイルはsocketPathとcredentialを持ち、所有者の設定がcredentialのgrantを決める。grantはclientId、scopeKeys、read/write、forgetAll、confirmedWrites。通常の提出出典のoriginはagent_inferred。アプリが認証済み出典を解決するportだけがuser originを認定できる。scope限定grantはforgetを実行できない。要求ごとに現在のgrantを照合する。
+
+## 操作と結果
+
+wire版は1。要求は`{version:1,method,params}`。認証情報はHTTP headerだけで渡し、tool引数にしない。結果は`{status,...}`。異常理由は安定したcodeで返し、本文や例外の生messageを含めない。
+
+methodはsource/context/read/plan/apply/operation/status。sourceはsubmissionId、scopeKey、content、kind(text/record)。contextはscopeKeysと任意のcursor/limit。readはsnapshotId/itemIdまたはsourceHandle。planはsnapshotId、scopeKey、proposal、evidence、任意のsourceHandles。proposalは既存planningSchemaのdecision/relations/groups、evidenceはactionIndex/sourceHandle/startByte/endByte。applyはplanId/operationId/epoch、operationはoperationId/epoch。全てのIDを現在のgrantの範囲で検査する。
+
+source登録は出典を保存するだけでStateを作らない。planは期限付きpayloadを保存するだけ。applyは同一operationIdの照会を先に行い、未着手時だけsnapshot・出典・権限を照合する。保存groupは変更と結果記録を同じtransactionへ入れる。forget groupは最初のjournal entryのhostIntentに全意図を記録し、途中失敗を所有者が回復する。未確認の外部消去はpendingとして残す。
+
+正常状態はready/registered/context/found/planned/completed。要確認はneeds_clarification、未完了はpartial/pending、拒否はblocked/stale、異常はfailed/indeterminate。CLIは正常0、要確認2、部分・pending3、拒否4、異常1。MCPは業務状態を構造化結果に保持し、失敗を正常なunknownへ変えない。
+
+## 制限と寿命
+
+要求16MiB、応答2MiB、出典1MiB、State引用1024bytes、提案8件/group8個。snapshotは10000項目か8MiBまで、同時32個、TTL5分、1ページ100件まで。planは30分、未採用sourceは24時間、実行payloadは24時間、結果metadataは30日。同一起動世代の使用済みoperationIdは最大100000個を保持し、超過時は新規操作を拒否。同時IPC要求64、IPC timeout30秒、モデルtimeout120秒、モデル同時実行1。直接APIを使う場合は設定された予算台帳で予約可能な範囲に限り、入力128K相当の保守的byte上限・出力4096tokenを強制する。MCP基本経路は追加モデルを呼ばない。
+
+snapshotはread transaction内で構築してメモリーへ保持し、RPC間でtransactionを保持しない。上限超過はcoverage.complete=falseとし、提供できないcursorは発行しない。epochは起動ごとに生成する。永続参照は変更せず、旧epochの未着手plan/cursorは失効。既存の操作記録をepochより先に照会し、旧epochで記録不在ならindeterminate。参照範囲のState・出典・policyを照合し、無関係scopeの更新をstale理由にしない。
+
+## 実装と検証
+
+意味契約をexamplesから移して互換試験を通し、ホスト部分試験→Unix socket結合→CLIと2つのMCP client→配布物だけの通し試験→Codex CLI→実Eumenes port結合の順に進む。本体のverify/配布検証も通す。R01〜R14の対応と結果を`verification-reports/host`へ保存する。
+
+実Eumenesは隣接する`../eumenes`の既存Memory/SqliteStoreを対象とする。並行変更・本番DB/設定は保持し、使い捨てfixtureでadapterを検証する。稼働中サーバーの停止・再起動は行わず、fixture成功をlive導入済みとは表記しない。
+
+意味指示はorigin・話者・条件の情報提示と新版の出典契約に必要な範囲で変更する。既存回帰と新規合成会話で比較し、新たな誤帰属・未根拠断言・誤忘却を許容しない。結果を見て正解や採用条件を変更しない。
+
+### 実Eumenes adapterの具体的な接続
+
+`MemoryService`へ、既存StoreのreadSnapshot/write、既存journalのread/append、既存forgetterのpurgeとforget fence、会話のsource解決を公開する`sharedHost` portを追加する。新しいDB接続は作らない。忘却journalの不確定な失敗時はアプリのmemory healthも閉じる。アプリのforget purge hookから共通ホストの外部依存消去を呼び、逆方向は再帰を避ける純粋な消去portだけを呼ぶ。起動時はjournal全体のhostIntentを冪等に再適用し、どちらの所有者処理が先にreconcileしても消去を落とさない。接続と使い捨て結合試験を本リポジトリ側に置き、アプリ側の変更はこのportの公開に限定する。
+
+公開APIの忘却閉包previewはorigin別のIDを返さない。このため、確認済み項目がストア内にある場合のforgetにはconfirmedWritesも要求する。閉包内の確認済み項目を見落として推定クライアントが消すことを防ぐための保守的な制約であり、通常の参照や共存は制限しない。
+
+CLIのモデル接続は、プロファイルで明示した外部Complete実行ファイルに限定する。入力・出力・timeoutを制限し、ストア単位のモデル同時実行を1にする。呼出し前に永続台帳へ日次回数を予約し、自動再生成しない。直接provider APIを実装する場合の金額予算は外部Complete側の責任とし、本パッケージはAPIキー・価格を保持しない。
+
+配布物は本体のビルド済み実行用ファイルをdist/coreへ同梱し、開発用file依存は配布manifestから除く。外部consumerではMCP client 2.4.0および1.32.2で検査する。元の本体パッケージのAPIと実行時依存は変わらない。未採用出典のTTLは、公開の忘却previewでState・別Record・外部派生物への依存がないことを確認したものだけに適用し、Record本体を含めjournal経由で消去する。採用済みの出典は期限で破壊しない。journalは本体の100000 entry上限に達する前に新規entryを拒否する。
+
+### コードレビューF1〜F5への修正契約
+
+- 全ホスト書込みを既存Writerの共通境界で扱い、journalへの追記を試みたtransactionが確定しなければホストとアプリをfail-closedにする。待機済み要求もWriter開始時にreadyを再検査する。再照合前は本文を返さない。
+- 確認済み項目の忘却権限は履歴・停止中の版も含めて計画時と適用時に検査する。本体の公開APIと既存の全scope管理制約を維持する。
+- 同一項目をforgetしながら訂正する提案は、groupを分けても要確認とする。replacesItemIdが指定された適用で対象が見つからなければstaleであり、新規保存に切り替えない。
+- 外部削除待ちの追跡に必要なgroup結果、forgetIds、要確認の有無を本文なしのmetadataとして保持する。payload消去後も現在のreceiptを照会して結果を更新する。旧記録で完了判定に必要なmetadataが復元できない場合は結果不明を返し、完了と推測しない。
+- context/readは各StateにevidenceStatus（current/stale/missing/unverified）を付ける。これは出典のID・版・digest・状態の照合結果で、意味や真偽の分類ではない。モデルには有効性とoriginを渡し、失効・不明な出典を使う回答根拠IDを共通validatorで拒否する。本文の解釈、属性選択、要確認の判断は引き続きLLMが担う。
+
+完了にはF1〜F5の回帰試験、既存の部分試験、実Eumenesの出典訂正を含む結合、全体verifyと配布consumer、CLI/MCP接続を順に通す。稼働中アプリ・既存利用者設定・本体API/schemaは変更しない。
+
+### 再レビューで確認した境界
+
+保存で作ったStateも、生成元の計画と実行payloadの忘却依存に同じWriter内で登録する。計画の30分TTLで本文を消しても、実行payloadが残る間は依存登録を維持する。削除済み依存を含むmetadataの回収は、計画と全実行payloadに本文がなくなってから行う。
+
+配布処理で本体への参照を書き換える対象は、import/export・型import・動的importのmodule specifierだけとする。同じ文字列を持つMCP名などの値は変更しない。配布consumerで初期接続時のサーバー名も確認する。
+
+部分snapshotでも表示済み項目のStateと出典の版を一緒に固定し、read時に項目単位で再照合する。同じreplacesItemIdへ複数の訂正を提案した場合は、groupの分け方に関係なく適用前に要確認として拒否する。
+
+外部Completeの120秒上限は、標準出力・標準エラーの回収を含む呼出し全体に適用する。macOS/Linuxでは専用プロセスグループで起動し、期限超過・出力超過・終了処理で配下も停止する。実行異常は本文を出さず安定したcodeを持つfailedで返す。
+
+初期化はowner設定・profile・DBとsidecar・journal・所有権lock・socketの既存パスを最初に確認し、衝突時にはファイルを追加しない。CLI入力とIPC応答、外部Completeの出力は共通のストリーム読取りで実byte数を数え、上限を超えた時点で読取りを取消す。設定取得を含むIPC処理全体の例外を同じfailure経路へ入れ、例外本文をHTTP応答や既定のサーバー診断へ流さない。
+
+旧形式で生成先Stateへの依存が欠けた計画も、忘却時に残っているhost_state_sourceの出典IDから本文付き計画・操作を辿って消去する。共通出典を使う未適用の計画は保守的に破棄するが、別の保存済みStateは消去しない。初期化の既存パス検査にはリンク先が存在しないsymlinkも含める。
+
+保存結果がunchangedの場合も、出典を採用済みとして追跡するのは、返されたStateの実際のevidenceがその出典IDを参照している場合だけとする。採用されなかった訂正用出典には通常の未採用source TTLを適用する。

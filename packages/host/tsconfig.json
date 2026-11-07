@@ -1,0 +1,10 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"paths": {
+			"eumenes-memory": ["../../src/index.ts"],
+			"eumenes-memory/sqlite": ["../../src/sqlite.ts"]
+		}
+	},
+	"include": ["src", "test"]
+}

@@ -22,8 +22,10 @@ jobs:
         with:
           node-version: 24
       - run: bun install --frozen-lockfile
+      - run: bun run build:host
       - run: bun run verify:all
       - run: bun run verify:package
+      - run: bun run verify:host
       - name: Upload verification report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -32,3 +34,4 @@ jobs:
           path: |
             verification-reports/latest.json
             verification-reports/quality-80/package.json
+            verification-reports/host/package.json

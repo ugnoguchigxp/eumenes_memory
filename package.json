@@ -52,7 +52,12 @@
 		"eval:memory:calibrate": "bun examples/quality/answers.ts calibrate",
 		"eval:memory:answers:freeze": "bun examples/quality/answers.ts freeze",
 		"eval:memory:answers": "bun examples/quality/answers.ts answers",
-		"eval:memory:lifecycle": "bun examples/quality/lifecycle.ts"
+		"eval:memory:lifecycle": "bun examples/quality/lifecycle.ts",
+		"build:host": "bun run build && bun install --cwd packages/host --frozen-lockfile --ignore-scripts && bun run --cwd packages/host build",
+		"pack:host": "bun scripts/pack-host.ts",
+		"verify:host": "bun scripts/verify-host.ts",
+		"check:host:live": "bun scripts/check-host-live.ts --run",
+		"check:host:agent": "bun scripts/check-host-live.ts --run --agent-only"
 	},
 	"devDependencies": {
 		"@openai/codex-sdk": "0.163.0",

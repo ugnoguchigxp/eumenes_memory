@@ -1,0 +1,39 @@
+{
+	"name": "eumenes-memory-host",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"license": "MIT",
+	"engines": {
+		"bun": ">=1.4.4"
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"bin": {
+		"eumenes-memory": "dist/cli.js"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./meaning/*": "./dist/meaning/*.js"
+	},
+	"scripts": {
+		"build": "bun ../../scripts/build-host.ts",
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"test": "bun test test",
+		"prepack": "bun run build"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/server": "2.4.0",
+		"zod": "4.6.7"
+	},
+	"devDependencies": {
+		"@modelcontextprotocol/client": "2.4.0",
+		"eumenes-memory": "file:../.."
+	}
+}

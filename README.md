@@ -21,6 +21,10 @@ bun run lint:fix     # 自動修正（verifyではソースを変更しない）
 
 内部は Records / State / Lifecycle / Temporal のドメイン構造。所有範囲と依存規則は [ドメイン構造](docs/host-guide.md#domains)。oxfmt / oxlintの版と共通設定は隣接Eumenesに合わせ、React向けの設定はこのライブラリに持ち込まない。検証記録は `verification-reports/` に保存する。Eumenes を模したホスト（会話 message、書き込みキュー、ジャーナル、再起動・DB 復元）は `test/runners/fake-eumenes-host.ts` にあり、実 Eumenes なしで結合の想定を試せる（実 Eumenes との結合の証明ではない）。
 
+## CLIとメモリーMCP
+
+同じストアをCLIと複数のコーディングエージェントから使う入口を、独立した`eumenes-memory-host`配布物に用意しています。保存・訂正・忘却は一つの所有者で処理し、再試行・復元・権限も共通で検査します。[導入と検証手順](docs/cli-mcp.md)を参照してください。本体ライブラリの実行時依存は引き続きゼロです。
+
 ## 記憶の計画と適用
 
 通常利用は [独立ホストの入口](docs/host-guide.md#development-examples) の `bun run memory` を使う。計画と適用を分け、グループ単位の保存、再試行の記録、古い計画の拒否を適用する。以下の `check:memory` は従来方式を含む検証用コマンド。
