@@ -30,7 +30,7 @@ import {
 	type Method,
 	type MethodParams,
 } from "./contracts.ts";
-import { hostSchemaSql, type AppPort } from "./storage.ts";
+import { upgradeHostSchema, type AppPort } from "./storage.ts";
 import {
 	accessFor,
 	digest,
@@ -69,6 +69,8 @@ export interface HostOptions {
 	port: AppPort;
 	configuration: () => HostConfig;
 	clock?: () => number;
+	/** 試験だけが上限を小さくする（CLI と MCP からは届かない）。指定の無い上限は `HOST_LIMITS`。 */
+	limits?: Partial<Record<keyof typeof HOST_LIMITS, number>>;
 	/** Tests inject a crash after durable append. Never reachable through CLI/MCP. */
 	afterJournalAppend?: () => void;
 	/** Trusted application-only resolver. Client assertions never enter this callback as verified facts. */
@@ -95,6 +97,9 @@ export class MemoryHost {
 	constructor(readonly options: HostOptions) {
 		this.clock = options.clock ?? Date.now;
 		this.snapshots = new SnapshotStore(this.epoch, this.clock);
+	}
+	limit(name: keyof typeof HOST_LIMITS): number {
+		return this.options.limits?.[name] ?? HOST_LIMITS[name];
 	}
 	get config(): HostConfig {
 		return this.options.configuration();
@@ -214,11 +219,7 @@ export class MemoryHost {
 		try {
 			await this.write((db) => {
 				assertMemorySchema(db);
-				db.exec(hostSchemaSql);
-				const version = db.query("SELECT version FROM host_schema").get() as {
-					version: number;
-				};
-				demand(version.version === 1, "HOST_SCHEMA_MISMATCH");
+				upgradeHostSchema(db);
 				const entries = this.options.port.journal.read();
 				demand(Array.isArray(entries), "JOURNAL_INVALID");
 				this.journalCount = entries.length;
@@ -431,9 +432,20 @@ export class MemoryHost {
 		db.query(
 			"UPDATE host_operation SET payload=NULL,result=CASE WHEN EXISTS(SELECT 1 FROM json_each(result,'$.groups') WHERE value='not_run') THEN json_set(result,'$.status','indeterminate','$.code','EXECUTION_PAYLOAD_EXPIRED') ELSE result END WHERE payload IS NOT NULL AND created_at<=?",
 		).run(this.clock() - HOST_LIMITS.payloadTtlMs);
+		const receiptHorizon = this.clock() - this.limit("receiptTtlMs");
 		db.query(
 			"DELETE FROM host_operation WHERE epoch<>? AND payload IS NULL AND created_at <= ?",
-		).run(this.epoch, this.clock() - HOST_LIMITS.receiptTtlMs);
+		).run(this.epoch, receiptHorizon);
+		// 決定 8: 今の epoch の受領記録も 30 日で消し、消したことを epoch ごとに記録する。
+		// 以後、この epoch で記録の無い ID は「実行しなかった」とは答えず indeterminate にする。
+		db.query(
+			"DELETE FROM host_operation WHERE epoch=? AND payload IS NULL AND created_at <= ?",
+		).run(this.epoch, receiptHorizon);
+		const pruned = db.query("SELECT changes() AS n").get() as { n: number };
+		if (pruned.n > 0)
+			db.query(
+				"INSERT INTO host_operation_horizon(epoch,pruned_before) VALUES(?,?) ON CONFLICT(epoch) DO UPDATE SET pruned_before=max(pruned_before,excluded.pruned_before)",
+			).run(this.epoch, receiptHorizon);
 		const unused = db
 			.query(
 				"SELECT * FROM host_source WHERE content IS NOT NULL AND created_at < ? AND forgotten=0 AND NOT EXISTS(SELECT 1 FROM host_state_source s WHERE s.source_id=host_source.id) AND NOT EXISTS (SELECT 1 FROM host_plan p WHERE p.payload IS NOT NULL AND EXISTS(SELECT 1 FROM json_each(p.payload,'$.sourceIds') j WHERE j.value=host_source.id)) LIMIT 64",
@@ -1108,6 +1120,13 @@ export class MemoryHost {
 		}
 	}
 
+	/** 今の epoch で受領記録を消した時刻の上限。消していなければ undefined（決定 8）。 */
+	receiptHorizon(db: MemoryDb): number | undefined {
+		const row = db
+			.query("SELECT pruned_before FROM host_operation_horizon WHERE epoch=?")
+			.get(this.epoch) as { pruned_before: number } | null;
+		return row?.pruned_before;
+	}
 	operation(
 		db: MemoryDb,
 		grant: Grant,
@@ -1120,12 +1139,19 @@ export class MemoryHost {
 			result: string;
 			payload: string | null;
 		} | null;
-		if (!row)
+		if (!row) {
+			if (p.epoch === this.epoch && this.receiptHorizon(db) !== undefined)
+				return {
+					status: "indeterminate",
+					code: "OPERATION_RECEIPT_EXPIRED",
+					operationId: p.operationId,
+				};
 			return {
 				status: p.epoch === this.epoch ? "blocked" : "indeterminate",
 				code: "OPERATION_NOT_RECORDED",
 				operationId: p.operationId,
 			};
+		}
 		this.allowed(grant, JSON.parse(row.scope_keys));
 		const result = JSON.parse(row.result) as HostResult;
 		if (

@@ -799,3 +799,7 @@ search: z.object({
 | 段階 | 逸脱 | 種別 | 理由 |
 |---|---|---|---|
 | S0 | 本書を `spec/state-search-design.md` に置く際、冒頭の「設計書のみ」の注記を外し、正本である旨の注記に差し替えた。本文（§0〜§10）は変えていない | ［事実］ | 承認済みの正本として置くため |
+| S2 | ホストの表に版上げの仕組みが無かった（起動時に版 1 以外を拒否していた）。`hostSchemaUpgrades`（追記のみの配列）と `upgradeHostSchema` を足し、起動時と初期化時に足りない版上げだけを writer の transaction で適用する。本体より新しい版は従来どおり `HOST_SCHEMA_MISMATCH` | ［事実］ | host schema 2〜4 を入れるため |
+| S2 | 今の epoch で記録の無い ID の **apply** を、新しい ID と区別する方法が設計に無かった。「`host_operation_horizon` があり、かつ指す計画の行が無いか、計画の作成時刻が消した時刻以前」のときだけ `indeterminate / OPERATION_RECEIPT_EXPIRED` を返す。それ以外は新しい操作として受け付ける（計画が消した時刻より後なら、その計画を使った操作の記録はまだ消えていないため） | ［事実］（コードの規則）／安全性は［推論］ | 期限切れの ID を再実行しないため |
+| S2 | T-IDEM-1 の「transport の層で応答を落とす」は、`dispatch` の結果を捨てて同じ要求をもう一度送る形で試験した。socket の切断は既存の cancellation の試験が受け持つ | ［事実］ | 最小の再現で同じ性質を確かめるため |
+| S2 | T-IDEM-3c の「試験用に小さくする」ために、`HostOptions.limits`（試験だけが使う上限の上書き。CLI と MCP からは届かない）を足した | ［事実］ | `HOST_LIMITS` は凍結された定数のため |

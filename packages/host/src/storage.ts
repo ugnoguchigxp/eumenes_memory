@@ -69,6 +69,37 @@ CREATE TABLE IF NOT EXISTS host_dependent(id TEXT PRIMARY KEY, plan_id TEXT NOT 
 CREATE TABLE IF NOT EXISTS host_state_source(item_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(item_id,source_id));
 CREATE TABLE IF NOT EXISTS host_forget_intent(id TEXT PRIMARY KEY, payload TEXT NOT NULL, completed INTEGER NOT NULL DEFAULT 0);
 `;
+/**
+ * ホストの表の版上げ。添字 + 2 が上げた後の版（`host_schema.version`）。追記のみで、順序と本文を変えない。
+ * 起動時と初期化時に `upgradeHostSchema` が、今の版より新しいものだけを writer の transaction の中で順に適用する。
+ */
+export const hostSchemaUpgrades: readonly string[] = Object.freeze([
+	// 2: 今の epoch の受領記録を保持期限で消したことの記録（決定 8、S2）。
+	`CREATE TABLE IF NOT EXISTS host_operation_horizon(epoch TEXT PRIMARY KEY, pruned_before INTEGER NOT NULL);`,
+]);
+export const HOST_SCHEMA_VERSION = hostSchemaUpgrades.length + 1;
+/** 版 1 の表を作り、足りない版上げを適用する。本体より新しい版は `HOST_SCHEMA_MISMATCH`。 */
+export function upgradeHostSchema(db: MemoryDb): number {
+	db.exec(hostSchemaSql);
+	const row = db.query("SELECT version FROM host_schema").get() as {
+		version: number;
+	};
+	demand(
+		Number.isSafeInteger(row.version) &&
+			row.version >= 1 &&
+			row.version <= HOST_SCHEMA_VERSION,
+		"HOST_SCHEMA_MISMATCH",
+	);
+	for (
+		let version = row.version + 1;
+		version <= HOST_SCHEMA_VERSION;
+		version++
+	) {
+		db.exec(hostSchemaUpgrades[version - 2]!);
+		db.query("UPDATE host_schema SET version=?").run(version);
+	}
+	return HOST_SCHEMA_VERSION;
+}
 export function durableAppend(path: string, entry: unknown): void {
 	const fd = openSync(path, "a", 0o600);
 	try {
@@ -150,7 +181,7 @@ export function initialize(
 		);
 		db.transaction(() => {
 			for (const sql of migrations) db.exec(sql);
-			db.exec(hostSchemaSql);
+			upgradeHostSchema(db as unknown as MemoryDb);
 		})();
 	} finally {
 		db.close();

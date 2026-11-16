@@ -17,7 +17,6 @@ import {
 import {
 	demand,
 	failure,
-	HOST_LIMITS,
 	HostError,
 	type Grant,
 	type HostResult,
@@ -562,11 +561,23 @@ async function runPlan(
 			return undefined;
 		}
 		const row = db
-			.query("SELECT payload,expires_at FROM host_plan WHERE id=?")
+			.query("SELECT payload,expires_at,created_at FROM host_plan WHERE id=?")
 			.get(params.planId) as {
 			payload: string | null;
 			expires_at: number;
+			created_at: number;
 		} | null;
+		// 決定 8: 記録を消した後に来た古い ID は、計画が消した時刻以前のものなら、実行済みかもしれない。
+		// 再実行せず、実行しなかったとも言わない。
+		const horizon = host.receiptHorizon(db);
+		if (horizon !== undefined && (!row || row.created_at <= horizon)) {
+			existing = {
+				status: "indeterminate",
+				code: "OPERATION_RECEIPT_EXPIRED",
+				operationId: params.operationId,
+			};
+			return undefined;
+		}
 		demand(row?.payload && row.expires_at > host.clock(), "PLAN_UNAVAILABLE");
 		const plan = JSON.parse(row.payload) as StoredPlan;
 		host.validatePlanDependencies(plan.parsed);
@@ -591,7 +602,8 @@ async function runPlan(
 		const count = db
 			.query("SELECT count(*) AS n FROM host_operation WHERE epoch=?")
 			.get(host.epoch) as { n: number };
-		demand(count.n < HOST_LIMITS.operationsPerEpoch, "OPERATION_CAPACITY");
+		// 決定 8: 数えるのは今の epoch の保持中の記録。30 日より古い記録を消せば回復する。
+		demand(count.n < host.limit("operationsPerEpoch"), "OPERATION_CAPACITY");
 		const value: OperationPayload = {
 			plan,
 			groups: [

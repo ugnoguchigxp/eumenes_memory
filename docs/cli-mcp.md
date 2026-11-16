@@ -30,7 +30,7 @@ macOS/Linuxの同じOSユーザー向け。所有者は明示的に起動し、U
 
 planのproposalはdecision/relations/groups、evidenceはactionIndex/sourceHandle/startByte/endByte。引用は原文の連続した1024 UTF-8 bytes以内。複数回出現する文も位置を明示し、無効な引用は修正せず拒否する。訂正はsupersedesとreplacesItemId、意味の異なる共存はcoexists、未解決の矛盾はconflictsとclarificationで表す。
 
-applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持し、応答を失ったら同じIDでoperationを照会・applyを再送する。結果照会を古い計画の拒否より先に行うため、成功済み操作を再実行しない。古いDB復元で操作記録が不在の旧世代はindeterminateになり、未実行と断定しない。
+applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持し、応答を失ったら同じIDでoperationを照会・applyを再送する。結果照会を古い計画の拒否より先に行うため、成功済み操作を再実行しない。古いDB復元で操作記録が不在の旧世代はindeterminateになり、未実行と断定しない。操作の受領記録は30日保持し、今の起動世代（epoch）の記録も30日で消す。消した後に来た古いIDには`indeterminate`/`OPERATION_RECEIPT_EXPIRED`を返し、再実行しない。1世代の記録の上限（`operationsPerEpoch`）は保持中の記録で数えるので、古い記録を消せば回復する。
 
 忘却も同じplan/applyで、`forget plan`/`forget apply`は別名。Stateの忘却とsourceHandlesによる原文全体の消去を区別する。保持したい事実の原文を一緒に消す提案や、相互依存する保存/忘却の混在groupは要確認。限定scopeのクライアントに閉包の件数や外部IDを返す前に拒否する。確認済み項目を保護する権限も別に検査する。
 
