@@ -46,7 +46,7 @@ applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持�
 {"command":"bun","args":["/absolute/path/node_modules/eumenes-memory-host/dist/cli.js","--profile","/tmp/shared-memory/profile.json","mcp"]}
 ```
 
-公開ツールはmemory_source/context/read/plan/apply/operation/status。公式MCP SDK 2.4.0のstdioで、接続プロセスは所有者へ中継する。接続を一つ閉じても所有者と他のクライアントは動く。stdoutに診断ログを混ぜない。MCP側の追加モデルやAPIキーは不要。
+公開ツールはmemory_source/context/read/plan/apply/operation/status/use。公式MCP SDK 2.4.0のstdioで、接続プロセスは所有者へ中継する。接続を一つ閉じても所有者と他のクライアントは動く。stdoutに診断ログを混ぜない。MCP側の追加モデルやAPIキーは不要。
 
 ## バックアップと復元
 
@@ -60,13 +60,21 @@ applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持�
 
 `status`は読取のgrantがあれば`capacity`を返す。許可されたscopeごとのactive件数、kind別・`trust`別のactive件数、State行の状態別件数（active/superseded/forgotten）、DBとWALのバイト数、上限ごとの使用量（`snapshotItems`・`snapshotBytes`・`maxSources`・`operationsPerEpoch`・`maxJournalEntries`）。本文は出さない。`snapshotBytes`は本文と属性の長さに1件あたり700バイトを足した見積もり。上限の70%と90%を超えると`capacityWarnings`に`{limit, level, ratio}`を出す。`snapshotItems`か`snapshotBytes`が90%以上のときは、新しいkeyの保存（`replacesItemId: null`の`remember`）だけを`plan`で`CAPACITY_NEAR_LIMIT`として止める。訂正と忘却は通す。
 
-## 予定: 検索、利用の報告、見直し（実装中）
+## 外部由来の記憶の期限と利用の報告
+
+`trust: external`のitemは、最後に再利用された日（無ければ作成日）から90日で停止する（`deactivateState`。忘却ではなくジャーナルを使わない）。itemには停止する日`expiresOn`（JSTの日付）が付く。再利用に数えるのは次の2つだけ。
+
+- `use`（MCP `memory_use`）: 回答や行動に採用した後に`{"snapshotId": ..., "items": [{"itemId": ..., "revision": ...}]}`（20件まで）を報告する。snapshotにあり、revisionが今のものと一致するitemだけを受け付け、1つでも合わなければ全体を拒否する。読取のgrantで呼べる。最終利用日は外部由来のitemだけに日単位で持ち、1日に1回まで更新する。Stateの変更のseqを進めないので、snapshotとcursorは切れない。
+- 適用が完了したplanの`relatedItemIds`（関係がforgetのものを除く）。
+
+`context`・`read`・未適用の`plan`は期限を延ばさない。停止は所有者の起動時と、`eumenes-memory --profile <profile.json> expire`（管理用、1回500件まで）で行う。日次の`backup`と同じ定期実行から呼ぶ。停止したitemは`eumenes-memory --profile <profile.json> reactivate --input <file>`（`{"itemId": ...}`、管理用）で戻せ、戻した日から90日を数え直す。最終利用日はitemの忘却で一緒に消える。
+
+## 予定: 検索、見直し（実装中）
 
 State の全文検索の設計（リポジトリの `spec/state-search-design.md`、2026-11-16 承認）に沿って、次を段階的に加える。実装済みのものは、この節ではなく上の各節に移す。
 
 - `search`（MCP `memory_search`）: 許可された active な State を全文検索し、最大 20 件、既定 32 KiB までを返す読み取り専用の操作。続きの cursor は出さない。
-- `use`（MCP `memory_use`）: 回答や行動に採用した item を報告し、外部由来の item の期限（最後の利用から 90 日）を延ばす。
-- `review` / `reactivate` / `expire`: 見直しの一覧（20 件まで）、停止した item の再有効化、外部由来の item の自動停止（CLI のみ）。
+- `review`: 見直しの一覧（20 件まで、CLI のみ）。
 
 ## 自然文CLIとモデル
 

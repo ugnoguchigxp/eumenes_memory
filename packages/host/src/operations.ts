@@ -1,3 +1,4 @@
+import { EXPIRE_PLAN_ID, extendRelated } from "./expiry.ts";
 import {
 	LIMITS_LIFECYCLE,
 	type HostForgetIntent,
@@ -210,8 +211,11 @@ export function scrubHostIntent(
 		db.query(
 			"UPDATE host_source SET content=NULL,ref='',forgotten=1 WHERE id=?",
 		).run(id);
-	for (const id of intent["host.states"] ?? [])
+	for (const id of intent["host.states"] ?? []) {
 		db.query("DELETE FROM host_state_source WHERE item_id=?").run(id);
+		// 最終利用日も、その item の忘却で一緒に消す（§4D.2a）。
+		db.query("DELETE FROM host_item_use WHERE item_id=?").run(id);
+	}
 	for (const id of plans) {
 		db.query("UPDATE host_plan SET payload=NULL WHERE id=?").run(id);
 		db.query(
@@ -600,8 +604,10 @@ async function runPlan(
 		)
 			host.authorizeForget(db, grant);
 		const count = db
-			.query("SELECT count(*) AS n FROM host_operation WHERE epoch=?")
-			.get(host.epoch) as { n: number };
+			.query(
+				"SELECT count(*) AS n FROM host_operation WHERE epoch=? AND plan_id<>?",
+			)
+			.get(host.epoch, EXPIRE_PLAN_ID) as { n: number };
 		// 決定 8: 数えるのは今の epoch の保持中の記録。30 日より古い記録を消せば回復する。
 		demand(count.n < host.limit("operationsPerEpoch"), "OPERATION_CAPACITY");
 		const value: OperationPayload = {
@@ -801,6 +807,16 @@ async function runPlan(
 				? "needs_clarification"
 				: "completed";
 		host.allowed(grant, payload.plan.scopes);
+		// 決定 11: 適用が完了した plan の参照（関係が forget のものを除く）は再利用に数える。
+		if (status === "completed")
+			extendRelated(
+				host,
+				db,
+				payload.plan.scopes,
+				payload.plan.parsed.changes.flatMap((c) =>
+					c.relation === "forget" ? [] : c.relatedItemIds,
+				),
+			);
 		const result = resultFor(host, params.operationId, payload, status);
 		db.query("UPDATE host_operation SET payload=?,result=? WHERE id=?").run(
 			status === "pending" ? JSON.stringify(payload) : null,

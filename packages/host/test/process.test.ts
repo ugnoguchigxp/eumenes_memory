@@ -80,6 +80,8 @@ test("CLI and two independent MCP processes share one owner; closing one connect
 			"memory_read",
 			"memory_source",
 			"memory_status",
+			// S6b（決定 11）で memory_use を足した。
+			"memory_use",
 		]);
 		const text = "一週間に二回、陶芸を楽しみます";
 		const source = (

@@ -43,6 +43,14 @@ import {
 import { backupStatus, createBackupFiles } from "./backup.ts";
 import { scrubBackups } from "./scrub.ts";
 import {
+	EXPIRE_PLAN_ID,
+	expiresAtMs,
+	expiresOnText,
+	reactivate,
+	recordUse,
+	runExpire,
+} from "./expiry.ts";
+import {
 	activeUsage,
 	capacityLimits,
 	capacityReport,
@@ -298,6 +306,9 @@ export class MemoryHost {
 			}, true);
 			// ジャーナルの再適用や回復で消した本文を WAL に残さない（決定 9）。
 			await this.checkpointAfterForget(true);
+			// 決定 11: 起動時に、期限を過ぎた外部由来の item を停止する。失敗しても起動は止めない（次回に再試行）。
+			if (!this.options.replayJournalOnly)
+				await runExpire(this, { recovery: true }).catch(() => {});
 			this.healthy = true;
 		} catch (error) {
 			this.failClosed();
@@ -394,8 +405,31 @@ export class MemoryHost {
 					this.operation(db, grant, params as MethodParams<"operation">),
 				);
 			}
+			if (name === "use") {
+				demand(grant.read, "READ_NOT_PERMITTED");
+				return await this.write((db) => {
+					const current = this.grant(credential);
+					demand(grantKey(current) === grantKey(grant), "ACCESS_CHANGED");
+					return this.use(db, current, params as MethodParams<"use">);
+				});
+			}
 			demand(grant.write, "WRITE_NOT_PERMITTED");
 			if (name === "backup") return await this.backup(grant);
+			if (name === "expire") {
+				this.admin(grant);
+				return { status: "completed", ...(await runExpire(this)) };
+			}
+			if (name === "reactivate")
+				return await this.write((db) => {
+					const current = this.grant(credential);
+					demand(grantKey(current) === grantKey(grant), "ACCESS_CHANGED");
+					return reactivate(
+						this,
+						db,
+						current,
+						(params as MethodParams<"reactivate">).itemId,
+					);
+				});
 			if (name === "apply")
 				return await applyPlan(
 					this,
@@ -415,6 +449,44 @@ export class MemoryHost {
 		} catch (error) {
 			return failure(error);
 		}
+	}
+	/**
+	 * 決定 11: 回答や行動に採用した item の報告。snapshot に入っていて revision が今のものと一致する item だけを受け付け、
+	 * 1 つでも合わなければ全体を拒否する（期限は変えない）。外部由来の item の最終利用日だけを、1 日 1 回まで更新する。
+	 * State の変更の seq を進めないので、snapshot と cursor は切れない。
+	 */
+	use(db: MemoryDb, grant: Grant, p: MethodParams<"use">): HostResult {
+		const snapshot = this.snapshots.get(p.snapshotId, grant, this.policy);
+		this.allowed(grant, snapshot.scopes);
+		const current = new Map(
+			listItems(db, this.access(grant), snapshot.scopes).map((x) => [
+				x.itemId,
+				x,
+			]),
+		);
+		const items = p.items.map((ref) => {
+			const seen = snapshot.items.find((x) => x.itemId === ref.itemId);
+			const item = current.get(ref.itemId);
+			demand(seen && item, "ITEM_NOT_AVAILABLE");
+			demand(
+				seen.revision === ref.revision && item.revision === ref.revision,
+				"STALE_REVISION",
+			);
+			return item;
+		});
+		const updated = recordUse(this, db, items);
+		return {
+			status: "completed",
+			items: items.map((item) =>
+				this.trust(db, item) === "external"
+					? {
+							itemId: item.itemId,
+							expiresOn: expiresOnText(expiresAtMs(db, item.itemId)),
+						}
+					: { itemId: item.itemId },
+			),
+			updated,
+		};
 	}
 	/** §4C.2: 所有者が writer の順番で `VACUUM INTO` し、ジャーナルの写しと一緒に置く。admin の grant が要る。 */
 	async backup(grant: Grant): Promise<HostResult> {
@@ -457,8 +529,10 @@ export class MemoryHost {
 				journalEntries: this.journalCount,
 				operationsThisEpoch: (
 					db
-						.query("SELECT count(*) AS n FROM host_operation WHERE epoch=?")
-						.get(this.epoch) as { n: number }
+						.query(
+							"SELECT count(*) AS n FROM host_operation WHERE epoch=? AND plan_id<>?",
+						)
+						.get(this.epoch, EXPIRE_PLAN_ID) as { n: number }
 				).n,
 				databasePath: this.options.port.databasePath,
 			}),
@@ -778,7 +852,15 @@ export class MemoryHost {
 				: !statuses.length || statuses.includes("unverified")
 					? "unverified"
 					: "current";
-		return { ...item, evidenceStatus, trust: this.trust(db, item) };
+		const trust = this.trust(db, item);
+		return {
+			...item,
+			evidenceStatus,
+			trust,
+			...(trust === "external" && item.status === "active"
+				? { expiresOn: expiresOnText(expiresAtMs(db, item.itemId)) }
+				: {}),
+		};
 	}
 	/**
 	 * §4B.3: confirmed は本人確認済みの origin。inferred は根拠の出典がすべて user_message か agent_reasoning。

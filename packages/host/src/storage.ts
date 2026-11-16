@@ -83,6 +83,8 @@ export const hostSchemaUpgrades: readonly string[] = Object.freeze([
 	`CREATE TABLE IF NOT EXISTS host_operation_horizon(epoch TEXT PRIMARY KEY, pruned_before INTEGER NOT NULL);`,
 	// 3: 出典の由来（決定 12、S5）。版上げ前の出典は unknown（外部由来として扱う）。
 	`ALTER TABLE host_source ADD COLUMN provenance TEXT NOT NULL DEFAULT 'unknown';`,
+	// 4: 外部由来の item の最終利用日（UTC の日番号、決定 11、S6b）。忘却で一緒に消す。
+	`CREATE TABLE IF NOT EXISTS host_item_use(item_id TEXT PRIMARY KEY, last_used_day INTEGER NOT NULL);`,
 ]);
 export const HOST_SCHEMA_VERSION = hostSchemaUpgrades.length + 1;
 /** 版 1 の表を作り、足りない版上げを適用する。本体より新しい版は `HOST_SCHEMA_MISMATCH`。 */

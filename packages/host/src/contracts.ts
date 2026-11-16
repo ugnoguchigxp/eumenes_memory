@@ -138,9 +138,32 @@ export const methodSchemas = {
 	operation: z.object({ operationId: id, epoch: id }).strict(),
 	/** 管理用（admin の grant）。MCP には出さない（`CLI_ONLY_METHODS`）。 */
 	backup: z.object({}).strict(),
+	/**
+	 * 回答や行動に採用した item の報告（決定 11、S6b）。外部由来の item の期限を延ばす。
+	 * snapshot に入っていて revision が今のものと一致する item だけを受け付ける。
+	 */
+	use: z
+		.object({
+			snapshotId: id,
+			items: z
+				.array(
+					z.object({ itemId: id, revision: z.number().int().min(1) }).strict(),
+				)
+				.min(1)
+				.max(20),
+		})
+		.strict(),
+	/** 管理用（admin）。期限を過ぎた外部由来の item を停止する（1 回 500 件まで）。MCP には出さない。 */
+	expire: z.object({}).strict(),
+	/** 管理用（admin）。停止した item を active に戻し、期限を数え直す。MCP には出さない。 */
+	reactivate: z.object({ itemId: id }).strict(),
 } as const;
 /** CLI からだけ呼べる管理用の操作。MCP の道具にしない。 */
-export const CLI_ONLY_METHODS: readonly string[] = Object.freeze(["backup"]);
+export const CLI_ONLY_METHODS: readonly string[] = Object.freeze([
+	"backup",
+	"expire",
+	"reactivate",
+]);
 export type Method = keyof typeof methodSchemas;
 export type MethodInput<M extends Method> = z.input<(typeof methodSchemas)[M]>;
 export type MethodParams<M extends Method> = z.output<

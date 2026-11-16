@@ -820,3 +820,10 @@ search: z.object({
 | S6 | 容量の集計は、ホストが核の表（`memory_state_item`・`memory_state_attribute`・`memory_state_evidence`）を集計の SQL で数える。本文は返さない | ［事実］ | 核に集計用の公開関数を足さず、公開面を変えないため |
 | S6 | `snapshotBytes` の使用量は本文と属性の長さ（UTF-8 のバイト）に 1 件 700 バイトを足した見積もり。実際の snapshot の JSON の大きさとは一致しない | ［推定］ | 90% の判定は保守側に寄せる |
 | S6 | 90% の判定は plan の時点で、許可された scope 全体の active 件数と見積もりバイトで行う（新しい key の `remember` を 1 つでも含む plan を止める） | ［事実］ | ― |
+| S6b | 作成日は核の `memory_state_event` の最初の時刻（`min(at_ms)`）を集計の SQL で読む。核の `StateItem` に作成時刻が無いため | ［事実］ | 訂正で新しい item になったものは、その時から数える |
+| S6b | 期限の境目: 作成からは時刻で 90 日、最後の利用（日単位）からはその日の終わり（翌日 0 時 UTC）から 90 日。T-EXP-3 の「80＋90 日目の翌日に停止」に合わせた。表示の `expiresOn` は停止する時刻の JST の日付 | ［事実］ | 延長を短くしない側に丸める |
+| S6b | `use` は 1 つでも合わない item があれば全体を拒否する（`ITEM_NOT_AVAILABLE` / `STALE_REVISION`）。応答は `{status:"completed", items:[{itemId, expiresOn?}], updated}` | ［事実］ | 応答の形は設計に無いので最小にした |
+| S6b | `expire` と `reactivate` は管理用（admin の grant、`CLI_ONLY_METHODS`）。`expire` の記録は `host_operation` の plan_id を `host:expire` とし、`operationsPerEpoch` の数え（apply の上限と status の使用量）から除いた。記録の照合は plan_id も見る（利用者が同じ ID を先に使っても停止は止まらない） | ［事実］ | 自動停止が利用者の操作の上限を食わないため |
+| S6b | 起動時の `expire` は失敗しても起動を止めない（次回に再試行）。バックアップの洗い直しの再適用（`replayJournalOnly`）では走らせない | ［事実］ | ― |
+| S6b | MCP の道具は `memory_use` を足して 8 個になった（`process.test.ts` の一覧を意図して更新）。S9 で `memory_search` を足すと 9 個になり、T-MCP-1 の「8 個目」とずれる | ［事実］ | 決定 11 で `memory_use` が加わったため |
+| S6b | T-EXP-1 の「search に出ない」と「見直しの一覧に出る」は、S9 と S10 で同じ試験に足す | ［事実］ | 段階の順のため |
