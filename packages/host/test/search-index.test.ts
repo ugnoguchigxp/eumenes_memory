@@ -1,6 +1,8 @@
 /** S7: 全文検索の索引のホスト側（既存の DB への 0009 の適用、戻し方、SQLite の機能の検査、復元後の漏れ、起動時の検査）。 */
 import { afterEach, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkSchemaAgainst } from "../../../src/infrastructure/sqlite/schema-check.ts";
 import { MIGRATION_BODIES } from "../../../src/infrastructure/sqlite/migrations/index.ts";
@@ -18,8 +20,6 @@ import {
 } from "./support.ts";
 
 afterEach(disposeFixtures);
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 
 const SECRET = "ZQXWVU秘密の合言葉です";
 
@@ -143,4 +143,23 @@ test("startup rebuilds an inconsistent index; context and plan keep working", as
 	expect(h.host.searchIndexUnavailable).toBe(false);
 	expect(match(h, "抹茶ラテ").length).toBe(1);
 	expect((await items(h)).length).toBe(1);
+});
+
+test("a startup rebuild leaves no fragment of the replaced index in the db file or WAL", async () => {
+	const h = await fixture();
+	await remember(h, "抹茶ラテが好きです");
+	// 索引にだけ、正本に無い本文（忘れた本文の断片の代わり）を置き、DB ファイルまで写す。
+	await h.owner.port.write((db) => {
+		(db as unknown as Database)
+			.query("UPDATE memory_state_fts SET doc = ?")
+			.run(`drink\n${SECRET}`);
+	});
+	await h.owner.port.checkpoint?.();
+	const files = ["memory.db", "memory.db-wal"].map((n) => join(h.dir, n));
+	expect(leakedTrigrams(SECRET, files).length).toBeGreaterThan(0);
+	await h.restart();
+	expect(h.host.searchIndexUnavailable).toBe(false);
+	expect(match(h, "ZQXWVU").length).toBe(0);
+	expect(match(h, "抹茶ラテ").length).toBe(1);
+	expect(leakedTrigrams(SECRET, files)).toEqual([]);
 });

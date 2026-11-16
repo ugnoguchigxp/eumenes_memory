@@ -455,6 +455,7 @@ export function parseListStateInput(value: unknown): ListStateInput {
 		"includeInactive",
 		"limit",
 		"after",
+		"itemIds",
 	]);
 	const header = readScopedHeader(record, path);
 	let kinds: ListStateInput["kinds"];
@@ -507,12 +508,28 @@ export function parseListStateInput(value: unknown): ListStateInput {
 			),
 		};
 	}
+	let itemIds: ListStateInput["itemIds"];
+	if (Object.hasOwn(record, "itemIds")) {
+		const idsPath = keyPath(path, "itemIds");
+		const parsed = readArray(
+			record["itemIds"],
+			idsPath,
+			LIMITS_STATE.maxListItems,
+		).map((element, index) =>
+			readIdentifier(element, indexPath(idsPath, index), LIMITS.maxItemIdBytes),
+		);
+		if (parsed.length === 0 || new Set(parsed).size !== parsed.length) {
+			return fail("INVALID_VALUE", idsPath);
+		}
+		itemIds = parsed;
+	}
 	return deepFreeze({
 		...header,
 		...(kinds === undefined ? {} : { kinds }),
 		...(includeInactive === undefined ? {} : { includeInactive }),
 		...(limit === undefined ? {} : { limit }),
 		...(after === undefined ? {} : { after }),
+		...(itemIds === undefined ? {} : { itemIds }),
 	});
 }
 

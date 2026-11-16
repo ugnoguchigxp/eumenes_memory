@@ -278,6 +278,8 @@ export interface ListStateInput extends ScopedRead {
 	/** Continue the same scope/filter in updated-seq descending, item-ID ascending order.
 	 * Read all pages in one host read transaction for a consistent snapshot. */
 	readonly after?: { readonly updatedSeq: number; readonly itemId: string };
+	/** 指定した item だけに絞る（1〜1000 件、重複なし）。scope と状態の条件はそのまま効き、無い ID は黙って除く。 */
+	readonly itemIds?: readonly string[];
 }
 
 export type ListStateResult =

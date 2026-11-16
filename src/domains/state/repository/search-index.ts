@@ -9,6 +9,8 @@ import {
 	assertWritable,
 	guarded,
 	readInteger,
+	readNullableText,
+	readText,
 } from "../../../infrastructure/sqlite/db.ts";
 import type { MemoryDb } from "../../../infrastructure/sqlite/db.ts";
 import { assertMemorySchema } from "../../../infrastructure/sqlite/schema-check.ts";
@@ -34,16 +36,28 @@ export function syncStateSearch(
 				SELECT item_id FROM memory_state_item WHERE item_id = ? AND status = 'active'
 				ON CONFLICT (item_id) DO NOTHING`,
 			).run(itemId);
-			db.query(
-				`DELETE FROM memory_state_fts WHERE rowid =
-					(SELECT search_rowid FROM memory_state_search_row WHERE item_id = ?)`,
-			).run(itemId);
-			db.query(
-				`INSERT INTO memory_state_fts (rowid, doc)
-				SELECT r.search_rowid, d.doc FROM memory_state_search_doc d
-				JOIN memory_state_search_row r ON r.item_id = d.item_id
-				WHERE d.item_id = ?`,
-			).run(itemId);
+			const row = db
+				.query(
+					`SELECT r.search_rowid AS search_rowid, d.doc AS doc, f.doc AS indexed
+					FROM memory_state_search_doc d
+					JOIN memory_state_search_row r ON r.item_id = d.item_id
+					LEFT JOIN memory_state_fts f ON f.rowid = r.search_rowid
+					WHERE d.item_id = ?`,
+				)
+				.get(itemId);
+			if (row === null || row === undefined) return;
+			const rowid = readInteger(row, "search_rowid");
+			const doc = readText(row, "doc");
+			const indexed = readNullableText(row, "indexed");
+			// 索引の文書が正本と同じなら何もしない（secure-delete の消去と再登録を省く）。
+			if (indexed === doc) return;
+			// 違う文書が残っていれば先に消す（通常は trigger が消しているので、ここには来ない）。
+			if (indexed !== null)
+				db.query("DELETE FROM memory_state_fts WHERE rowid = ?").run(rowid);
+			db.query("INSERT INTO memory_state_fts (rowid, doc) VALUES (?, ?)").run(
+				rowid,
+				doc,
+			);
 		});
 	}
 }
@@ -57,7 +71,17 @@ export interface StateSearchIndexReport {
 	readonly indexedRows: number;
 	/** 対応表にあるのに索引に行が無い（再登録の漏れ）、または active でない item の行。 */
 	readonly missingRows: number;
+	/** 索引の文書が正本（`memory_state_search_doc`）と違う行（古い本文が検索に残っている）。 */
+	readonly staleRows: number;
 	readonly integrity: boolean;
+}
+
+function isCorruption(error: unknown): boolean {
+	const code =
+		typeof error === "object" && error !== null && "code" in error
+			? String((error as { code: unknown }).code)
+			: "";
+	return code.startsWith("SQLITE_CORRUPT");
 }
 
 function count(db: MemoryDb, sql: string): number {
@@ -87,12 +111,21 @@ export function verifyStateSearchIndex(db: MemoryDb): StateSearchIndexReport {
 		WHERE i.status IS NOT 'active'
 			OR NOT EXISTS (SELECT 1 FROM memory_state_fts f WHERE f.rowid = r.search_rowid)`,
 	);
+	const staleRows = count(
+		db,
+		`SELECT count(*) AS n FROM memory_state_search_row r
+		JOIN memory_state_search_doc d ON d.item_id = r.item_id
+		JOIN memory_state_fts f ON f.rowid = r.search_rowid
+		WHERE f.doc IS NOT d.doc`,
+	);
 	let integrity = true;
 	try {
 		db.query(
 			"INSERT INTO memory_state_fts (memory_state_fts, rank) VALUES ('integrity-check', 1)",
 		).run();
-	} catch {
+	} catch (error) {
+		// 不一致（SQLITE_CORRUPT 系）だけを「索引が壊れている」とし、それ以外（ロック、読み取り専用など）は投げ直す。
+		if (!isCorruption(error)) throw error;
 		integrity = false;
 	}
 	return {
@@ -100,12 +133,14 @@ export function verifyStateSearchIndex(db: MemoryDb): StateSearchIndexReport {
 		consistent:
 			integrity &&
 			missingRows === 0 &&
+			staleRows === 0 &&
 			activeItems === mappedRows &&
 			mappedRows === indexedRows,
 		activeItems,
 		mappedRows,
 		indexedRows,
 		missingRows,
+		staleRows,
 		integrity,
 	};
 }

@@ -473,6 +473,29 @@ function insertAttributes(
 	}
 }
 
+/** 保存済みの属性が value の属性と同じか（鍵の集合と値が一致）。 */
+function sameAttributes(
+	db: MemoryDb,
+	itemId: string,
+	value: StateValue,
+): boolean {
+	const wanted = ownValue(value, "attributes") ?? {};
+	const rows = guarded(() =>
+		db
+			.query(
+				"SELECT attr_key, attr_value FROM memory_state_attribute WHERE item_id = ?",
+			)
+			.all(itemId),
+	);
+	if (rows.length !== Object.keys(wanted).length) return false;
+	return rows.every((row) => {
+		const key = readText(row, "attr_key");
+		return (
+			Object.hasOwn(wanted, key) && wanted[key] === readText(row, "attr_value")
+		);
+	});
+}
+
 function insertEvidence(
 	db: MemoryDb,
 	ctx: WriteContext,
@@ -575,13 +598,10 @@ function writeItem(
 		run(
 			db,
 			`UPDATE memory_state_item
-			SET status = ?, revision = ?, value_text = ?, polarity = ?, origin = ?,
-				evidence_ordinal = ?, updated_seq = ?
+			SET revision = ?, polarity = ?, origin = ?, evidence_ordinal = ?, updated_seq = ?
 			WHERE item_id = ? AND principal = ? AND scope_key = ?`,
 			[
-				view.status,
 				view.revision,
-				view.value.text,
 				view.value.polarity,
 				view.origin,
 				view.evidenceOrdinal,
@@ -591,14 +611,34 @@ function writeItem(
 				ctx.scopeKey,
 			],
 		);
+		// 索引に入る列（status、value_text）は、値が変わるときだけ書く。migration 0009 の trigger は
+		// SET に列が現れるだけで発火し、secure-delete の消去を伴うので、確認や根拠の追加で索引を作り直さない。
+		run(
+			db,
+			`UPDATE memory_state_item SET status = ?, value_text = ?
+			WHERE item_id = ? AND principal = ? AND scope_key = ?
+				AND (status IS NOT ? OR value_text IS NOT ?)`,
+			[
+				view.status,
+				view.value.text,
+				view.itemId,
+				ctx.principal,
+				ctx.scopeKey,
+				view.status,
+				view.value.text,
+			],
+		);
 		const edited = result.events.some(
 			(event) => event.itemId === view.itemId && event.action === "edit",
 		);
 		if (edited) {
-			run(db, "DELETE FROM memory_state_attribute WHERE item_id = ?", [
-				view.itemId,
-			]);
-			insertAttributes(db, view.itemId, view.value);
+			// 属性が同じなら書き直さない（属性の trigger が索引の行を消し、作り直しになるため）。
+			if (!sameAttributes(db, view.itemId, view.value)) {
+				run(db, "DELETE FROM memory_state_attribute WHERE item_id = ?", [
+					view.itemId,
+				]);
+				insertAttributes(db, view.itemId, view.value);
+			}
 			if (replacedEvidence !== null) {
 				run(db, "DELETE FROM memory_state_evidence WHERE item_id = ?", [
 					view.itemId,
@@ -1071,10 +1111,15 @@ export function listState(
 		parsed.scopeKey,
 		...statuses,
 	];
-	let kindClause = "";
+	let filterClause = "";
 	if (kinds !== undefined) {
-		kindClause = ` AND i.kind IN (${placeholders(kinds.length)})`;
+		filterClause = ` AND i.kind IN (${placeholders(kinds.length)})`;
 		params.push(...kinds);
+	}
+	const itemIds = ownValue(parsed, "itemIds");
+	if (itemIds !== undefined) {
+		filterClause += ` AND i.item_id IN (${placeholders(itemIds.length)})`;
+		params.push(...itemIds);
 	}
 	const after = ownValue(parsed, "after");
 	let cursorClause = "";
@@ -1090,7 +1135,7 @@ export function listState(
 			.query(
 				`SELECT ${ITEM_COLUMNS} FROM memory_state_item i
 				WHERE i.principal = ? AND i.scope_key = ?
-					AND i.status IN (${placeholders(statuses.length)})${kindClause}${cursorClause}
+					AND i.status IN (${placeholders(statuses.length)})${filterClause}${cursorClause}
 					AND ${NO_TOMBSTONE}
 				ORDER BY i.updated_seq DESC, i.item_id ASC
 				LIMIT ?`,

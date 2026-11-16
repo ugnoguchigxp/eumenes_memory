@@ -61,25 +61,36 @@ export function listItems(
 	scopeKeys: readonly string[],
 	cap = Infinity,
 	includeInactive = false,
+	itemIds?: readonly string[],
 ): StateItem[] {
 	const items: StateItem[] = [];
-	for (const scopeKey of [...scopeKeys].sort()) {
-		let after: { updatedSeq: number; itemId: string } | undefined;
-		do {
-			const result = listState(db, {
-				contractVersion: 1,
-				access,
-				scopeKey,
-				limit: 1000,
-				includeInactive,
-				...(after ? { after } : {}),
-			});
-			demand(result.status === "ok", "SCOPE_NOT_PERMITTED");
-			items.push(...result.items);
-			if (items.length > cap) return items.slice(0, cap + 1);
-			after = result.nextCursor;
-		} while (after);
-	}
+	// ID を指定したときは、その item だけを読む（scope の全件を水和しない）。核の上限の 1000 件ずつに分ける。
+	const unique = itemIds === undefined ? undefined : [...new Set(itemIds)];
+	const groups =
+		unique === undefined
+			? [undefined]
+			: Array.from({ length: Math.ceil(unique.length / 1000) }, (_, i) =>
+					unique.slice(i * 1000, (i + 1) * 1000),
+				);
+	for (const scopeKey of [...scopeKeys].sort())
+		for (const wanted of groups) {
+			let after: { updatedSeq: number; itemId: string } | undefined;
+			do {
+				const result = listState(db, {
+					contractVersion: 1,
+					access,
+					scopeKey,
+					limit: 1000,
+					includeInactive,
+					...(after ? { after } : {}),
+					...(wanted ? { itemIds: wanted } : {}),
+				});
+				demand(result.status === "ok", "SCOPE_NOT_PERMITTED");
+				items.push(...result.items);
+				if (items.length > cap) return items.slice(0, cap + 1);
+				after = result.nextCursor;
+			} while (after);
+		}
 	return items;
 }
 export function stateFingerprint(

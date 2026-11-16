@@ -85,9 +85,13 @@ export function extendRelated(
 	relatedItemIds: readonly string[],
 ): void {
 	if (!relatedItemIds.length) return;
-	const wanted = new Set(relatedItemIds);
-	const items = listItems(db, internalAccess(host), scopeKeys).filter((x) =>
-		wanted.has(x.itemId),
+	const items = listItems(
+		db,
+		internalAccess(host),
+		scopeKeys,
+		Infinity,
+		false,
+		relatedItemIds,
 	);
 	recordUse(host, db, items);
 }
@@ -139,7 +143,7 @@ export async function runExpire(
 			// 期限を数えた後に訂正や停止があれば、その item は今回は止めない。
 			if (result.status !== "applied") return false;
 			db.query(
-				"INSERT OR IGNORE INTO host_operation(id,plan_id,epoch,scope_keys,payload,result,created_at) VALUES(?,?,?,?,NULL,?,?)",
+				"INSERT INTO host_operation(id,plan_id,epoch,scope_keys,payload,result,created_at) VALUES(?,?,?,?,NULL,?,?) ON CONFLICT(id) DO NOTHING",
 			).run(
 				operationId,
 				EXPIRE_PLAN_ID,
@@ -170,7 +174,8 @@ export function reactivate(
 		host.config.scopeKeys,
 		Infinity,
 		true,
-	).find((x) => x.itemId === itemId);
+		[itemId],
+	)[0];
 	demand(item, "ITEM_NOT_AVAILABLE");
 	const result = reactivateState(db, {
 		contractVersion: 1,

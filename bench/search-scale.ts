@@ -249,6 +249,7 @@ interface CaseResult {
 	>;
 	write: { p50: number; p95: number };
 	syncOnly: { p50: number; p95: number };
+	edit: { p50: number; p95: number };
 	forget: { p50: number; p95: number };
 	checkpointMs: number | null;
 	explain: Record<string, string[]>;
@@ -346,6 +347,16 @@ function runCase(
 			syncStateSearch(db, [recent[k++ % recent.length]!.item_id]),
 		)();
 	});
+	// 編集の索引の部分: 本文を変える（trigger が古い行を消す）→ 再登録。核の書き込みの残り（event など）は含まない。
+	const edit = measure(() => {
+		const id = recent[k++ % recent.length]!.item_id;
+		db.transaction(() => {
+			db.query(
+				"UPDATE memory_state_item SET value_text = value_text || '改' WHERE item_id = ?",
+			).run(id);
+			syncStateSearch(db, [id]);
+		})();
+	});
 	const victims = db
 		.query(
 			"SELECT item_id FROM memory_state_item WHERE status='active' ORDER BY item_id LIMIT 40",
@@ -384,6 +395,7 @@ function runCase(
 		search,
 		write,
 		syncOnly,
+		edit,
 		forget,
 		checkpointMs,
 		explain: plans,

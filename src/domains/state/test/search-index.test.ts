@@ -320,6 +320,57 @@ describe("index maintenance", () => {
 		expect(s.write((db) => rebuildStateSearchIndex(db)).consistent).toBe(true);
 	});
 
+	test("T-IDX-5 a stale indexed document is found and the rebuild replaces it", () => {
+		const s = open();
+		const tea = remember(s, "紅茶が好き", { attributes: { when: "朝の食後" } });
+		// 索引の文書だけを古い本文にする（正本は変えない）。
+		s.write((db) =>
+			db
+				.query(
+					"UPDATE memory_state_fts SET doc = 'drink\n昔の古い本文' WHERE rowid = (SELECT search_rowid FROM memory_state_search_row WHERE item_id = ?)",
+				)
+				.run(tea.itemId),
+		);
+		expect(match(s.writer, "昔の古")).toEqual([tea.itemId]);
+		expect(verify(s)).toMatchObject({
+			consistent: false,
+			missingRows: 0,
+			staleRows: 1,
+		});
+		expect(s.write((db) => rebuildStateSearchIndex(db))).toMatchObject({
+			consistent: true,
+			staleRows: 0,
+		});
+		expect(match(s.writer, "昔の古")).toEqual([]);
+		expect(match(s.writer, "朝の食")).toEqual([tea.itemId]);
+	});
+
+	test("T-IDX-6 confirming the same value does not rewrite the index", () => {
+		const s = open();
+		// FTS5 の構造の記録（id 10）は、索引の行を足すか消すたびに変わる。
+		const structure = () =>
+			s.writer
+				.query("SELECT block FROM memory_state_fts_data WHERE id = 10")
+				.get() as { block: Uint8Array };
+		for (const attributes of [undefined, { when: "朝の食後" }]) {
+			const key = attributes ? "with-attr" : "no-attr";
+			const inferred = remember(s, "紅茶が好き", {
+				semanticKey: key,
+				origin: "agent_inferred",
+				...(attributes ? { attributes } : {}),
+			});
+			const before = structure();
+			const confirmed = remember(s, "紅茶が好き", {
+				semanticKey: key,
+				...(attributes ? { attributes } : {}),
+			});
+			expect(confirmed.itemId).toBe(inferred.itemId);
+			expect(confirmed.origin).not.toBe("agent_inferred");
+			expect(structure()).toEqual(before);
+		}
+		expect(verify(s).consistent).toBe(true);
+	});
+
 	test("rebuild and verify require a migrated store; rebuild needs a write transaction", () => {
 		const s = open();
 		expect(() => rebuildStateSearchIndex(s.writer)).toThrow();
@@ -408,8 +459,17 @@ describe("physical leaks", () => {
 				)
 				.get(),
 		).toEqual({ v: 1 });
-		// 作り直しても同じ設定になる。
+		// 作り直しても同じ定義と設定になる（作り直しの SQL は migration 0009 の写し）。
 		s.write((db) => rebuildStateSearchIndex(db));
+		expect(
+			(
+				s.writer
+					.query(
+						"SELECT sql FROM sqlite_master WHERE name = 'memory_state_fts'",
+					)
+					.get() as { sql: string }
+			).sql,
+		).toBe(sql);
 		expect(
 			s.writer
 				.query(

@@ -310,9 +310,8 @@ export class MemoryHost {
 				recoverIntents(this, db);
 				this.cleanup(db);
 			}, true);
-			// ジャーナルの再適用や回復で消した本文を WAL に残さない（決定 9）。
-			await this.checkpointAfterForget(true);
 			// §3.4: 索引を検査し、一致しなければ writer の transaction の中で作り直す。失敗は search だけを止める。
+			// 次の checkpoint より前に行い、作り直しで捨てた古い索引のページ（忘れた本文の断片を含みうる）を DB ファイルに残さない。
 			await this.write((db) => {
 				if (verifyStateSearchIndex(db).consistent) return;
 				this.searchIndexUnavailable = !rebuildStateSearchIndex(db).consistent;
@@ -322,6 +321,8 @@ export class MemoryHost {
 					this.searchIndexUnavailable = true;
 				},
 			);
+			// ジャーナルの再適用や回復、索引の作り直しで消した本文を WAL に残さない（決定 9）。
+			await this.checkpointAfterForget(true);
 			// 決定 11: 起動時に、期限を過ぎた外部由来の item を停止する。失敗しても起動は止めない（次回に再試行）。
 			if (!this.options.replayJournalOnly)
 				await runExpire(this, { recovery: true }).catch(() => {});
@@ -483,10 +484,14 @@ export class MemoryHost {
 		const snapshot = this.snapshots.get(p.snapshotId, grant, this.policy);
 		this.allowed(grant, snapshot.scopes);
 		const current = new Map(
-			listItems(db, this.access(grant), snapshot.scopes).map((x) => [
-				x.itemId,
-				x,
-			]),
+			listItems(
+				db,
+				this.access(grant),
+				snapshot.scopes,
+				Infinity,
+				false,
+				p.items.map((ref) => ref.itemId),
+			).map((x) => [x.itemId, x]),
 		);
 		const items = p.items.map((ref) => {
 			const seen = snapshot.items.find((x) => x.itemId === ref.itemId);
