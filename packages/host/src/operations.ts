@@ -298,6 +298,7 @@ function durableForget(
 			clock: { atMs: host.clock() },
 		});
 		demand(applied.local === "applied", "FORGET_APPLY_FAILED");
+		host.markForgetCommitted();
 		if (intent) host.scrub(db, intent, planned.plan.entry.forgetId);
 		cleanExternal(host, db, planned.plan.entry.forgetId);
 		return planned.plan.entry.forgetId;

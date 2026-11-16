@@ -51,6 +51,8 @@ Stateは`assertUserState`へsubject、kind、semanticKey、値、出典の本文
 
 journalのhashの鎖は鍵なしで、検出できるのは偶発的な破損・切り詰め・食い違いだけ。悪意のある書き換えの防止は、journalを保護された媒体に置くホストの責任。復元前のDBと短縮journalを同時に戻した状況は本体だけでは検出できない。journalを別の保護された媒体で保持する。deactivateは可逆の停止であり、忘却ではない。忘却は論理消去で、SQLite空き領域・WAL・OS snapshot・ログの物理消去を保証しない。ホストはsecure_delete、checkpoint、VACUUM、バックアップ保持を運用要件に合わせて管理する。
 
+同梱のホスト（`packages/host`）は`secure_delete=ON`で開き、忘却を含むwrite transactionのcommit後と起動時のreconcile後に、writerの順番で`PRAGMA wal_checkpoint(TRUNCATE)`を行う（リポジトリの`spec/state-search-design.md`の決定9）。checkpointが最後まで進まなくても忘却は成功のまま扱い、`status`の`checkpointPending: true`で知らせ、次の書込みの後に再試行する。独自の`AppPort`は`checkpoint`を実装しなければ、WALの扱いはアプリの責任のまま。
+
 <a id="external-connector-acceptance"></a>
 ### 外部接続の必須受入契約
 

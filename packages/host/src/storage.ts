@@ -46,6 +46,11 @@ export interface AppPort extends StorePort {
 		intent: HostForgetIntent,
 		forgetId?: string,
 	) => void;
+	/**
+	 * 忘却を commit した後に、writer の順番で transaction の外から `PRAGMA wal_checkpoint(TRUNCATE)` を行う（決定 9）。
+	 * 完了すれば true、他の読み手などで最後まで写せなければ false。無いポートでは、WAL の扱いはアプリの責任。
+	 */
+	checkpoint?: () => Promise<boolean>;
 }
 export const hostSchemaSql = `
 CREATE TABLE IF NOT EXISTS host_schema(version INTEGER NOT NULL);
@@ -200,6 +205,17 @@ export function openStandalone(directory: string): {
 			const task = tail.then(() => {
 				demand(!closed, "STORE_CLOSED");
 				return db.transaction(() => fn(db))();
+			});
+			tail = task.catch(() => {});
+			return task;
+		},
+		checkpoint: () => {
+			const task = tail.then(() => {
+				demand(!closed, "STORE_CLOSED");
+				const row = db.query("PRAGMA wal_checkpoint(TRUNCATE)").get() as {
+					busy: number;
+				} | null;
+				return row?.busy === 0;
 			});
 			tail = task.catch(() => {});
 			return task;

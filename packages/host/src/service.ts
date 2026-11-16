@@ -84,6 +84,9 @@ export class MemoryHost {
 	healthy = false;
 	journalCount = 0;
 	activeOperation: string | undefined;
+	/** 忘却の後の checkpoint が終わっていない（決定 9）。status に出し、次の書き込みの後に再試行する。 */
+	checkpointPending = false;
+	private forgetCommitted = false;
 	readonly inFlight = new Map<string, Promise<HostResult>>();
 	private readonly handles = new Map<
 		string,
@@ -106,8 +109,9 @@ export class MemoryHost {
 	/** Wrap the owner's whole transaction, including its commit, without opening another transaction. */
 	async write<T>(fn: (db: MemoryDb) => T, recovery = false): Promise<T> {
 		const attempt = { attempted: false };
+		let value: T;
 		try {
-			return await this.options.port.write((db) => {
+			value = await this.options.port.write((db) => {
 				demand(
 					recovery || (this.healthy && (this.options.port.isReady?.() ?? true)),
 					"HOST_NOT_READY",
@@ -120,8 +124,30 @@ export class MemoryHost {
 				}
 			});
 		} catch (error) {
+			this.forgetCommitted = false;
 			if (attempt.attempted) this.failClosed();
 			throw error;
+		}
+		await this.checkpointAfterForget();
+		return value;
+	}
+	/** 忘却を含む transaction の commit の後に呼ぶ。印を付けるだけで、checkpoint は commit の後に行う。 */
+	markForgetCommitted(): void {
+		this.forgetCommitted = true;
+	}
+	/**
+	 * 忘却の後、古い本文のページを WAL に残さないため `wal_checkpoint(TRUNCATE)` を行う（決定 9、S1）。
+	 * 失敗しても忘却は成功のまま扱い、`checkpointPending` を立てて次の書き込みの後に再試行する。
+	 */
+	async checkpointAfterForget(force = false): Promise<void> {
+		if (!force && !this.forgetCommitted && !this.checkpointPending) return;
+		this.forgetCommitted = false;
+		const checkpoint = this.options.port.checkpoint;
+		if (!checkpoint) return;
+		try {
+			this.checkpointPending = !(await checkpoint());
+		} catch {
+			this.checkpointPending = true;
 		}
 	}
 	appendForgetEntry(entry: unknown): void {
@@ -214,6 +240,8 @@ export class MemoryHost {
 				recoverIntents(this, db);
 				this.cleanup(db);
 			}, true);
+			// ジャーナルの再適用や回復で消した本文を WAL に残さない（決定 9）。
+			await this.checkpointAfterForget(true);
 			this.healthy = true;
 		} catch (error) {
 			this.failClosed();
@@ -287,6 +315,7 @@ export class MemoryHost {
 					},
 					limits: HOST_LIMITS,
 					recovery: "reconciled",
+					checkpointPending: this.checkpointPending,
 					...this.pendingStatus(grant),
 				};
 			if (name === "context") {
