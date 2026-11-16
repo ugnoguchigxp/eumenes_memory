@@ -56,7 +56,11 @@ applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持�
 
 `eumenes-memory restore <backup.db> <directory>`はサーバーを止めて行う（動いていれば`OWNER_ALREADY_RUNNING`）。sha256を照合し、ライブの`forget.jsonl`を優先する（失われていればバックアップの写しのうち最新を使う）。ジャーナルの先頭がバックアップの`journalHead`より古ければ`JOURNAL_OLDER_THAN_BACKUP`で止める。今のDBとWALは`restore-<時刻>/`へ退避し、バックアップを`memory.db`に置いて所有者を一度起動し、schemaの検査とジャーナルの再適用を通す。退避したファイルは、`status`と`context`で確認した後に利用者が0で上書きして消す。
 
-## 予定: 検索、利用の報告、バックアップ（実装中）
+## 容量
+
+`status`は読取のgrantがあれば`capacity`を返す。許可されたscopeごとのactive件数、kind別・`trust`別のactive件数、State行の状態別件数（active/superseded/forgotten）、DBとWALのバイト数、上限ごとの使用量（`snapshotItems`・`snapshotBytes`・`maxSources`・`operationsPerEpoch`・`maxJournalEntries`）。本文は出さない。`snapshotBytes`は本文と属性の長さに1件あたり700バイトを足した見積もり。上限の70%と90%を超えると`capacityWarnings`に`{limit, level, ratio}`を出す。`snapshotItems`か`snapshotBytes`が90%以上のときは、新しいkeyの保存（`replacesItemId: null`の`remember`）だけを`plan`で`CAPACITY_NEAR_LIMIT`として止める。訂正と忘却は通す。
+
+## 予定: 検索、利用の報告、見直し（実装中）
 
 State の全文検索の設計（リポジトリの `spec/state-search-design.md`、2026-11-16 承認）に沿って、次を段階的に加える。実装済みのものは、この節ではなく上の各節に移す。
 

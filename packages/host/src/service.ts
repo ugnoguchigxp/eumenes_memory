@@ -43,6 +43,12 @@ import {
 import { backupStatus, createBackupFiles } from "./backup.ts";
 import { scrubBackups } from "./scrub.ts";
 import {
+	activeUsage,
+	capacityLimits,
+	capacityReport,
+	NEAR_LIMIT_RATIO,
+} from "./capacity.ts";
+import {
 	accessFor,
 	digest,
 	grantKey,
@@ -372,6 +378,7 @@ export class MemoryHost {
 						this.startedAt,
 					),
 					...this.pendingStatus(grant),
+					...this.capacityStatus(grant),
 				};
 			if (name === "context") {
 				demand(grant.read, "READ_NOT_PERMITTED");
@@ -435,6 +442,27 @@ export class MemoryHost {
 			schemaVersion: meta.schemaVersion,
 			journalHead: meta.journalHead,
 		};
+	}
+	/** §4D.2 の 1: 件数、大きさ、使用率と警告。本文は出さない。read の grant の scope だけを数える。 */
+	capacityStatus(grant: Grant): Record<string, unknown> {
+		if (!grant.read) return {};
+		return this.options.port.read((db) =>
+			capacityReport({
+				db,
+				principal: this.config.principal,
+				scopeKeys: grant.scopeKeys.filter((s) =>
+					this.config.scopeKeys.includes(s),
+				),
+				limits: capacityLimits((name) => this.limit(name)),
+				journalEntries: this.journalCount,
+				operationsThisEpoch: (
+					db
+						.query("SELECT count(*) AS n FROM host_operation WHERE epoch=?")
+						.get(this.epoch) as { n: number }
+				).n,
+				databasePath: this.options.port.databasePath,
+			}),
+		);
 	}
 	pendingStatus(grant: Grant): { pendingOperations: number } {
 		if (!grant.read) return { pendingOperations: 0 };
@@ -979,6 +1007,21 @@ export class MemoryHost {
 			throw new HostError("INVALID_PROPOSAL");
 		}
 		this.validatePlanDependencies(parsed);
+		// §4D.2 の 2: 90% を超えたら新しい key の保存だけを止める。訂正と忘却は通す（容量を減らす操作を止めない）。
+		if (
+			parsed.changes.some((c) =>
+				c.actions.some(
+					(a) => a.type === "remember" && a.replacesItemId === null,
+				),
+			)
+		) {
+			const usage = activeUsage(db, this.config.principal, snapshot.scopes);
+			demand(
+				usage.items < NEAR_LIMIT_RATIO * this.limit("snapshotItems") &&
+					usage.bytes < NEAR_LIMIT_RATIO * this.limit("snapshotBytes"),
+				"CAPACITY_NEAR_LIMIT",
+			);
+		}
 		const evidence = p.evidence.map((e) => {
 			const row = this.sourceByHandle(db, e.sourceHandle, grant);
 			demand(row.scope_key === p.scopeKey, "SOURCE_SCOPE_MISMATCH");

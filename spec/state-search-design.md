@@ -817,3 +817,6 @@ search: z.object({
 | S5 | 同じ submissionId で provenance が違う登録は `SUBMISSION_ID_CONFLICT` とした | ［事実］ | 同じ出典の再送だけを同じ結果にするため |
 | S5 | plan の検査の順は、本人確認済みの保護（`CONFIRMED_WRITE_NOT_PERMITTED`）を先、`EXTERNAL_EVIDENCE_NOT_ALLOWED` を後にした | ［事実］ | 既存の R03 を変えずに通すため（T-POI-8） |
 | S5 | T-POI-3（根拠が混在する item）は、ホストの API では作れない（外部の根拠で inferred の item に根拠を足すことは T-POI-5 で拒否される）ため、2 つ目の出典の結び付きを試験で直接作って規則を確かめた | ［事実］ | ― |
+| S6 | 容量の集計は、ホストが核の表（`memory_state_item`・`memory_state_attribute`・`memory_state_evidence`）を集計の SQL で数える。本文は返さない | ［事実］ | 核に集計用の公開関数を足さず、公開面を変えないため |
+| S6 | `snapshotBytes` の使用量は本文と属性の長さ（UTF-8 のバイト）に 1 件 700 バイトを足した見積もり。実際の snapshot の JSON の大きさとは一致しない | ［推定］ | 90% の判定は保守側に寄せる |
+| S6 | 90% の判定は plan の時点で、許可された scope 全体の active 件数と見積もりバイトで行う（新しい key の `remember` を 1 つでも含む plan を止める） | ［事実］ | ― |
