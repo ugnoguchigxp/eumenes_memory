@@ -26,6 +26,8 @@ export interface SourceRow {
 	origin: "agent_inferred" | "user_confirmed" | "user_edited";
 	created_at: number;
 	forgotten: number;
+	/** host schema 3 から。 */
+	provenance?: string;
 }
 export function sourceState(
 	row: SourceRow,
@@ -81,11 +83,23 @@ export function listItems(
 	return items;
 }
 export function stateFingerprint(
-	items: readonly (StateItem & { evidenceStatus?: string })[],
+	items: readonly (StateItem & {
+		evidenceStatus?: string;
+		trust?: string;
+		expiresOn?: string;
+	})[],
 ): string {
 	return digest(
 		items
-			.map(({ evidenceStatus: _status, ...state }) => state)
+			// ホストが計算して付ける表示用の値は、State の指紋に入れない。
+			.map(
+				({
+					evidenceStatus: _status,
+					trust: _trust,
+					expiresOn: _expires,
+					...state
+				}) => state,
+			)
 			.sort((a, b) => (a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0)),
 	);
 }

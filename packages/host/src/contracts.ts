@@ -1,6 +1,23 @@
 import { z } from "zod";
 
 export const HOST_VERSION = 1;
+/** 出典の由来（§4B.3）。`user_message` と `agent_reasoning` 以外は外部由来として扱う。 */
+export const PROVENANCES = [
+	"user_message",
+	"agent_reasoning",
+	"tool_result",
+	"web",
+	"other_agent",
+	"import",
+	"unknown",
+] as const;
+export type Provenance = (typeof PROVENANCES)[number];
+export const INTERNAL_PROVENANCES: readonly Provenance[] = Object.freeze([
+	"user_message",
+	"agent_reasoning",
+]);
+/** item の信頼度（§4B.3）。順位には使わない。 */
+export type Trust = "confirmed" | "inferred" | "external";
 export const HOST_LIMITS = Object.freeze({
 	requestBytes: 16 * 1024 * 1024,
 	responseBytes: 2 * 1024 * 1024,
@@ -90,6 +107,8 @@ export const methodSchemas = {
 			scopeKey: id,
 			content: z.string().min(1),
 			kind: z.enum(["text", "record"]).default("text"),
+			/** 出典の由来。Grok Bot の自己申告で、実行環境は確かめない（決定 12）。信頼を下げる方向にだけ効く。 */
+			provenance: z.enum(PROVENANCES).default("unknown"),
 		})
 		.strict(),
 	context: z

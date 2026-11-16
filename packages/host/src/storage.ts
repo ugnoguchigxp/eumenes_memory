@@ -81,6 +81,8 @@ CREATE TABLE IF NOT EXISTS host_forget_intent(id TEXT PRIMARY KEY, payload TEXT 
 export const hostSchemaUpgrades: readonly string[] = Object.freeze([
 	// 2: 今の epoch の受領記録を保持期限で消したことの記録（決定 8、S2）。
 	`CREATE TABLE IF NOT EXISTS host_operation_horizon(epoch TEXT PRIMARY KEY, pruned_before INTEGER NOT NULL);`,
+	// 3: 出典の由来（決定 12、S5）。版上げ前の出典は unknown（外部由来として扱う）。
+	`ALTER TABLE host_source ADD COLUMN provenance TEXT NOT NULL DEFAULT 'unknown';`,
 ]);
 export const HOST_SCHEMA_VERSION = hostSchemaUpgrades.length + 1;
 /** 版 1 の表を作り、足りない版上げを適用する。本体より新しい版は `HOST_SCHEMA_MISMATCH`。 */

@@ -1,7 +1,13 @@
 import type { StateItem, StateSubject } from "eumenes-memory";
 
 export type EvidenceStatus = "current" | "stale" | "missing" | "unverified";
-export type HostItem = StateItem & { evidenceStatus: EvidenceStatus };
+export type HostItem = StateItem & {
+	evidenceStatus: EvidenceStatus;
+	/** ホストが出典の由来から計算する信頼度（§4B.3）。 */
+	trust?: "confirmed" | "inferred" | "external";
+	/** 外部由来の item だけ。自動で停止する日（UTC の日付、§4D.2a）。 */
+	expiresOn?: string;
+};
 
 export type ModelItem = Pick<
 	StateItem,

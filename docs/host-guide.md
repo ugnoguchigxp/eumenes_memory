@@ -41,6 +41,8 @@ Stateは`assertUserState`へsubject、kind、semanticKey、値、出典の本文
 
 `user_confirmed`／`user_edited`は本人由来の明示操作、`agent_inferred`はホストの推定。推定を本人確認と表示しない。同値の本人確認はoriginを昇格し、同値の推定では降格しない。`validity`や期限は保存するだけで、現在性はホストが`classifyValidity`等で判定する。
 
+
+同梱のホストは出典に由来（`provenance`、host schema 3。版上げ前の出典は`unknown`）を記録し、itemの根拠の出典からitemの信頼度（`trust`）を計算して表示する。由来は自己申告なので、`user_message`と申告された外部の文は`inferred`として扱われうる。保証されるのは、どの申告でもconfirmedに上がらないことと、`web`などと申告された出典の記憶が確実に`external`になることだけである。
 ## 忘却とバックアップ復元
 
 `planForget`は読取のみ。plan・journalへの追記・`applyForget`は、単一Writerの同じwrite transactionの中で行う。entryの`seq`/`prevHash`はplan時点のDBのheadの次なので、planとapplyの間に別の忘却が入ると、適用できないentryがjournalに残り、次のreconcileが`JOURNAL_CHAIN_BROKEN`になる。追記では完全な書込み・fsyncを確認してから`applyForget`を呼ぶ。journalへの初回作成・置換ではdirectoryのfsyncも必要。fsyncの間はWriterを保持する。journalの書込みはDBのrollbackでは戻らない。journal後・DB適用前の失敗では利用を止め、起動時reconcileで回復する。

@@ -29,6 +29,9 @@ import {
 	type HostResult,
 	type Method,
 	type MethodParams,
+	INTERNAL_PROVENANCES,
+	type Provenance,
+	type Trust,
 } from "./contracts.ts";
 import { join } from "node:path";
 import { realpathSync } from "node:fs";
@@ -546,7 +549,9 @@ export class MemoryHost {
 		if (prior) {
 			demand(!prior.forgotten && prior.content !== null, "SOURCE_UNAVAILABLE");
 			demand(
-				prior.content === p.content && prior.kind === p.kind,
+				prior.content === p.content &&
+					prior.kind === p.kind &&
+					(prior.provenance ?? "unknown") === p.provenance,
 				"SUBMISSION_ID_CONFLICT",
 			);
 			return this.sourceResult(prior, grant);
@@ -590,9 +595,10 @@ export class MemoryHost {
 			origin: "agent_inferred",
 			created_at: this.clock(),
 			forgotten: 0,
+			provenance: p.provenance,
 		};
 		db.query(
-			"INSERT INTO host_source(id,client_id,submission_id,scope_key,kind,content,ref,origin,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+			"INSERT INTO host_source(id,client_id,submission_id,scope_key,kind,content,ref,origin,created_at,provenance) VALUES(?,?,?,?,?,?,?,?,?,?)",
 		).run(
 			id,
 			grant.clientId,
@@ -603,6 +609,7 @@ export class MemoryHost {
 			row.ref,
 			row.origin,
 			row.created_at,
+			p.provenance,
 		);
 		const dependency = registerExternalDependents(db, {
 			contractVersion: 1,
@@ -639,6 +646,7 @@ export class MemoryHost {
 			sourceHandle: handle,
 			scopeKey: row.scope_key,
 			origin: row.origin,
+			provenance: row.provenance ?? "unknown",
 			byteLength: Buffer.byteLength(row.content ?? ""),
 			source: JSON.parse(row.ref),
 		};
@@ -742,7 +750,27 @@ export class MemoryHost {
 				: !statuses.length || statuses.includes("unverified")
 					? "unverified"
 					: "current";
-		return { ...item, evidenceStatus };
+		return { ...item, evidenceStatus, trust: this.trust(db, item) };
+	}
+	/**
+	 * §4B.3: confirmed は本人確認済みの origin。inferred は根拠の出典がすべて user_message か agent_reasoning。
+	 * それ以外（外部由来、由来の分からない出典、ホストの出典に結び付かない根拠）は external。
+	 */
+	trust(db: MemoryDb, item: StateItem): Trust {
+		if (item.origin === "user_confirmed" || item.origin === "user_edited")
+			return "confirmed";
+		const rows = db
+			.query(
+				"SELECT s.provenance AS provenance FROM host_state_source l JOIN host_source s ON s.id=l.source_id WHERE l.item_id=?",
+			)
+			.all(item.itemId) as { provenance: string }[];
+		return rows.length > 0 &&
+			rows.length >= item.evidence.length &&
+			rows.every((r) =>
+				INTERNAL_PROVENANCES.includes(r.provenance as Provenance),
+			)
+			? "inferred"
+			: "external";
 	}
 	fingerprint(db: MemoryDb, items: readonly StateItem[]): string {
 		const versions = [...items]
@@ -1001,6 +1029,32 @@ export class MemoryHost {
 				const item = snapshot.items.find((x) => x.itemId === id);
 				if (item?.origin === "user_confirmed" || item?.origin === "user_edited")
 					demand(grant.confirmedWrites, "CONFIRMED_WRITE_NOT_PERMITTED");
+			}
+			// §4B.3 の 4: 外部由来の根拠だけでは、行動を縛る記憶を保存せず、外部でない記憶も置き換えない。
+			// 本人確認済みの保護（CONFIRMED_WRITE_NOT_PERMITTED）を先に検査する。
+			const remembered = change.actions[0];
+			const proof = evidence.find((x) => x.actionIndex === change.actionIndex);
+			if (remembered?.type === "remember" && proof) {
+				const source = db
+					.query("SELECT provenance FROM host_source WHERE id=?")
+					.get(proof.sourceId) as { provenance: string } | null;
+				if (
+					!INTERNAL_PROVENANCES.includes(
+						(source?.provenance ?? "unknown") as Provenance,
+					)
+				) {
+					demand(
+						remembered.kind !== "constraint",
+						"EXTERNAL_EVIDENCE_NOT_ALLOWED",
+					);
+					const replaced = remembered.replacesItemId
+						? snapshot.items.find((x) => x.itemId === remembered.replacesItemId)
+						: undefined;
+					demand(
+						!replaced || this.trust(db, replaced) === "external",
+						"EXTERNAL_EVIDENCE_NOT_ALLOWED",
+					);
+				}
 			}
 		}
 		for (const indexes of parsed.groups) {

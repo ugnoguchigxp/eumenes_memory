@@ -28,6 +28,8 @@ macOS/Linuxの同じOSユーザー向け。所有者は明示的に起動し、U
 
 すべての操作はJSON入力（`--input file.json`または`--input -`）・JSON出力。source→context→plan→applyを使う。source登録と事実の採用を区別する。contextは原文の指示を実行権限として扱わず、origin、主体、期間、revision、取得範囲、提案schemaと指示を返す。呼出し元モデルが意味を判断し、ホストは出典と変更の契約を検査する。
 
+sourceは任意の`provenance`（`user_message`・`agent_reasoning`・`tool_result`・`web`・`other_agent`・`import`・`unknown`、既定`unknown`）を受ける。呼出し側の自己申告で、ホストは確かめない。由来は信頼を下げる方向にだけ効き、どの申告でもoriginは`agent_inferred`のまま。context・readのitemには`trust`（`confirmed`: 本人確認済み、`inferred`: 根拠がすべて`user_message`か`agent_reasoning`、`external`: それ以外）が付く。外部由来の根拠だけでは`constraint`を保存できず、外部由来でないitemを置き換えられない（`EXTERNAL_EVIDENCE_NOT_ALLOWED`）。
+
 planのproposalはdecision/relations/groups、evidenceはactionIndex/sourceHandle/startByte/endByte。引用は原文の連続した1024 UTF-8 bytes以内。複数回出現する文も位置を明示し、無効な引用は修正せず拒否する。訂正はsupersedesとreplacesItemId、意味の異なる共存はcoexists、未解決の矛盾はconflictsとclarificationで表す。
 
 applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持し、応答を失ったら同じIDでoperationを照会・applyを再送する。結果照会を古い計画の拒否より先に行うため、成功済み操作を再実行しない。古いDB復元で操作記録が不在の旧世代はindeterminateになり、未実行と断定しない。操作の受領記録は30日保持し、今の起動世代（epoch）の記録も30日で消す。消した後に来た古いIDには`indeterminate`/`OPERATION_RECEIPT_EXPIRED`を返し、再実行しない。1世代の記録の上限（`operationsPerEpoch`）は保持中の記録で数えるので、古い記録を消せば回復する。
