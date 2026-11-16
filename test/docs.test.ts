@@ -41,3 +41,22 @@ describe("living docs", () => {
 		});
 	}
 });
+
+describe("state search design (S0, decision 1)", () => {
+	test("full-system-design no longer lists full-text search as a non-goal and points to the design", () => {
+		const text = readFileSync(join(root, "spec/full-system-design.md"), "utf8");
+		const nonGoals = text.split("\n非ゴール\n")[1]?.split("\n禁止\n")[0] ?? "";
+		expect(nonGoals).not.toContain("embedding / ベクトル検索、全文検索");
+		expect(nonGoals).toContain("state-search-design.md");
+		expect(existsSync(join(root, "spec/state-search-design.md"))).toBe(true);
+	});
+	test("the design records all twelve approved decisions", () => {
+		const text = readFileSync(
+			join(root, "spec/state-search-design.md"),
+			"utf8",
+		);
+		const decisions = text.split("### 10.1 決定事項")[1]?.split("### 10.2")[0];
+		for (let n = 1; n <= 12; n += 1)
+			expect(decisions).toMatch(new RegExp(`\\n\\| ${n} \\|`));
+	});
+});

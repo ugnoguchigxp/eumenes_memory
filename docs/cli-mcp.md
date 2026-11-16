@@ -46,6 +46,15 @@ applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持�
 
 公開ツールはmemory_source/context/read/plan/apply/operation/status。公式MCP SDK 2.4.0のstdioで、接続プロセスは所有者へ中継する。接続を一つ閉じても所有者と他のクライアントは動く。stdoutに診断ログを混ぜない。MCP側の追加モデルやAPIキーは不要。
 
+## 予定: 検索、利用の報告、バックアップ（実装中）
+
+[State の全文検索の設計](../spec/state-search-design.md)（2026-11-16 承認）に沿って、次を段階的に加える。実装済みのものは、この節ではなく上の各節に移す。
+
+- `search`（MCP `memory_search`）: 許可された active な State を全文検索し、最大 20 件、既定 32 KiB までを返す読み取り専用の操作。続きの cursor は出さない。
+- `use`（MCP `memory_use`）: 回答や行動に採用した item を報告し、外部由来の item の期限（最後の利用から 90 日）を延ばす。
+- `backup` / `restore`: `VACUUM INTO` によるバックアップと、ジャーナルを再適用する復元（CLI のみ。MCP には出さない）。
+- `review` / `reactivate` / `expire`: 見直しの一覧（20 件まで）、停止した item の再有効化、外部由来の item の自動停止（CLI のみ）。
+
 ## 自然文CLIとモデル
 
 自然文planは`{scopeKey,message,sourceHandle}`、recallは`{scopeKey,message}`。利用者がprofileへmodelCommandとmodelDailyCallsを明示した場合のみ、外部Completeを1回呼び出す。既存の計画parser、意味指示、根拠選択を共用し、発話別の条件分岐を持たない。モデルなしの構造化操作も利用できる。

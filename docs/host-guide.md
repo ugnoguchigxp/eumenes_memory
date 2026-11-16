@@ -71,6 +71,10 @@ World、Consolidation、他エージェント、索引・キャッシュ等がMe
 - `applyForget`に渡すのは`planForget`が返したentryだけ。入力はJSON由来のplainなデータにする（Proxyやgetterは検査対象外）。
 - memory recordを出典に引用するときは`representation:"text"`を必ず付ける（省略は契約エラー）。
 
+## 予定: 検索、バックアップ、容量（実装中）
+
+[State の全文検索の設計](../spec/state-search-design.md)（2026-11-16 承認）に沿って、ホストに次を加える。忘却の後の `wal_checkpoint(TRUNCATE)`、操作の受領記録の 30 日保持（今の epoch も対象）、`VACUUM INTO` のバックアップと洗い直し、出典の由来（`provenance`）と item の信頼度（`trust`）、容量の監視、外部由来の item の自動停止と再利用による延長、State の全文検索（核の migration 0009）。各項目は実装した段階で本書の該当節に移す。
+
 ## 再生成資料と容量
 
 `retainRecord`は明示した資料だけを保持する。読取で期限を延長せず、回答等へ採用したrevisionを`useRetainedRecord`で記録して未使用期限を延長する。State・外部依存・送付記録のある資料は更新やevictを拒否するため、所有者が先に依存を解決する。`retainRecord`したoriginを`captureRecord`しても、そのrecordはretentionの対象のまま（送付記録が無ければevictで消える）。永続化するときは、先に`recordId`を指定してevictしてから`captureRecord`する。通常Recordsはevictしない。忘却済み資料の再captureを墓標で拒否する。
