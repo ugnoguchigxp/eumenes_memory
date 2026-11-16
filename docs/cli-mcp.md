@@ -80,11 +80,16 @@ applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持�
 - 応答の`snapshotId`は返したitemだけを含む不完全なsnapshot（検索用の枠で32個、5分、古いものから捨てる）。`read`（itemId）と`use`に使えるが、`plan`には使えない（`COMPLETE_SNAPSHOT_REQUIRED`）。
 - 索引の検査や作り直しに失敗したときは、`search`だけが`failed / SEARCH_INDEX_UNAVAILABLE`（終了コード1）になり、ほかの操作は動く。
 
-## 予定: 見直し（実装中）
+## 見直しの一覧
 
-State の全文検索の設計（リポジトリの `spec/state-search-design.md`、2026-11-16 承認）に沿って、次を加える。実装済みのものは、この節ではなく上の各節に移す。
+`eumenes-memory --profile <profile.json> review [--input <file|->]`（`{"scopeKeys"?: [...]}`、CLIのみ、読取のgrant）は、見直したほうがよいitemのIDと鍵（scopeKey、subject、kind、semanticKey、status、revision、origin）と理由を20件まで返す読み取り専用の操作。本文は返さず、cursorも出さない（`moreAvailable`だけ）。理由は次の4つ。
 
-- `review`: 見直しの一覧（20 件まで、CLI のみ）。
+- `external_stopped`: `trust: external`で停止したもの（inactive）
+- `external_expiring`: `trust: external`で、自動停止まで14日以内のもの（`expiresOn`つき）
+- `validity_ended`: 成立期間（`validUntilMs`）が過ぎたもの
+- `inferred_unconfirmed`: `agent_inferred`で、作成から180日を超え、一度も確認や訂正をされていないもの
+
+並びは期限の早い順。一覧を見て忘れるときは、通常の`plan`と`apply`でforgetする（特別な削除の経路は無い）。自動では忘れない。
 
 ## 自然文CLIとモデル
 

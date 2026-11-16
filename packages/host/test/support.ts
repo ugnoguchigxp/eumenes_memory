@@ -232,3 +232,24 @@ export function leakedTrigrams(
 	}
 	return found;
 }
+/** 読み取りで変わってはならない値（State の変更の seq と、ホストの表の行数）。 */
+export function writeMarkers(h: Fixture) {
+	return h.owner.port.read((db) => ({
+		seq: (db.query("SELECT value FROM memory_seq").get() as { value: number })
+			.value,
+		tables: Object.fromEntries(
+			[
+				"host_operation",
+				"host_plan",
+				"host_source",
+				"host_state_source",
+				"host_forget_intent",
+				"memory_state_item",
+				"memory_state_event",
+			].map((t) => [
+				t,
+				(db.query(`SELECT count(*) AS n FROM ${t}`).get() as { n: number }).n,
+			]),
+		),
+	}));
+}

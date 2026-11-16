@@ -251,6 +251,11 @@ test("CLI and two independent MCP processes share one owner; closing one connect
 		expect(
 			(viaMcp["items"] as { value: { text: string } }[])[0]!.value.text,
 		).toBe(updatedText);
+		// S10: review は CLI だけ（MCP の道具一覧には無い）。
+		expect(await command(["--profile", profile, "review"])).toMatchObject({
+			code: 0,
+			result: { status: "found", items: [] },
+		});
 		const corrected = await tool(a, "context");
 		expect(
 			(corrected["items"] as { value: { text: string } }[])[0]!.value.text,

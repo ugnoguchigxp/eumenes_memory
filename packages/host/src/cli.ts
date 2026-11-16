@@ -19,6 +19,7 @@ const usage = `Usage:
   eumenes-memory --profile <profile.json> mcp
   eumenes-memory --profile <profile.json> status|source|context|search|read|plan|apply|operation|use|recall|recall-size --input <file|->
   eumenes-memory --profile <profile.json> backup|expire
+  eumenes-memory --profile <profile.json> review [--input <file|->]   (read-only review list, at most 20)
   eumenes-memory --profile <profile.json> reactivate --input <file|->   ({"itemId": ...}, admin)
 All operation output is JSON. plan validates only; apply performs mutations.
 `;

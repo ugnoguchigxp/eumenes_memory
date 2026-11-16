@@ -6,6 +6,7 @@ import {
 	items,
 	plan,
 	remember,
+	writeMarkers,
 	type Fixture,
 } from "./support.ts";
 
@@ -21,28 +22,6 @@ async function fill(h: Fixture, n: number, from = 0) {
 			).result.status,
 		).toBe("completed");
 }
-/** 読み取りで変わってはならない値（State の変更の seq と、ホストの表の行数）。 */
-export function writeMarkers(h: Fixture) {
-	return h.owner.port.read((db) => ({
-		seq: (db.query("SELECT value FROM memory_seq").get() as { value: number })
-			.value,
-		tables: Object.fromEntries(
-			[
-				"host_operation",
-				"host_plan",
-				"host_source",
-				"host_state_source",
-				"host_forget_intent",
-				"memory_state_item",
-				"memory_state_event",
-			].map((t) => [
-				t,
-				(db.query(`SELECT count(*) AS n FROM ${t}`).get() as { n: number }).n,
-			]),
-		),
-	}));
-}
-
 test("T-CAPY-1 status reports capacity without memory text", async () => {
 	const h = await fixture({ scopes: ["personal", "work"] });
 	await remember(h, SECRET, undefined, { provenance: "web" });
@@ -136,6 +115,8 @@ test("T-CAPY-6 reads do not write", async () => {
 		});
 		await h.call("status");
 		// S9: search も読み取りだけ（同じ条件で検査する）。
+		// S10: review も読み取りだけ。
+		expect((await h.call("review")).status).toBe("found");
 		const found = await h.call("search", { query: "記憶その" });
 		expect(found.status).toBe("found");
 		await h.call("read", {

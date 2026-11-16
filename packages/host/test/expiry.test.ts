@@ -121,6 +121,11 @@ test("T-EXP-1 external item stops after 90 days", async () => {
 		status: "found",
 		items: [],
 	});
+	// S10: 見直しの一覧には「停止したもの」として出る。
+	expect(await h.call("review")).toMatchObject({
+		status: "found",
+		items: [{ itemId: item.itemId, reason: "external_stopped" }],
+	});
 	// 停止は忘却ではない（ジャーナルを使わない）。
 	expect(h.host.journalCount).toBe(0);
 });
@@ -523,4 +528,12 @@ test("T-CAPY-7 no automatic forget", async () => {
 		q(h, "SELECT item_id FROM memory_state_item WHERE status='forgotten'"),
 	).toEqual([]);
 	expect((await items(h)).length).toBe(1);
+	// S10: 停止したものは見直しの一覧に出るだけで、忘れるかどうかは利用者が決める。
+	expect((await h.call("review"))["items"]).toContainEqual(
+		expect.objectContaining({
+			itemId: item.itemId,
+			reason: "external_stopped",
+		}),
+	);
+	expect(h.host.journalCount).toBe(0);
 });

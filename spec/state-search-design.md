@@ -848,3 +848,8 @@ search: z.object({
 | S9 | T-MCP-1 の「8 個目」は、S6b で `memory_use` を足したため 9 個目になった。`memory_search` の annotations は readOnlyHint true、idempotentHint true、destructiveHint false | ［事実］ | S6b の記録のとおり |
 | S9 | 短い語と長い語が混在するときの `query.mode` は `fts`（索引で候補を出し、短い語は instr で絞る） | ［事実］ | §4.2 の出力例の `mode` の値が 2 通りだけのため |
 | S9 | ホスト経由の bench は `bench/search-host.ts` で測った（`spec/search-bench-results.md` §7） | ［事実］ | S8 で未測定だった項目 |
+| S10 | `review` はホストのメソッド（`CLI_ONLY_METHODS` に入れ、MCP の道具にはしない）で、読取の grant で呼べる。入力は `{ scopeKeys? }` だけ（件数は 20 件で固定、`limit` は受け付けない）。返すのは ID と鍵（scopeKey、subject、kind、semanticKey、status、revision、origin）と理由（`external_stopped`、`external_expiring`、`validity_ended`、`inferred_unconfirmed`）で、本文は返さない | ［事実］ | §4D.2 の「ID と鍵を返す」「CLI の review」 |
+| S10 | 「停止したもの」は、自動停止と利用者の停止を区別せず、`trust: external` の inactive な item をすべて出す | ［事実］ | 自動停止の記録（`host_operation` の `host:expire`）は受領の保持期間（30 日）で消えるため、区別の根拠にならない |
+| S10 | 「一度も確認や訂正をされていない」は、origin が `agent_inferred` のままで revision が 1 のもの、と読んだ（確認は origin を上げ、編集は revision を上げる。置き換えは新しい item になり、作成日から数え直す）。出典が `user_message` でも origin は `agent_inferred` のままなので一覧に出る | ［事実］（コードの規則）／読み方は［推論］ | ― |
+| S10 | 1 つの item が複数の条件に当たるときは、停止 → 停止間近 → 成立期間 → 推論の順で最初の 1 つだけを理由にする。並びは期限の早い順（停止したものが先）、同じなら itemId | ［事実］ | 決定的にするため |
+| S10 | T-CAPY-6 と T-CAPY-7、T-EXP-1 の見直しの一覧の部分は、既存の試験に足した。T-CAPY-6 の検査の補助（`writeMarkers`）は `test/support.ts` に移した | ［事実］ | 試験ファイルからの import で試験が二重に走るのを避けるため |

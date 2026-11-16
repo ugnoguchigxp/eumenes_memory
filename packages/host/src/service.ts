@@ -44,6 +44,7 @@ import {
 } from "./storage.ts";
 import { backupStatus, createBackupFiles } from "./backup.ts";
 import { runSearch } from "./search.ts";
+import { runReview } from "./review.ts";
 import { scrubBackups } from "./scrub.ts";
 import {
 	EXPIRE_PLAN_ID,
@@ -409,6 +410,10 @@ export class MemoryHost {
 			if (name === "context") {
 				demand(grant.read, "READ_NOT_PERMITTED");
 				return this.context(grant, params as MethodParams<"context">);
+			}
+			if (name === "review") {
+				demand(grant.read, "READ_NOT_PERMITTED");
+				return runReview(this, grant, params as MethodParams<"review">);
 			}
 			if (name === "search") {
 				demand(grant.read, "READ_NOT_PERMITTED");

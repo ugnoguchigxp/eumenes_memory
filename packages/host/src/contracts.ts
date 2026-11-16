@@ -182,6 +182,11 @@ export const methodSchemas = {
 			maxBytes: z.number().int().min(16384).max(65536).default(32768),
 		})
 		.strict(),
+	/**
+	 * 見直しの一覧（§4D.2 の 3、S10）。CLI だけ（MCP には出さない）、読み取り専用、20 件まで、cursor なし。
+	 * 本文は返さず、ID と鍵と理由だけを返す。
+	 */
+	review: z.object({ scopeKeys: scopes.optional() }).strict(),
 	/** 管理用（admin）。期限を過ぎた外部由来の item を停止する（1 回 500 件まで）。MCP には出さない。 */
 	expire: z.object({}).strict(),
 	/** 管理用（admin）。停止した item を active に戻し、期限を数え直す。MCP には出さない。 */
@@ -190,6 +195,7 @@ export const methodSchemas = {
 /** CLI からだけ呼べる管理用の操作。MCP の道具にしない。 */
 export const CLI_ONLY_METHODS: readonly string[] = Object.freeze([
 	"backup",
+	"review",
 	"expire",
 	"reactivate",
 ]);
