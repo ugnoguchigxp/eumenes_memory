@@ -22,13 +22,21 @@ export function packageFiles(root: string, prefix = ""): string[] {
 		)
 		.sort();
 }
-export function validateManifest(root: string): string[] {
+export function validateManifest(
+	root: string,
+	expectedSourceHash?: string,
+): string[] {
 	const file = join(root, "dist/release-manifest.json");
 	if (!existsSync(file)) return ["Missing release manifest"];
 	const manifest = JSON.parse(readFileSync(file, "utf8"));
 	if (manifest.version !== 1 || !/^[a-f0-9]{64}$/.test(manifest.sourceHash))
 		return ["Invalid release manifest"];
 	const problems: string[] = [];
+	if (
+		expectedSourceHash !== undefined &&
+		manifest.sourceHash !== expectedSourceHash
+	)
+		problems.push("Artifact source hash mismatch");
 	for (const [path, digest] of Object.entries(
 		manifest.files as Record<string, string>,
 	)) {
@@ -126,9 +134,19 @@ export async function verifyPackage(root: string): Promise<unknown> {
 		);
 		const problems = [
 			...validatePackage(packageDir),
-			...validateManifest(packageDir),
+			...validateManifest(packageDir, hash),
 		];
 		if (problems.length) throw Error(problems.join("\n"));
+		// A self-consistent artifact built from another source must never satisfy this build's verification.
+		const different = createHash("sha256")
+			.update("different source:" + hash)
+			.digest("hex");
+		if (
+			!validateManifest(packageDir, different).includes(
+				"Artifact source hash mismatch",
+			)
+		)
+			throw Error("Source drift negative control escaped");
 		const consumer = join(scratch, "consumer");
 		copyFileSync(
 			join(root, "scripts/package-consumer.mjs"),
@@ -183,6 +201,7 @@ export async function verifyPackage(root: string): Promise<unknown> {
 				"missing export rejected",
 				"missing guide rejected",
 				"modified artifact rejected",
+				"artifact from different source rejected",
 			],
 			nodeModulesResolvedOutsideSource: relative(root, consumer).startsWith(
 				"..",

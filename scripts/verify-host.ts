@@ -86,8 +86,17 @@ return db.no_such_driver_field;
 		mkdirSync(unpack);
 		await runHostCommand(["tar", "-xzf", artifact, "-C", unpack], scratch);
 		const archived = join(unpack, "package");
-		const problems = validateManifest(archived);
+		const problems = validateManifest(archived, hash);
 		if (problems.length) throw Error(problems.join("\n"));
+		const different = createHash("sha256")
+			.update("different source:" + hash)
+			.digest("hex");
+		if (
+			!validateManifest(archived, different).includes(
+				"Artifact source hash mismatch",
+			)
+		)
+			throw Error("Source drift negative control escaped");
 		const installed = join(scratch, "node_modules/eumenes-memory-host");
 		const manifest = JSON.parse(
 			readFileSync(join(archived, "dist/release-manifest.json"), "utf8"),
@@ -174,7 +183,10 @@ return db.no_such_driver_field;
 			tests: tests.trim(),
 			consumer: (output + error).trim(),
 			runtimeDependencies: runtime.packages,
-			negativeControls: ["modified artifact rejected"],
+			negativeControls: [
+				"modified artifact rejected",
+				"artifact from different source rejected",
+			],
 			application: process.env["EUMENES_CHECKOUT"]
 				? "actual checkout fixture tested"
 				: "separate opt-in EUMENES_CHECKOUT test required",
