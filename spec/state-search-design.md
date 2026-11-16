@@ -838,3 +838,13 @@ search: z.object({
 | S8 | 短い語の絞り込みは `instr(lower(文書), lower(語))`。SQLite の `lower()` は ASCII だけを畳むので、大文字と小文字を同じに扱うのは ASCII だけ（全角の ＡＢＣ は ABC と一致しない。T-Q-5 と同じ） | ［事実］ | §3.2 の trigram の `case_sensitive 0` と揃えるため |
 | S8 | bench は「索引なし」の書き込みと忘却を測れなかった（核は版 9 を要求する）。代わりに索引の更新だけ（`syncStateSearch`）の時間を測った。ホスト経由の検索は S9 の後に測る。結果は `spec/search-bench-results.md` | ［事実］ | ― |
 | S8 | bench で、10 万件のよく出る語の p95 が 113.7 ms と、§6.2 の目標（100 ms）を超えた。§6.2 の「bm25 を使わず `updated_seq` で並べる案」は、設計の変更になるので実装せず、利用者の判断が要る事項としてここと bench の結果に残した。`SEARCH_SCAN_MAX = 20000` は、走査の対象が 2 万件のときの p95 が約 81 ms で、そのまま採った | ［事実］（数値）／判断は［推論］ | 承認された順位の規則（§3.6）を独断で変えないため |
+| S9 | `search` の zod の `query` の上限は 4096 文字（転送の上限）とし、§3.7 の 256 文字と 1024 B は無害化の側で検査して `QUERY_INVALID` にした（T-Q-2 の「257 文字は QUERY_INVALID」を満たすため）。文字数はコードポイントで数える | ［事実］ | §4.2 の zod の案（`max(256)`）のままだと 257 文字が `INVALID_INPUT` になり、T-Q-2 と食い違う |
+| S9 | 制御文字の検査からタブ（U+0009）を除いた。タブは §3.8 の 2 の区切りとして扱う | ［事実］ | §3.8 の 1 と 2 が食い違うため、区切りを優先した |
+| S9 | `kinds` は `min(1)` を足した（空の配列は `INVALID_INPUT`） | ［事実］ | 空の配列を「絞り込みなし」と「0 件」のどちらと読むかが決まっていないため、拒否した |
+| S9 | `HOST_LIMITS` に `searchResults: 20`、`searchSnapshots: 32`、`searchScanMax: 20000` を足した（`status` の `limits` に出る）。試験だけが `HostOptions.limits` で `searchScanMax` を小さくできる（T-Q-4）。`searchResults` は zod の上限（20）と同じで、緩める経路は無い | ［事実］ | 公開面の変更（status の limits のキーが 3 つ増える） |
+| S9 | 検索用の snapshot は、同じ `SnapshotStore` の中で `pool: "search"` の印を付けて数える（context の枠 32 個とは別に 32 個、超えたら古いものから捨てる。TTL は同じ 5 分）。書き込みでの無効化（同じ scope）は context の snapshot と同じに効く | ［事実］ | `read` と `use` が snapshot の ID だけで両方の枠を引けるようにするため |
+| S9 | byte の予算は、返す item（`HostItem`）ごとの JSON の大きさの合計で数える（応答全体ではない）。先頭の item が `maxBytes` を超えるときは 0 件で `truncatedBy: "bytes"` を返す | ［事実］ | §3.7 のとおり。T-CAP-4 で、最大の item（escape の要らない文字で作った）が 16384 B に収まることを確かめた |
+| S9 | T-CLI-1 の「failed は 1」は、実際の CLI のプロセスで索引を壊せないため、`SEARCH_INDEX_UNAVAILABLE` の結果を `exitCode()` に通して確かめた。found（0）と blocked（4）は CLI のプロセスで確かめた | ［事実］ | ― |
+| S9 | T-MCP-1 の「8 個目」は、S6b で `memory_use` を足したため 9 個目になった。`memory_search` の annotations は readOnlyHint true、idempotentHint true、destructiveHint false | ［事実］ | S6b の記録のとおり |
+| S9 | 短い語と長い語が混在するときの `query.mode` は `fts`（索引で候補を出し、短い語は instr で絞る） | ［事実］ | §4.2 の出力例の `mode` の値が 2 通りだけのため |
+| S9 | ホスト経由の bench は `bench/search-host.ts` で測った（`spec/search-bench-results.md` §7） | ［事実］ | S8 で未測定だった項目 |

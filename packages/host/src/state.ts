@@ -117,6 +117,8 @@ export interface Snapshot {
 	itemFingerprints: ReadonlyMap<string, string>;
 	complete: boolean;
 	expiresAt: number;
+	/** `search` が作った不完全な snapshot（§4.2）。context の枠とは別に数える。 */
+	pool?: "search";
 }
 export class SnapshotStore {
 	private readonly snapshots = new Map<string, Snapshot>();
@@ -130,11 +132,22 @@ export class SnapshotStore {
 		grant: Grant,
 		policy: string,
 		fingerprint: (items: readonly StateItem[]) => string = stateFingerprint,
+		pool?: "search",
 	): Snapshot {
 		for (const [id, snapshot] of this.snapshots)
 			if (snapshot.expiresAt <= this.clock()) this.snapshots.delete(id);
-		demand(this.snapshots.size < HOST_LIMITS.snapshots, "SNAPSHOT_CAPACITY");
-		let complete = items.length <= HOST_LIMITS.snapshotItems;
+		const inPool = [...this.snapshots.values()].filter((x) => x.pool === pool);
+		if (pool === "search") {
+			// 検索用の枠（§4.2）: 32 個を超えたら、古いもの（Map の挿入順の先頭）から捨てる。
+			for (const old of inPool.slice(
+				0,
+				Math.max(0, inPool.length - HOST_LIMITS.searchSnapshots + 1),
+			))
+				this.snapshots.delete(old.id);
+		} else demand(inPool.length < HOST_LIMITS.snapshots, "SNAPSHOT_CAPACITY");
+		// 検索の snapshot は返した item だけを含むので、常に不完全（plan には使えない）。
+		let complete =
+			pool !== "search" && items.length <= HOST_LIMITS.snapshotItems;
 		let size = 0;
 		const shown: HostItem[] = [];
 		for (const item of items.slice(0, HOST_LIMITS.snapshotItems)) {
@@ -161,6 +174,7 @@ export class SnapshotStore {
 			),
 			complete,
 			expiresAt: this.clock() + HOST_LIMITS.snapshotTtlMs,
+			...(pool ? { pool } : {}),
 		};
 		this.snapshots.set(snapshot.id, snapshot);
 		return snapshot;

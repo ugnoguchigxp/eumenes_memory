@@ -46,7 +46,7 @@ applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持�
 {"command":"bun","args":["/absolute/path/node_modules/eumenes-memory-host/dist/cli.js","--profile","/tmp/shared-memory/profile.json","mcp"]}
 ```
 
-公開ツールはmemory_source/context/read/plan/apply/operation/status/use。公式MCP SDK 2.4.0のstdioで、接続プロセスは所有者へ中継する。接続を一つ閉じても所有者と他のクライアントは動く。stdoutに診断ログを混ぜない。MCP側の追加モデルやAPIキーは不要。
+公開ツールはmemory_source/context/search/read/plan/apply/operation/status/use。公式MCP SDK 2.4.0のstdioで、接続プロセスは所有者へ中継する。接続を一つ閉じても所有者と他のクライアントは動く。stdoutに診断ログを混ぜない。MCP側の追加モデルやAPIキーは不要。
 
 ## バックアップと復元
 
@@ -69,11 +69,21 @@ applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持�
 
 `context`・`read`・未適用の`plan`は期限を延ばさない。停止は所有者の起動時と、`eumenes-memory --profile <profile.json> expire`（管理用、1回500件まで）で行う。日次の`backup`と同じ定期実行から呼ぶ。停止したitemは`eumenes-memory --profile <profile.json> reactivate --input <file>`（`{"itemId": ...}`、管理用）で戻せ、戻した日から90日を数え直す。最終利用日はitemの忘却で一緒に消える。
 
-## 予定: 検索、見直し（実装中）
+## 検索
 
-State の全文検索の設計（リポジトリの `spec/state-search-design.md`、2026-11-16 承認）に沿って、次を段階的に加える。実装済みのものは、この節ではなく上の各節に移す。
+`eumenes-memory --profile <profile.json> search --input <file|->`（MCP `memory_search`）は、許可されたactiveなStateを全文検索する読み取り専用の操作（読取のgrantで呼べる。Stateの変更のseqも操作の記録も変えない）。入力は`{"query": "...", "scopeKeys"?: [...], "kinds"?: [...], "subject"?: "self"|"other:...", "limit"?: 1〜20, "maxBytes"?: 16384〜65536}`。
 
-- `search`（MCP `memory_search`）: 許可された active な State を全文検索し、最大 20 件、既定 32 KiB までを返す読み取り専用の操作。続きの cursor は出さない。
+- 件数は20件まで（既定20、設定でも緩められない）。返すitemのJSONの合計は`maxBytes`（既定32768）まで。`moreAvailable: true`は「語を足すか`kinds`/`subject`/`scopeKeys`で絞る」の合図で、続きのcursorは出さない。`truncatedBy`は`count`、`bytes`、`null`のどれか。
+- queryは256文字かつ1024 Bまで。空白（U+0020、U+3000、タブ）で語に分け、重複を除き8語まで、1語64文字まで。語はすべてANDで、FTSの構文（`OR`、`NOT`、`"`、`*`、`col:`など）はただの文字として扱う。違反は`QUERY_INVALID`、空は`QUERY_EMPTY`。
+- 3文字以上の語は索引（FTS5 trigram）で引き、3文字未満の語は本文の走査で絞る。すべての語が3文字未満で、走査の対象が20000件を超えると`QUERY_TOO_SHORT`（語を足す）。大文字と小文字はASCIIだけ同じに扱い、NFKCの正規化はしない（全角のＡＢＣはABCと一致しない）。
+- 並びは一致の度合い（bm25）、新しさ、itemIdの順。スコアの数値は返さない。itemは`context`と同じ形（`evidenceStatus`、`trust`、`expiresOn`を含む）。`current`だけが回答の根拠になる。見つからないことは、無いことの証拠ではない。
+- 応答の`snapshotId`は返したitemだけを含む不完全なsnapshot（検索用の枠で32個、5分、古いものから捨てる）。`read`（itemId）と`use`に使えるが、`plan`には使えない（`COMPLETE_SNAPSHOT_REQUIRED`）。
+- 索引の検査や作り直しに失敗したときは、`search`だけが`failed / SEARCH_INDEX_UNAVAILABLE`（終了コード1）になり、ほかの操作は動く。
+
+## 予定: 見直し（実装中）
+
+State の全文検索の設計（リポジトリの `spec/state-search-design.md`、2026-11-16 承認）に沿って、次を加える。実装済みのものは、この節ではなく上の各節に移す。
+
 - `review`: 見直しの一覧（20 件まで、CLI のみ）。
 
 ## 自然文CLIとモデル

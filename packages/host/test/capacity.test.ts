@@ -135,6 +135,13 @@ test("T-CAPY-6 reads do not write", async () => {
 			itemId: first.itemId,
 		});
 		await h.call("status");
+		// S9: search も読み取りだけ（同じ条件で検査する）。
+		const found = await h.call("search", { query: "記憶その" });
+		expect(found.status).toBe("found");
+		await h.call("read", {
+			snapshotId: found["snapshotId"],
+			itemId: (found["items"] as { itemId: string }[])[0]!.itemId,
+		});
 	}
 	expect(writeMarkers(h)).toEqual(before);
 });

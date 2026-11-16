@@ -43,6 +43,7 @@ import {
 	type AppPort,
 } from "./storage.ts";
 import { backupStatus, createBackupFiles } from "./backup.ts";
+import { runSearch } from "./search.ts";
 import { scrubBackups } from "./scrub.ts";
 import {
 	EXPIRE_PLAN_ID,
@@ -408,6 +409,10 @@ export class MemoryHost {
 			if (name === "context") {
 				demand(grant.read, "READ_NOT_PERMITTED");
 				return this.context(grant, params as MethodParams<"context">);
+			}
+			if (name === "search") {
+				demand(grant.read, "READ_NOT_PERMITTED");
+				return runSearch(this, grant, params as MethodParams<"search">);
 			}
 			if (name === "read") {
 				demand(grant.read, "READ_NOT_PERMITTED");

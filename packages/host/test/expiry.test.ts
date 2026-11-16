@@ -116,6 +116,11 @@ test("T-EXP-1 external item stops after 90 days", async () => {
 	expect((await expire(h))["expired"]).toBe(1);
 	expect(status(h, item.itemId)).toBe("inactive");
 	expect(await items(h)).toEqual([]);
+	// S9: 停止した item は search にも出ない。
+	expect(await h.call("search", { query: "ウェブで見た" })).toMatchObject({
+		status: "found",
+		items: [],
+	});
 	// 停止は忘却ではない（ジャーナルを使わない）。
 	expect(h.host.journalCount).toBe(0);
 });

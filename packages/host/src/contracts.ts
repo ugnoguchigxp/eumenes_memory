@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { STATE_KINDS } from "eumenes-memory";
 
 export const HOST_VERSION = 1;
 /** 出典の由来（§4B.3）。`user_message` と `agent_reasoning` 以外は外部由来として扱う。 */
@@ -38,6 +39,12 @@ export const HOST_LIMITS = Object.freeze({
 	modelOutputBytes: 65536,
 	modelTimeoutMs: 120000,
 	pageSize: 100,
+	/** search の件数の上限（§3.7）。設定では変えない。 */
+	searchResults: 20,
+	/** search が作る不完全な snapshot の枠（§4.2）。超えたら古いものから捨てる。 */
+	searchSnapshots: 32,
+	/** すべての語が 3 文字未満のときに走査してよい item の数（§3.7、S8 の bench で確かめた）。 */
+	searchScanMax: 20000,
 	requests: 64,
 	timeoutMs: 30000,
 });
@@ -151,6 +158,28 @@ export const methodSchemas = {
 				)
 				.min(1)
 				.max(20),
+		})
+		.strict(),
+	/**
+	 * 許可された active な State の全文検索（§4.2、S9）。読み取りだけで、件数は 20 件、応答の item は maxBytes まで。
+	 * query の 256 文字と 1024 B の上限は、`QUERY_INVALID` にするため無害化の側で検査する（zod は転送の上限だけ）。
+	 */
+	search: z
+		.object({
+			query: z.string().min(1).max(4096),
+			scopeKeys: scopes.optional(),
+			kinds: z.array(z.enum(STATE_KINDS)).min(1).max(5).optional(),
+			subject: z
+				.union([
+					z.literal("self"),
+					z
+						.string()
+						.regex(/^other:/)
+						.max(128),
+				])
+				.optional(),
+			limit: z.number().int().min(1).max(20).default(20),
+			maxBytes: z.number().int().min(16384).max(65536).default(32768),
 		})
 		.strict(),
 	/** 管理用（admin）。期限を過ぎた外部由来の item を停止する（1 回 500 件まで）。MCP には出さない。 */

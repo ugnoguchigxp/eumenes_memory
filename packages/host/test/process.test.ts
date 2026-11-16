@@ -78,11 +78,21 @@ test("CLI and two independent MCP processes share one owner; closing one connect
 			"memory_operation",
 			"memory_plan",
 			"memory_read",
+			// S9 で memory_search を足した（T-MCP-1）。
+			"memory_search",
 			"memory_source",
 			"memory_status",
 			// S6b（決定 11）で memory_use を足した。
 			"memory_use",
 		]);
+		const search = (await a.listTools()).tools.find(
+			(x) => x.name === "memory_search",
+		)!;
+		expect(search.annotations).toMatchObject({
+			readOnlyHint: true,
+			idempotentHint: true,
+			destructiveHint: false,
+		});
 		const text = "一週間に二回、陶芸を楽しみます";
 		const source = (
 			await command(["--profile", profile, "source", "--input", "-"], {
@@ -217,6 +227,30 @@ test("CLI and two independent MCP processes share one owner; closing one connect
 				})
 			).status,
 		).toBe("completed");
+		// T-CLI-1: search の終了コード（found は 0、blocked は 4）。MCP からも同じ結果を読む。
+		const found = await command(
+			["--profile", profile, "search", "--input", "-"],
+			{ query: "三回" },
+		);
+		expect(found.code).toBe(0);
+		expect(found.result).toMatchObject({
+			status: "found",
+			returned: 1,
+			moreAvailable: false,
+			truncatedBy: null,
+			query: { indexedTerms: [], scannedTerms: ["三回"], mode: "scan" },
+		});
+		expect(
+			await command(["--profile", profile, "search", "--input", "-"], {
+				query: "陶芸",
+				limit: 21,
+			}),
+		).toMatchObject({ code: 4, result: { code: "INVALID_INPUT" } });
+		const viaMcp = await tool(b, "search", { query: "陶芸を楽しみ" });
+		expect(viaMcp).toMatchObject({ status: "found", returned: 1 });
+		expect(
+			(viaMcp["items"] as { value: { text: string } }[])[0]!.value.text,
+		).toBe(updatedText);
 		const corrected = await tool(a, "context");
 		expect(
 			(corrected["items"] as { value: { text: string } }[])[0]!.value.text,
@@ -252,6 +286,10 @@ test("CLI and two independent MCP processes share one owner; closing one connect
 			).status,
 		).toBe("completed");
 		expect((await tool(b, "context"))["items"]).toEqual([]);
+		expect(await tool(b, "search", { query: "陶芸" })).toMatchObject({
+			status: "found",
+			items: [],
+		});
 
 		await a.close();
 		clients.splice(clients.indexOf(a), 1);

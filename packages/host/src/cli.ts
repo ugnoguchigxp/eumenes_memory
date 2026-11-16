@@ -17,7 +17,7 @@ const usage = `Usage:
   eumenes-memory serve <directory>
   eumenes-memory restore <backup.db> <directory>   (server must be stopped)
   eumenes-memory --profile <profile.json> mcp
-  eumenes-memory --profile <profile.json> status|source|context|read|plan|apply|operation|use|recall|recall-size --input <file|->
+  eumenes-memory --profile <profile.json> status|source|context|search|read|plan|apply|operation|use|recall|recall-size --input <file|->
   eumenes-memory --profile <profile.json> backup|expire
   eumenes-memory --profile <profile.json> reactivate --input <file|->   ({"itemId": ...}, admin)
 All operation output is JSON. plan validates only; apply performs mutations.
