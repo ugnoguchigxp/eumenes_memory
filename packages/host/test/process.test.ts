@@ -339,3 +339,229 @@ test("CLI and two independent MCP processes share one owner; closing one connect
 		rmSync(dir, { recursive: true, force: true });
 	}
 }, 20000);
+
+/** S12（T-INT）: Grok Bot のように MCP で保存と検索をし、別のプロセスの CLI で読み、訂正、忘却、再起動、バックアップと復元まで通す。 */
+async function serve(dir: string) {
+	const owner = Bun.spawn([process.execPath, cli, "serve", dir], {
+		stdout: "pipe",
+		stderr: "pipe",
+		stdin: "ignore",
+	});
+	const reader = (owner.stderr as ReadableStream<Uint8Array>).getReader();
+	const first = await reader.read();
+	expect(new TextDecoder().decode(first.value)).toContain('"ready"');
+	reader.releaseLock();
+	return owner;
+}
+async function rememberVia(
+	client: Client,
+	text: string,
+	semanticKey: string,
+	options: { provenance?: string; replaces?: string } = {},
+) {
+	const source = await tool(client, "source", {
+		submissionId: crypto.randomUUID(),
+		scopeKey: "personal",
+		content: text,
+		provenance: options.provenance ?? "user_message",
+	});
+	expect(source.status).toBe("registered");
+	const context = await tool(client, "context");
+	const planned = await tool(client, "plan", {
+		snapshotId: context["snapshotId"],
+		scopeKey: "personal",
+		proposal: {
+			decision: {
+				clarification: null,
+				actions: [
+					{
+						type: "remember",
+						subject: "self",
+						kind: "preference",
+						semanticKey,
+						value: { text, polarity: "affirmed" },
+						quote: text,
+						replacesItemId: options.replaces ?? null,
+					},
+				],
+			},
+			relations: [
+				{
+					actionIndex: 0,
+					relation: options.replaces ? "supersedes" : "new",
+					relatedItemIds: options.replaces ? [options.replaces] : [],
+				},
+			],
+			groups: [[0]],
+		},
+		evidence: [
+			{
+				actionIndex: 0,
+				sourceHandle: source["sourceHandle"],
+				startByte: 0,
+				endByte: Buffer.byteLength(text),
+			},
+		],
+	});
+	expect(planned.status).toBe("planned");
+	const applied = await tool(client, "apply", {
+		planId: planned["planId"],
+		epoch: planned["epoch"],
+		operationId: crypto.randomUUID(),
+	});
+	expect(applied.status).toBe("completed");
+	return source["sourceHandle"] as string;
+}
+type Found = {
+	itemId: string;
+	revision: number;
+	value: { text: string };
+	trust: string;
+	evidenceStatus: string;
+};
+const texts = (result: HostResult) =>
+	(result["items"] as Found[]).map((x) => x.value.text);
+
+test("T-INT Grok Bot style usage: save, search from another process, correct, forget, restart, backup and restore", async () => {
+	const dir = mkdtempSync(join(tmpdir(), "emi-"));
+	let owner: ReturnType<typeof Bun.spawn> | undefined;
+	const clients: Client[] = [];
+	try {
+		expect(
+			(await command(["init", dir, "--backups", join(dir, "backups")])).code,
+		).toBe(0);
+		owner = await serve(dir);
+		const profile = join(dir, "profile.json");
+		const bot = await connect(profile);
+		clients.push(bot);
+		const drink = "朝は抹茶ラテを飲むのが好き";
+		const drinkHandle = await rememberVia(bot, drink, "morning-drink");
+		await rememberVia(bot, "夜は抹茶ラテよりほうじ茶が好き", "evening-drink");
+		await rememberVia(
+			bot,
+			"ウェブの記事では抹茶ラテは午後が良いとあった",
+			"web-tip",
+			{ provenance: "web" },
+		);
+		// 別のプロセス（CLI）から検索する。上限と moreAvailable と trust が働く。
+		const capped = await command(
+			["--profile", profile, "search", "--input", "-"],
+			{ query: "抹茶ラテ", limit: 2 },
+		);
+		expect(capped.code).toBe(0);
+		expect(capped.result).toMatchObject({
+			status: "found",
+			returned: 2,
+			moreAvailable: true,
+			truncatedBy: "count",
+		});
+		expect(capped.result).not.toHaveProperty("nextCursor");
+		const all = await tool(bot, "search", { query: "抹茶ラテ" });
+		expect(all).toMatchObject({ returned: 3, moreAvailable: false });
+		const byText = new Map(
+			(all["items"] as Found[]).map((x) => [x.value.text, x]),
+		);
+		expect(byText.get(drink)?.evidenceStatus).toBe("current");
+		expect(
+			byText.get("ウェブの記事では抹茶ラテは午後が良いとあった")?.trust,
+		).toBe("external");
+		// 回答に採用したものだけを報告する。
+		const adopted = byText.get(drink)!;
+		expect(
+			await tool(bot, "use", {
+				snapshotId: all["snapshotId"],
+				items: [{ itemId: adopted.itemId, revision: adopted.revision }],
+			}),
+		).toMatchObject({ status: "completed" });
+		// バックアップ（管理用の CLI）。この時点の店には「抹茶ラテ」の記憶が 3 件ある。
+		const backup = await command(["--profile", profile, "backup"]);
+		expect(backup.code).toBe(0);
+		const backupPath = backup.result["path"] as string;
+		// 訂正すると、古い本文では見つからず、新しい本文で見つかる。
+		const correctedText = "朝は抹茶ラテではなくカフェラテを飲むのが好き";
+		const correctedHandle = await rememberVia(
+			bot,
+			correctedText,
+			"morning-drink",
+			{ replaces: adopted.itemId },
+		);
+		const other = await connect(profile);
+		clients.push(other);
+		expect(texts(await tool(other, "search", { query: "カフェラテ" }))).toEqual(
+			[correctedText],
+		);
+		expect(
+			texts(await tool(other, "search", { query: "朝は抹茶ラテを飲む" })),
+		).toEqual([]);
+		// 忘却（原文も消す）の後は、検索で見つからない。
+		const found = await tool(other, "search", { query: "カフェラテ" });
+		const target = (found["items"] as Found[])[0]!;
+		const context = await tool(other, "context");
+		const forgetPlan = await tool(other, "plan", {
+			snapshotId: context["snapshotId"],
+			scopeKey: "personal",
+			proposal: {
+				decision: {
+					clarification: null,
+					actions: [{ type: "forget", itemId: target.itemId }],
+				},
+				relations: [
+					{
+						actionIndex: 0,
+						relation: "forget",
+						relatedItemIds: [target.itemId],
+					},
+				],
+				groups: [[0]],
+			},
+			sourceHandles: [drinkHandle, correctedHandle],
+		});
+		expect(forgetPlan.status).toBe("planned");
+		expect(
+			(
+				await tool(other, "apply", {
+					planId: forgetPlan["planId"],
+					epoch: forgetPlan["epoch"],
+					operationId: crypto.randomUUID(),
+				})
+			).status,
+		).toBe("completed");
+		expect(texts(await tool(other, "search", { query: "朝は" }))).toEqual([]);
+		// 再起動しても、忘れたものは出ない。
+		owner.kill("SIGTERM");
+		await owner.exited;
+		owner = await serve(dir);
+		expect(texts(await tool(bot, "search", { query: "朝は" }))).toEqual([]);
+		expect((await tool(bot, "search", { query: "抹茶ラテ" }))["returned"]).toBe(
+			2,
+		);
+		// 忘却の前のバックアップから復元しても、ジャーナルの再適用で忘れたものは戻らない。
+		owner.kill("SIGTERM");
+		await owner.exited;
+		owner = undefined;
+		const restored = await command(["restore", backupPath, dir]);
+		expect(restored.code).toBe(0);
+		owner = await serve(dir);
+		expect(texts(await tool(bot, "search", { query: "朝は" }))).toEqual([]);
+		expect(
+			texts(await tool(bot, "search", { query: "抹茶ラテ" })).sort(),
+		).toEqual(
+			[
+				"ウェブの記事では抹茶ラテは午後が良いとあった",
+				"夜は抹茶ラテよりほうじ茶が好き",
+			].sort(),
+		);
+		expect(
+			await command(["--profile", profile, "search", "--input", "-"], {
+				query: "会",
+			}),
+		).toMatchObject({ code: 0, result: { status: "found", items: [] } });
+	} finally {
+		for (const client of clients) await client.close();
+		if (owner) {
+			owner.kill("SIGTERM");
+			await owner.exited;
+		}
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
