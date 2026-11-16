@@ -76,11 +76,17 @@ World、Consolidation、他エージェント、索引・キャッシュ等がMe
 - `applyForget`に渡すのは`planForget`が返したentryだけ。入力はJSON由来のplainなデータにする（Proxyやgetterは検査対象外）。
 - memory recordを出典に引用するときは`representation:"text"`を必ず付ける（省略は契約エラー）。
 
-## 予定: 検索、バックアップ、容量（実装中）
+## 同梱ホストの検索、バックアップ、容量
 
-同梱のホストは起動時に、SQLiteの機能（`SQLITE_FEATURE_MISSING`）を確かめ、未適用の核のmigrationを適用し、索引を検査する（作り直せなければ`search`だけを止める）。版8の本体へ戻すときは、サーバーを止めてからリポジトリの`packages/host/scripts/rollback-0009.ts <directory>`で索引を消し、版を8に戻す（その後VACUUMする）。
+State の全文検索の設計（リポジトリの `spec/state-search-design.md`、2026-11-16 承認）に沿って、同梱のホスト（`eumenes-memory-host`）は次を行う。使い方は [CLIとメモリーMCP](cli-mcp.md)。
 
-State の全文検索の設計（リポジトリの `spec/state-search-design.md`、2026-11-16 承認）に沿って、ホストに次を加える。忘却の後の `wal_checkpoint(TRUNCATE)`、操作の受領記録の 30 日保持（今の epoch も対象）、`VACUUM INTO` のバックアップと洗い直し、出典の由来（`provenance`）と item の信頼度（`trust`）、容量の監視（実装済み。同梱ホストの `status` の `capacity` と `capacityWarnings`、90% での新しい key の保存の制限）、外部由来の item の自動停止と再利用による延長（実装済み。`host_item_use`、host schema 4、`use`・`expire`・`reactivate`）、State の全文検索（核の migration 0009）。各項目は実装した段階で本書の該当節に移す。
+- 起動時に、SQLiteの機能（`SQLITE_FEATURE_MISSING`）を確かめ、未適用の核のmigrationを適用し、索引を検査する（作り直せなければ`search`だけを止める）。版8の本体へ戻すときは、サーバーを止めてからリポジトリの`packages/host/scripts/rollback-0009.ts <directory>`で索引を消し、版を8に戻す（その後VACUUMする）。
+- 全文検索（`search`、MCP `memory_search`）: 核の`searchState`を、無害化した語、件数20件、返すitemのJSONの合計`maxBytes`（既定32768）の上限で呼ぶ。返すitemは`context`と同じ水和と`evidenceStatus`・`trust`を通す。続きのcursorは出さない。
+- 忘却の後の`wal_checkpoint(TRUNCATE)`（失敗したら`status`の`checkpointPending`）、操作の受領記録の30日保持（今のepochも対象）。
+- `VACUUM INTO`のバックアップ（`backup`、管理用）と、忘却の後の洗い直し、`restore`。
+- 出典の由来（`provenance`）とitemの信頼度（`trust`）。
+- 容量の監視（`status`の`capacity`と`capacityWarnings`、90%での新しいkeyの保存の制限）。
+- 外部由来のitemの自動停止と再利用による延長（`host_item_use`、host schema 4、`use`・`expire`・`reactivate`）と、見直しの一覧（`review`、CLIのみ）。
 
 ## 再生成資料と容量
 

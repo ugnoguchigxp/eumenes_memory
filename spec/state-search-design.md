@@ -853,3 +853,5 @@ search: z.object({
 | S10 | 「一度も確認や訂正をされていない」は、origin が `agent_inferred` のままで revision が 1 のもの、と読んだ（確認は origin を上げ、編集は revision を上げる。置き換えは新しい item になり、作成日から数え直す）。出典が `user_message` でも origin は `agent_inferred` のままなので一覧に出る | ［事実］（コードの規則）／読み方は［推論］ | ― |
 | S10 | 1 つの item が複数の条件に当たるときは、停止 → 停止間近 → 成立期間 → 推論の順で最初の 1 つだけを理由にする。並びは期限の早い順（停止したものが先）、同じなら itemId | ［事実］ | 決定的にするため |
 | S10 | T-CAPY-6 と T-CAPY-7、T-EXP-1 の見直しの一覧の部分は、既存の試験に足した。T-CAPY-6 の検査の補助（`writeMarkers`）は `test/support.ts` に移した | ［事実］ | 試験ファイルからの import で試験が二重に走るのを避けるため |
+| S11 | 説明文の試験は `test/docs.test.ts` で、`packages/host/src/mcp.ts` を文字列として読んで確かめる（根の試験からホストの package を import しないため）。`memory_search` の説明文には §4.2 の案に、`trust external` の扱いと「採用した後に `memory_use` で報告する」を足した。`memory_use` の説明文には、search の snapshotId も使えることを足した | ［事実］ | §8 の S11 の「`use` は採用した後だけ報告する、`external` の扱い」 |
+| S11 | `docs/host-guide.md` の「予定」の節は、実装した内容の要約（「同梱ホストの検索、バックアップ、容量」）に置き換えた。`spec/verification-status.md` には全文検索の行（C/I/F/S は ●、Eumenes 本体への結合 H は —）と migration 0009 の行を足した | ［事実］ | 到達した段階までしか主張しない規律のため |

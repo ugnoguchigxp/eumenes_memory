@@ -24,6 +24,7 @@
 | Records（`captureRecord` / `readRecord`、再生成可能な資料の retention） | ● | ● | ● | ● | ● | fixture E01–E10（`sliceUtf8Range` を含む）、復元シナリオ（古い DB + 最新ジャーナル）。Eumenes 結合: Web 調査のキャッシュが retention を使う |
 | State 台帳（`assertUserState` / `deactivateState` / `reactivateState` / `retractState` / `listState` / `readStateFact`、reducer） | ● | ● | ● | ● | ● | fixture S01–S07・S11–S16・S20・S21・S24。origin `agent_inferred`（ユーザー由来の保護は受けない）。既存 DB の `disputed` / `invalidated` / `admitted_extraction` の行の読み取りと遷移も実 SQLite で試験 |
 | Lifecycle / Forget（plan / apply / reconcile / receipt、外部削除） | ● | ● | ● | ● | ● | target は record / host_source / state_item / scope。閉包は state_item / external に届き、値を消す。論理的な削除で、物理消去は保証しない。Eumenes 結合: state_item の忘却を外部 journal（fsync）経由で適用、起動時 reconcile、古い DB 復元で再適用、journal の破損・食い違いで Memory を使わない。2026-11-06 契約版 2（同じ scope の複数 target、`hostIntent` と journal format 2、`hostIntentsToReapply`）: C/I/F/S は本リポジトリの試験と fixture L29〜L34・配布物の Bun/Node consumer で確認。H は Eumenes の block journal 廃止（忘却1回を1行に、旧 block journal の取り込み）の試験で確認（[改善設計](improvement-design.md) §1） |
+| State の全文検索（migration 0009、`searchState`、`verifyStateSearchIndex` / `rebuildStateSearchIndex`） | ● | ● | ● | ● | — | FTS5 trigram ＋ `secure-delete`、削除は trigger、追加は `persist` の最後の `syncStateSearch`。総当たりとの性質試験（`src/domains/state/test/search.test.ts`）、無作為な操作の後の一致（T-IDX-1）、忘却後に DB と WAL に trigram が残らない（T-LEAK-1〜5）。同梱ホスト（`packages/host`）の `search` と CLI / MCP は試験済み。Eumenes 本体への結合は未着手（H は —）。測定は [search-bench-results.md](search-bench-results.md) |
 | 時間判定（temporal: 精度つき期間、現在/過去/未来/時点不明） | ● | ● | — | ● | ● | 成立期間の精度・根拠は State に永続（`assertUserState` の `validity`）。Eumenes 結合で期限切れ項目を現在の理解から除外 |
 | World / Consolidation | — | — | — | — | — | **本体では作らない**（別ドメイン・別リポジトリ）。接続部は ExternalDependent と変更フィードだけ |
 
@@ -41,6 +42,7 @@
 | 0006 | 忘却した資料の retention metadata を除去する |
 | 0007 | state の origin に `agent_inferred` を加える（CHECK の変更のため state 表4つを作り直し。行は不変） |
 | 0008 | 抽出の6表、全文索引 `memory_record_fts`、`memory_scope_state` の削除。取り除いた node 種別の依存辺と墓標の削除。`src/infrastructure/sqlite/test/remove-extraction-migration.test.ts` が、抽出の行・候補由来の State・過去の忘却の記録を含む版 7 の DB への適用と、その後の読み取り・忘却・ジャーナルの照合・ExternalDependent の登録を試験する |
+| 0009 | State の全文検索の索引（`memory_state_search_row`、view `memory_state_search_doc`、FTS5 表 `memory_state_fts`（trigram、`secure-delete`）、削除の trigger 4 つ、既存の active な item の初回投入）。未リリースの追記。戻しは `packages/host/scripts/rollback-0009.ts` |
 
 既存の CHECK 制約は作り直さないので、`candidate` / `extraction_run` / role `input`（依存辺・墓標）と、State の `admitted_extraction` / `disputed` / `invalidated` / `dispute` / `invalidate` / `candidate` は、既存の行に残りうる語彙として DB の制約に残る。TS 側は、書かない語彙（`candidate` などの node 種別、`input`）を型から外し、読む語彙（State の status / origin / event / cause）を残している。
 
