@@ -115,6 +115,12 @@ export interface HostOptions {
 		ref: SourceRef,
 	) => import("eumenes-memory").HostSourceState | undefined;
 }
+/**
+ * 出典を参照（namespace/kind/id）で探す SQL。ホストの表の版 1 からある部分索引 `host_source_ref` を使う
+ * （索引の式と同じ式で、`forgotten=0` も同じ。式を変えると索引が使われなくなるので、試験で確かめる）。
+ */
+export const SOURCE_BY_REF_SQL =
+	"SELECT * FROM host_source WHERE scope_key=? AND forgotten=0 AND json_extract(ref,'$.namespace')=? AND json_extract(ref,'$.kind')=? AND json_extract(ref,'$.id')=?";
 /** 根拠の版と状態を調べる関数（`MemoryHost.inspectEvidence` と同じ結果）。 */
 export type EvidenceInspector = (
 	item: StateItem,
@@ -845,9 +851,7 @@ export class MemoryHost {
 			};
 		}
 		const row = db
-			.query(
-				"SELECT * FROM host_source WHERE scope_key=? AND forgotten=0 AND json_extract(ref,'$.namespace')=? AND json_extract(ref,'$.kind')=? AND json_extract(ref,'$.id')=?",
-			)
+			.query(SOURCE_BY_REF_SQL)
 			.get(item.scopeKey, ref.namespace, ref.kind, ref.id) as SourceRow | null;
 		const source =
 			row && row.content !== null
@@ -1083,9 +1087,7 @@ export class MemoryHost {
 				if (inspected.status !== "current") return { status: inspected.status };
 				const row = (
 					db
-						.query(
-							"SELECT * FROM host_source WHERE scope_key=? AND forgotten=0 AND json_extract(ref,'$.namespace')=? AND json_extract(ref,'$.kind')=? AND json_extract(ref,'$.id')=?",
-						)
+						.query(SOURCE_BY_REF_SQL)
 						.all(item.scopeKey, ref.namespace, ref.kind, ref.id) as SourceRow[]
 				).find(
 					(r) => r.ref && referenceKey(JSON.parse(r.ref)) === referenceKey(ref),

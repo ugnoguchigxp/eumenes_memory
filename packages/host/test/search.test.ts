@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { assertUserState, verifyStateSearchIndex } from "eumenes-memory/sqlite";
 import { exitCode, type HostResult } from "../src/contracts.ts";
 import { sanitizeQuery } from "../src/search.ts";
+import { SOURCE_BY_REF_SQL } from "../src/service.ts";
 import { restoreStore } from "../src/transport.ts";
 import {
 	bulkSeed,
@@ -515,3 +516,16 @@ test("read finds a search result older than the first snapshotItems items of the
 		}),
 	).toMatchObject({ status: "found", item: { itemId: target.itemId } });
 }, 60000);
+
+test("the source lookup by reference uses the host_source_ref index", async () => {
+	const h = await fixture();
+	const plan = h.owner.port.read(
+		(db) =>
+			db
+				.query(`EXPLAIN QUERY PLAN ${SOURCE_BY_REF_SQL}`)
+				.all("personal", "host", "source", "x") as { detail: string }[],
+	);
+	expect(plan.map((x) => x.detail).join("\n")).toContain(
+		"USING INDEX host_source_ref",
+	);
+});

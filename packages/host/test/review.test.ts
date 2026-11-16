@@ -340,3 +340,62 @@ test("review and expire read only candidates, not every item in scope", async ()
 	expect(expired.result["expired"]).toBe(0);
 	expect(expired.queries).toBeLessThan(30);
 });
+
+test("authorizeForget reads a bounded number of rows, not every item in scope", async () => {
+	const h = await fixture({ now: T0 });
+	await bulkSeed(h, 300, { origin: "agent_inferred" });
+	const grant = {
+		...h.configuration().credentials[h.profile.credential]!,
+		confirmedWrites: false,
+	};
+	// 本人確認済みの item の有無を調べるときに読む行の数は、item の数によらない
+	// （問い合わせの回数だけでは、まとめて全件を読む実装と区別できないので、返った行を数える）。
+	const authorize = () =>
+		h.owner.port.read((db) => {
+			const target = db as unknown as { query: (sql: string) => unknown };
+			const query = target.query;
+			let rows = 0;
+			target.query = (sql: string) => {
+				const statement = query.call(target, sql) as Record<
+					string,
+					(...a: unknown[]) => unknown
+				>;
+				return new Proxy(statement, {
+					get(object, key) {
+						const value = Reflect.get(object, key) as unknown;
+						if (typeof value !== "function") return value;
+						return (...args: unknown[]) => {
+							const result = (value as (...a: unknown[]) => unknown).apply(
+								object,
+								args,
+							);
+							if (key === "all" || key === "values")
+								rows += (result as unknown[]).length;
+							else if (key === "get" && result != null) rows++;
+							else if (key === "iterate") throw new Error("iterate は数えない");
+							return result;
+						};
+					},
+				});
+			};
+			try {
+				h.host.authorizeForget(db, grant);
+				return { rows, code: undefined as string | undefined };
+			} catch (error) {
+				return { rows, code: (error as { code?: string }).code };
+			} finally {
+				target.query = query;
+			}
+		});
+	const allowed = authorize();
+	expect(allowed.code).toBeUndefined();
+	expect(allowed.rows).toBeLessThan(5);
+	// 本人確認済みが 1 件でもあれば、前と同じく拒否する。
+	await bulkSeed(h, 1, { origin: "user_confirmed" });
+	const denied = authorize();
+	expect(denied.code).toBe("CONFIRMED_FORGET_REQUIRES_PERMISSION");
+	expect(denied.rows).toBeLessThan(5);
+	// confirmedWrites があれば調べない。
+	grant.confirmedWrites = true;
+	expect(authorize()).toEqual({ rows: 0, code: undefined });
+});
