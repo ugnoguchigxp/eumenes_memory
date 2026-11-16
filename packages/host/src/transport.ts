@@ -178,6 +178,7 @@ export async function restoreStore(
 		owner = openStandalone(directory);
 		const host = new MemoryHost({ port: owner.port, configuration, clock });
 		await host.start();
+		await host.backupIdle();
 		return { ...restored, started: true, epoch: host.epoch };
 	} catch (error) {
 		const result = failure(error);

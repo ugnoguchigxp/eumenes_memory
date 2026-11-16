@@ -38,6 +38,7 @@ import {
 	type AppPort,
 } from "./storage.ts";
 import { backupStatus, createBackupFiles } from "./backup.ts";
+import { scrubBackups } from "./scrub.ts";
 import {
 	accessFor,
 	digest,
@@ -80,6 +81,13 @@ export interface HostOptions {
 	limits?: Partial<Record<keyof typeof HOST_LIMITS, number>>;
 	/** Tests inject a crash after durable append. Never reachable through CLI/MCP. */
 	afterJournalAppend?: () => void;
+	/**
+	 * バックアップの洗い直し（S4）だけが使う。ジャーナルの再適用で作った host intent は、検証済みの完全なジャーナルの
+	 * entry から再適用済みなので完了とし、ジャーナルへの追記を伴う回復を走らせない（ライブのジャーナルを書き換えないため）。
+	 */
+	replayJournalOnly?: boolean;
+	/** 試験だけがバックアップの洗い直しを失敗させる。CLI と MCP からは届かない。 */
+	beforeBackupScrub?: (file: string) => void;
 	/** Trusted application-only resolver. Client assertions never enter this callback as verified facts. */
 	resolveSource?: (
 		db: MemoryDb,
@@ -157,12 +165,33 @@ export class MemoryHost {
 		if (!force && !this.forgetCommitted && !this.checkpointPending) return;
 		this.forgetCommitted = false;
 		const checkpoint = this.options.port.checkpoint;
-		if (!checkpoint) return;
-		try {
-			this.checkpointPending = !(await checkpoint());
-		} catch {
-			this.checkpointPending = true;
-		}
+		if (checkpoint)
+			try {
+				this.checkpointPending = !(await checkpoint());
+			} catch {
+				this.checkpointPending = true;
+			}
+		void this.scheduleBackupScrub();
+	}
+	private backupQueue: Promise<unknown> = Promise.resolve();
+	/** バックアップの作成と洗い直しを 1 本ずつ行う。 */
+	withBackupLock<T>(fn: () => Promise<T>): Promise<T> {
+		const task = this.backupQueue.then(fn);
+		this.backupQueue = task.catch(() => {});
+		return task;
+	}
+	/** 忘却の後、既存のバックアップを洗い直す（§4C.4 の 2、S4）。忘却の応答は待たせない。 */
+	scheduleBackupScrub(): Promise<number> {
+		const directory = this.config.backupDirectory;
+		if (!directory || !this.options.port.databasePath)
+			return Promise.resolve(0);
+		const task = this.withBackupLock(() => scrubBackups(this, directory));
+		task.catch(() => {});
+		return task;
+	}
+	/** 試験と CLI が、予約済みのバックアップの処理の完了を待つ。 */
+	async backupIdle(): Promise<void> {
+		await this.backupQueue;
 	}
 	appendForgetEntry(entry: unknown): void {
 		demand(this.journalAttempt, "WRITER_TRANSACTION_REQUIRED");
@@ -245,6 +274,14 @@ export class MemoryHost {
 						this.scrub(db, entry.hostIntent, entry.forgetId);
 					cleanExternal(this, db, entry.forgetId);
 				}
+				if (this.options.replayJournalOnly)
+					for (const entry of entries as import("eumenes-memory").ForgetJournalEntry[]) {
+						const intentId = entry.hostIntent?.["host.intent"]?.[0];
+						if (intentId)
+							db.query(
+								"UPDATE host_forget_intent SET completed=1 WHERE id=?",
+							).run(intentId);
+					}
 			}, true);
 			await this.write((db) => {
 				recoverIntents(this, db);
@@ -376,14 +413,16 @@ export class MemoryHost {
 		demand(directory, "BACKUP_NOT_CONFIGURED");
 		const { exclusive, databasePath } = this.options.port;
 		demand(exclusive && databasePath, "BACKUP_UNSUPPORTED");
-		const meta = await exclusive(() =>
-			createBackupFiles({
-				databasePath,
-				directory,
-				journal: this.options.port.journal.read() as unknown[],
-				atMs: this.clock(),
-				hostSchemaVersion: HOST_SCHEMA_VERSION,
-			}),
+		const meta = await this.withBackupLock(() =>
+			exclusive(() =>
+				createBackupFiles({
+					databasePath,
+					directory,
+					journal: this.options.port.journal.read() as unknown[],
+					atMs: this.clock(),
+					hostSchemaVersion: HOST_SCHEMA_VERSION,
+				}),
+			),
 		);
 		return {
 			status: "completed",

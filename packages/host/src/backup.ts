@@ -11,6 +11,7 @@ import {
 	closeSync,
 	copyFileSync,
 	existsSync,
+	fstatSync,
 	fsyncSync,
 	lstatSync,
 	mkdirSync,
@@ -95,6 +96,20 @@ export function shred(path: string): void {
 	}
 	unlinkSync(path);
 }
+/** fresh で target を原子的に置き換え、置き換えられた古い中身を 0 で上書きする（途中で止まっても target は常に完全なファイル）。 */
+export function replaceAndShred(fresh: string, target: string): void {
+	const fd = openSync(target, "r+");
+	try {
+		const size = fstatSync(fd).size;
+		renameSync(fresh, target);
+		const zero = Buffer.alloc(Math.min(Math.max(size, 1), 1 << 20));
+		for (let offset = 0; offset < size; offset += zero.length)
+			writeSync(fd, zero, 0, Math.min(zero.length, size - offset), offset);
+		fsyncSync(fd);
+	} finally {
+		closeSync(fd);
+	}
+}
 export function ensurePrivateDirectory(path: string): string {
 	mkdirSync(path, { recursive: true, mode: 0o700 });
 	chmodSync(path, 0o700);
@@ -145,13 +160,24 @@ export function removeBackup(directory: string, meta: BackupMeta): void {
 	shred(join(directory, meta.journalFile));
 	shred(join(directory, meta.file.replace(/\.db$/, ".json")));
 }
-/** 新しい順に `BACKUP_GENERATIONS` 世代だけ残す。 */
+export const BACKUP_RETENTION_MS = 7 * 86400000;
+/**
+ * 新しい順に `BACKUP_GENERATIONS` 世代だけ残す。洗い直しに失敗した印のあるものは、作成から 7 日で必ず消す
+ * （忘れた本文がバックアップに残る最悪の期間を 7 日にする。§4C.4 の 3）。
+ */
 export function pruneBackups(
 	directory: string,
 	keep = BACKUP_GENERATIONS,
+	now?: number,
 ): number {
 	const all = listBackups(directory);
-	const old = all.slice(0, Math.max(0, all.length - keep));
+	const old = all.filter(
+		(meta, index) =>
+			index < all.length - keep ||
+			(now !== undefined &&
+				meta.scrubPending &&
+				now - meta.createdAt > BACKUP_RETENTION_MS),
+	);
 	for (const meta of old) removeBackup(directory, meta);
 	if (old.length) fsyncPath(directory);
 	return old.length;
@@ -218,7 +244,7 @@ export function createBackupFiles(input: BackupInput): BackupMeta {
 		scrubPending: false,
 	};
 	writeMeta(directory, meta);
-	pruneBackups(directory);
+	pruneBackups(directory, BACKUP_GENERATIONS, input.atMs);
 	return meta;
 }
 export function backupStatus(

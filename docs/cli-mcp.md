@@ -50,6 +50,8 @@ applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持�
 
 `eumenes-memory --profile <profile.json> backup`は、所有者がwriterの順番で読取専用の別接続から`VACUUM INTO`し、owner.jsonの`backupDirectory`（`init`の`--backups`、既定は隣の`<名前>-backups`）に置く。管理用（全scopeとforgetAllのgrant）でMCPには出さない。出力は`path`・`bytes`・`sha256`・`schemaVersion`・`journalHead`。忘却ジャーナルの写し（本文を含まない）を同じ組で置き、7世代を残して古いものは0で上書きしてから消す。`status`は`lastBackupAt`と、36時間を超えると`backupOverdue: true`を返す。日次の実行（例: JST 4:00）はホストの外の定期実行からこのCLIを呼ぶ。
 
+忘却をcommitした後、所有者はそれより前のバックアップを洗い直す（一時的な場所で最新のジャーナルを再適用し、`VACUUM INTO`で作り直して原子的に置き換え、古い中身を0で上書きする。応答は待たせない）。失敗したバックアップには印を付け、`status`の`backupScrubPending: true`で知らせ、作成から7日で必ず消す。OSのsnapshot、ファイルシステムの空き領域、利用者が別の場所に写したものは保証の外。
+
 `eumenes-memory restore <backup.db> <directory>`はサーバーを止めて行う（動いていれば`OWNER_ALREADY_RUNNING`）。sha256を照合し、ライブの`forget.jsonl`を優先する（失われていればバックアップの写しのうち最新を使う）。ジャーナルの先頭がバックアップの`journalHead`より古ければ`JOURNAL_OLDER_THAN_BACKUP`で止める。今のDBとWALは`restore-<時刻>/`へ退避し、バックアップを`memory.db`に置いて所有者を一度起動し、schemaの検査とジャーナルの再適用を通す。退避したファイルは、`status`と`context`で確認した後に利用者が0で上書きして消す。
 
 ## 予定: 検索、利用の報告、バックアップ（実装中）
