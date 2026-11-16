@@ -107,6 +107,8 @@ export interface HostOptions {
 	 * entry から再適用済みなので完了とし、ジャーナルへの追記を伴う回復を走らせない（ライブのジャーナルを書き換えないため）。
 	 */
 	replayJournalOnly?: boolean;
+	/** Validate and replay an offline restore candidate without appending to the journal. */
+	restorePreflight?: boolean;
 	/** 試験だけがバックアップの洗い直しを失敗させる。CLI と MCP からは届かない。 */
 	beforeBackupScrub?: (file: string) => void;
 	/** Trusted application-only resolver. Client assertions never enter this callback as verified facts. */
@@ -308,10 +310,11 @@ export class MemoryHost {
 							).run(intentId);
 					}
 			}, true);
-			await this.write((db) => {
-				recoverIntents(this, db);
-				this.cleanup(db);
-			}, true);
+			if (!this.options.restorePreflight)
+				await this.write((db) => {
+					recoverIntents(this, db);
+					this.cleanup(db);
+				}, true);
 			// §3.4: 索引を検査し、一致しなければ writer の transaction の中で作り直す。失敗は search だけを止める。
 			// 次の checkpoint より前に行い、作り直しで捨てた古い索引のページ（忘れた本文の断片を含みうる）を DB ファイルに残さない。
 			await this.write((db) => {
@@ -325,6 +328,13 @@ export class MemoryHost {
 			);
 			// ジャーナルの再適用や回復、索引の作り直しで消した本文を WAL に残さない（決定 9）。
 			await this.checkpointAfterForget();
+			if (this.options.restorePreflight) {
+				demand(
+					!this.searchIndexUnavailable && !this.checkpointPending,
+					"RESTORE_PREFLIGHT_FAILED",
+				);
+				return;
+			}
 			this.queueBackupScrub();
 			// 決定 11: 起動時に、期限を過ぎた外部由来の item を停止する。失敗しても起動は止めない（次回に再試行）。
 			if (!this.options.replayJournalOnly)

@@ -1,3 +1,4 @@
+import { acquireOwnerLock } from "./owner-lock.ts";
 import { Database } from "bun:sqlite";
 import {
 	chmodSync,
@@ -296,14 +297,14 @@ export function openStandalone(
 			existsSync(join(root, "forget.jsonl")),
 		"STORE_OR_JOURNAL_MISSING",
 	);
-	const lock = new Database(join(root, "owner.lock"));
+	const lock = acquireOwnerLock(root);
+	let db: Database;
 	try {
-		lock.exec("PRAGMA busy_timeout=0; BEGIN EXCLUSIVE");
-	} catch {
+		db = new Database(join(root, "memory.db"), { readwrite: true });
+	} catch (error) {
 		lock.close();
-		throw new Error("OWNER_ALREADY_RUNNING");
+		throw error;
 	}
-	const db = new Database(join(root, "memory.db"));
 	try {
 		db.exec(
 			"PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA secure_delete=ON",

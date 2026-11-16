@@ -13,13 +13,16 @@ import {
 	existsSync,
 	fstatSync,
 	fsyncSync,
+	linkSync,
 	lstatSync,
 	mkdirSync,
+	mkdtempSync,
 	openSync,
 	readdirSync,
 	readFileSync,
 	realpathSync,
 	renameSync,
+	rmSync,
 	rmdirSync,
 	statSync,
 	unlinkSync,
@@ -27,7 +30,8 @@ import {
 	writeSync,
 } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
-import type { ForgetJournalEntry } from "eumenes-memory";
+import { verifyForgetJournal, type ForgetJournalEntry } from "eumenes-memory";
+import { acquireOwnerLock } from "./owner-lock.ts";
 import { demand, HostError, type HostResult } from "./contracts.ts";
 
 /** 決定 10（2026-11-16 承認）で決めた、この環境での置き場所。どちらも `/workspace` の外。 */
@@ -326,86 +330,159 @@ export function backupStatus(
 	};
 }
 function readJournalFile(path: string): ForgetJournalEntry[] {
-	return readFileSync(path, "utf8")
-		.split("\n")
-		.filter(Boolean)
-		.map((line) => JSON.parse(line) as ForgetJournalEntry);
+	demand(existsSync(path), "JOURNAL_MISSING");
+	let entries: ForgetJournalEntry[];
+	try {
+		entries = readFileSync(path, "utf8")
+			.split("\n")
+			.filter(Boolean)
+			.map((line) => JSON.parse(line) as ForgetJournalEntry);
+	} catch {
+		throw new HostError("JOURNAL_INVALID");
+	}
+	demand(verifyForgetJournal(entries).status === "ok", "JOURNAL_INVALID");
+	return entries;
 }
-/**
- * 復元（§4C.5 の 2〜4）。サーバーが動いていれば拒否する。起動の検査（5）は呼び出し側が行う。
- * 今の DB と WAL は `restore-<時刻>/` に退避し、消さない（確認後に利用者が 0 で上書きして消す）。
- */
-export function restoreFiles(
+
+/** Read the applied head of the current store before considering an older backup. */
+function readStoreHead(path: string): JournalHead {
+	try {
+		const db = new Database(path, { readonly: true });
+		try {
+			// This head is persisted by the core foundation migration, including in pre-FTS stores.
+			const row = db
+				.query<JournalHead, []>(
+					"SELECT applied_head_seq AS seq, applied_head_hash AS hash FROM memory_journal_state WHERE id=1",
+				)
+				.get();
+			demand(
+				row &&
+					Number.isSafeInteger(row.seq) &&
+					row.seq >= 0 &&
+					typeof row.hash === "string",
+				"JOURNAL_HEAD_UNVERIFIED",
+			);
+			return row;
+		} finally {
+			db.close();
+		}
+	} catch {
+		throw new HostError("JOURNAL_HEAD_UNVERIFIED");
+	}
+}
+
+function containsHead(
+	entries: readonly ForgetJournalEntry[],
+	head: JournalHead,
+): boolean {
+	return head.seq === 0 || entries[head.seq - 1]?.hash === head.hash;
+}
+
+function checkpointStore(root: string): void {
+	const db = new Database(join(root, "memory.db"), { readwrite: true });
+	try {
+		const state = db
+			.query<{ busy: number }, []>("PRAGMA wal_checkpoint(TRUNCATE)")
+			.get();
+		demand(state?.busy === 0, "RESTORE_CHECKPOINT_BUSY");
+		// Switching out of WAL acquires SQLite's exclusive database lock and leaves a self-contained DB.
+		const mode = db
+			.query<{ journal_mode: string }, []>("PRAGMA journal_mode=DELETE")
+			.get();
+		demand(mode?.journal_mode === "delete", "RESTORE_CHECKPOINT_BUSY");
+	} catch (error) {
+		if (
+			error instanceof Error &&
+			"code" in error &&
+			error.code === "SQLITE_BUSY"
+		)
+			throw new HostError("RESTORE_CHECKPOINT_BUSY");
+		throw error;
+	} finally {
+		db.close();
+	}
+	const wal = join(root, "memory.db-wal");
+	demand(
+		!existsSync(wal) || statSync(wal).size === 0,
+		"RESTORE_CHECKPOINT_BUSY",
+	);
+	if (existsSync(wal)) unlinkSync(wal);
+	const shm = join(root, "memory.db-shm");
+	if (existsSync(shm)) unlinkSync(shm);
+}
+
+/** Validate the candidate before a single atomic replacement of the checkpointed DB. */
+export async function restoreFiles(
 	backupPath: string,
 	directory: string,
 	atMs: number,
-): HostResult & { evacuated: string } {
+	prepare: (stagedDirectory: string) => Promise<string>,
+): Promise<HostResult & { evacuated: string }> {
 	const root = realpathSync(directory);
 	const backup = resolve(backupPath);
 	const metaPath = backup.replace(/\.db$/, ".json");
 	demand(existsSync(backup) && existsSync(metaPath), "BACKUP_NOT_FOUND");
 	const meta = JSON.parse(readFileSync(metaPath, "utf8")) as BackupMeta;
 	demand(
-		meta.version === 1 && basename(backup) === meta.file,
+		meta.version === 1 &&
+			basename(backup) === meta.file &&
+			Number.isSafeInteger(meta.journalHead?.seq) &&
+			meta.journalHead.seq >= 0 &&
+			(meta.journalHead.seq === 0
+				? meta.journalHead.hash === null
+				: typeof meta.journalHead.hash === "string"),
 		"BACKUP_METADATA_INVALID",
 	);
-	const lock = new Database(join(root, "owner.lock"));
+
+	const lock = acquireOwnerLock(root);
 	try {
-		try {
-			lock.exec("PRAGMA busy_timeout=0; BEGIN EXCLUSIVE");
-		} catch {
-			throw new HostError("OWNER_ALREADY_RUNNING");
-		}
-		demand(sha256File(backup) === meta.sha256, "BACKUP_CHECKSUM_MISMATCH");
-		const live = join(root, "forget.jsonl");
-		if (!existsSync(live)) {
-			// ライブのジャーナルが失われたときだけ、写しのうち最も新しいものを使う。
-			const copies = listBackups(dirname(backup))
-				.map((m) => join(dirname(backup), m.journalFile))
-				.filter((p) => existsSync(p))
-				.map((p) => ({ p, entries: readJournalFile(p) }))
-				.sort((a, b) => a.entries.length - b.entries.length);
-			const newest = copies.at(-1);
-			demand(newest, "JOURNAL_MISSING");
-			copyFileSync(newest.p, live);
-			chmodSync(live, 0o600);
-		}
-		const entries = readJournalFile(live);
-		const head = journalHead(entries);
-		const atHead =
-			meta.journalHead.seq === 0
-				? undefined
-				: entries.find((e) => e.seq === meta.journalHead.seq);
+		const entries = readJournalFile(join(root, "forget.jsonl"));
 		demand(
-			head.seq >= meta.journalHead.seq &&
-				(meta.journalHead.seq === 0 || atHead?.hash === meta.journalHead.hash),
+			containsHead(entries, meta.journalHead),
 			"JOURNAL_OLDER_THAN_BACKUP",
 		);
-		// 先に完全な写しを作ってから入れ替える（途中で止まっても memory.db が欠けた写しにならない）。
-		const staged = join(root, "memory.db.restore.tmp");
-		shred(staged);
-		copyFileSync(backup, staged);
-		chmodSync(staged, 0o600);
-		fsyncPath(staged);
-		demand(sha256File(staged) === meta.sha256, "BACKUP_CHECKSUM_MISMATCH");
-		const evacuated = join(
-			root,
-			`restore-${stamp(atMs)}-${randomBytes(4).toString("hex")}`,
-		);
-		mkdirSync(evacuated, { mode: 0o700 });
-		for (const name of ["memory.db", "memory.db-wal", "memory.db-shm"])
-			if (existsSync(join(root, name)))
-				renameSync(join(root, name), join(evacuated, name));
-		fsyncPath(evacuated);
-		renameSync(staged, join(root, "memory.db"));
-		fsyncPath(root);
-		return {
-			status: "completed",
-			restored: meta.file,
-			journalHead: head,
-			backupJournalHead: meta.journalHead,
-			evacuated,
-		};
+		const destination = join(root, "memory.db");
+		const applied = readStoreHead(destination);
+		demand(applied.seq <= entries.length, "JOURNAL_OLDER_THAN_STORE");
+		demand(containsHead(entries, applied), "JOURNAL_INCONSISTENT");
+
+		const staging = mkdtempSync(join(root, ".restore-"));
+		try {
+			const staged = join(staging, "memory.db");
+			copyFileSync(backup, staged);
+			chmodSync(staged, 0o600);
+			demand(sha256File(staged) === meta.sha256, "BACKUP_CHECKSUM_MISMATCH");
+			writeJournalCopy(join(staging, "forget.jsonl"), entries);
+			const epoch = await prepare(staging);
+			checkpointStore(staging);
+			fsyncPath(staged);
+
+			checkpointStore(root);
+			const evacuated = join(
+				root,
+				`restore-${stamp(atMs)}-${randomBytes(4).toString("hex")}`,
+			);
+			mkdirSync(evacuated, { mode: 0o700 });
+			fsyncPath(destination);
+			linkSync(destination, join(evacuated, "memory.db"));
+			fsyncPath(evacuated);
+			fsyncPath(root);
+			renameSync(staged, destination);
+			fsyncPath(root);
+			return {
+				status: "completed",
+				started: true,
+				epoch,
+				restored: meta.file,
+				journalHead: journalHead(entries),
+				backupJournalHead: meta.journalHead,
+				evacuated,
+			};
+		} finally {
+			for (const name of ["memory.db", "memory.db-wal", "memory.db-shm"])
+				shred(join(staging, name));
+			rmSync(staging, { recursive: true, force: true });
+		}
 	} finally {
 		lock.close();
 	}

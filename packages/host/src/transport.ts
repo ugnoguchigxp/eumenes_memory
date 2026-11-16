@@ -154,41 +154,33 @@ export async function startStandalone(directory: string) {
 		throw error;
 	}
 }
-/**
- * §4C.5 の 2〜5: ファイルを戻し、所有者を一度起動して schema の検査、ジャーナルの再適用、索引の検査を通す。
- * 起動に失敗したら、サーバーは止まったまま（退避したファイルは残す）。
- */
+/** Prepare a candidate offline under the owner lock before publishing it. */
 export async function restoreStore(
 	backup: string,
 	directory: string,
 	clock: () => number = Date.now,
 ): Promise<HostResult> {
-	let restored: HostResult & { evacuated: string };
 	try {
-		restored = restoreFiles(backup, directory, clock());
+		return await restoreFiles(backup, directory, clock(), async (staging) => {
+			const { backupDirectory: _backupDirectory, ...config } =
+				configSchema.parse(
+					JSON.parse(readFileSync(join(directory, "owner.json"), "utf8")),
+				);
+			const owner = openStandalone(staging);
+			try {
+				const host = new MemoryHost({
+					port: owner.port,
+					configuration: () => config,
+					clock,
+					restorePreflight: true,
+				});
+				await host.start();
+				return host.epoch;
+			} finally {
+				await owner.close();
+			}
+		});
 	} catch (error) {
 		return failure(error);
-	}
-	const configuration = () =>
-		configSchema.parse(
-			JSON.parse(readFileSync(join(directory, "owner.json"), "utf8")),
-		);
-	let owner: ReturnType<typeof openStandalone> | undefined;
-	try {
-		owner = openStandalone(directory);
-		const host = new MemoryHost({ port: owner.port, configuration, clock });
-		await host.start();
-		await host.backupIdle();
-		return { ...restored, started: true, epoch: host.epoch };
-	} catch (error) {
-		const result = failure(error);
-		return {
-			...restored,
-			status: "failed",
-			code: result.code ?? "RESTORE_START_FAILED",
-			started: false,
-		};
-	} finally {
-		await owner?.close();
 	}
 }

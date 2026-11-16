@@ -109,6 +109,48 @@ function confirmed(h: Fixture, content: string, semanticKey: string) {
 	});
 }
 
+test("a use committed after candidate selection prevents expiration", async () => {
+	let pause = false;
+	let selected!: () => void;
+	let release!: () => void;
+	const waiting = new Promise<void>((resolve) => {
+		selected = resolve;
+	});
+	const resume = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const h = await fixture({
+		now: T0,
+		wrapPort: (port) => ({
+			...port,
+			write: async (fn) => {
+				if (pause) {
+					pause = false;
+					selected();
+					await resume;
+				}
+				return port.write(fn);
+			},
+		}),
+	});
+	const item = await external(h);
+	h.advance(91 * DAY_MS);
+	pause = true;
+	const stopping = runExpire(h.host);
+	await waiting;
+	try {
+		expect(
+			await use(h, [{ itemId: item.itemId, revision: item.revision }]),
+		).toMatchObject({ status: "completed", updated: 1 });
+	} finally {
+		release();
+	}
+	expect(await stopping).toMatchObject({ expired: 0 });
+	expect(await items(h)).toMatchObject([
+		{ itemId: item.itemId, status: "active" },
+	]);
+});
+
 test("T-EXP-1 external item stops after 90 days", async () => {
 	const h = await fixture({ now: T0 });
 	const item = await external(h);

@@ -217,6 +217,16 @@ export async function runExpire(
 	for (const item of targets.slice(0, EXPIRE_BATCH)) {
 		const operationId = `expire:${item.itemId}:${item.revision}`;
 		const done = await host.write((db) => {
+			const clock = { atMs: host.clock() };
+			// Use changes the utilization date without changing the State revision.
+			const stillExpired = itemFacts(
+				db,
+				host.config.principal,
+				host.config.scopeKeys,
+				"c.item_id=? AND c.revision=? AND c.status='active' AND c.trust='external' AND c.expires<=?",
+				[item.itemId, item.revision, clock.atMs],
+			);
+			if (!stillExpired.length) return false;
 			const prior = db
 				.query("SELECT 1 AS x FROM host_operation WHERE id=? AND plan_id=?")
 				.get(operationId, EXPIRE_PLAN_ID);
@@ -225,7 +235,7 @@ export async function runExpire(
 				contractVersion: 1,
 				access: internalAccess(host),
 				scopeKey: item.scopeKey,
-				clock: { atMs: host.clock() },
+				clock,
 				itemId: item.itemId,
 				expectedRevision: item.revision,
 			});

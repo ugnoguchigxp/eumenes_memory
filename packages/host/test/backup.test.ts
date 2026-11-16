@@ -6,6 +6,8 @@ import {
 	mkdirSync,
 	readdirSync,
 	realpathSync,
+	readFileSync,
+	renameSync,
 	statSync,
 	writeFileSync,
 } from "node:fs";
@@ -16,6 +18,7 @@ import {
 	DEFAULT_DATA_DIRECTORY,
 	defaultBackupDirectory,
 	listBackups,
+	sha256File,
 } from "../src/backup.ts";
 import { restoreStore } from "../src/transport.ts";
 import {
@@ -146,6 +149,90 @@ test("T-BAK-7 restore refuses a journal older than the backup", async () => {
 	});
 	expect(statSync(join(h.dir, "memory.db")).mtimeMs).toBe(before);
 	expect(readdirSync(h.dir).some((n) => n.startsWith("restore-"))).toBe(false);
+});
+
+test.each(["missing", "truncated", "corrupt"] as const)(
+	"restore keeps the current DB when a pre-forget backup has a %s live journal",
+	async (fault) => {
+		const h = await fixture({
+			host: {
+				beforeBackupScrub: () => {
+					throw Error("scrub unavailable");
+				},
+			},
+		});
+		const saved = await remember(h, SECRET);
+		const result = await backup(h);
+		const item = (await items(h))[0]!;
+		await forget(h, item.itemId, [saved.source["sourceHandle"]]);
+		await h.host.backupIdle();
+		expect(await items(h)).toEqual([]);
+		await h.close();
+		const journal = join(h.dir, "forget.jsonl");
+		const db = join(h.dir, "memory.db");
+		const priorDb = readFileSync(db);
+		const original = readFileSync(journal);
+		if (fault === "missing")
+			renameSync(journal, join(h.dir, "protected-journal"));
+		else writeFileSync(journal, fault === "truncated" ? "" : "{broken");
+		expect(
+			await restoreStore(result.path, h.dir, () => h.clock.now),
+		).toMatchObject({
+			status: "blocked",
+			code:
+				fault === "missing"
+					? "JOURNAL_MISSING"
+					: fault === "truncated"
+						? "JOURNAL_OLDER_THAN_STORE"
+						: "JOURNAL_INVALID",
+		});
+		expect(readFileSync(db)).toEqual(priorDb);
+		expect(readdirSync(h.dir).some((name) => name.startsWith("restore-"))).toBe(
+			false,
+		);
+		if (fault === "missing") expect(existsSync(journal)).toBe(false);
+		writeFileSync(journal, original);
+		await h.reopen();
+		expect(await items(h)).toEqual([]);
+	},
+);
+
+test("a checksum-valid backup with an incompatible host schema leaves the live DB in place", async () => {
+	const h = await fixture();
+	await remember(h, "復元対象の記憶");
+	const copied = await backup(h);
+	await remember(h, "残しておく現在の記憶", undefined, {
+		semanticKey: "current",
+	});
+	await h.close();
+
+	const candidate = new Database(copied.path);
+	try {
+		candidate.exec("UPDATE host_schema SET version=999");
+	} finally {
+		candidate.close();
+	}
+	const path = copied.path.replace(/\.db$/, ".json");
+	const meta = JSON.parse(readFileSync(path, "utf8"));
+	writeFileSync(
+		path,
+		JSON.stringify({ ...meta, sha256: sha256File(copied.path) }),
+	);
+	const live = join(h.dir, "memory.db");
+	const original = readFileSync(live);
+
+	expect(await restoreStore(copied.path, h.dir)).toMatchObject({
+		status: "blocked",
+		code: "HOST_SCHEMA_MISMATCH",
+	});
+	expect(readFileSync(live)).toEqual(original);
+	expect(
+		readdirSync(h.dir).some(
+			(name) => name.startsWith("restore-") || name.startsWith(".restore-"),
+		),
+	).toBe(false);
+	await h.reopen();
+	expect(await items(h)).toHaveLength(2);
 });
 
 test("restore twice at the same time keeps both evacuations and leaves no staged copy", async () => {
