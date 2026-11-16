@@ -1,6 +1,6 @@
 # Eumenes Memory CLI / MCP
 
-Bun 1.4.4以降、macOS/Linux向け。同じ本人の許可された記憶をCLIと複数のMCP接続で共有します。本体ライブラリは別パッケージのまま、モデル・接続・書込みの所有者をこのホストで管理します。
+Bun 1.4.4以降、SQLite 3.44以上（FTS5有効）、macOS/Linux向け。同じ本人の許可された記憶をCLIと複数のMCP接続で共有します。本体ライブラリは別パッケージのまま、モデル・接続・書込みの所有者をこのホストで管理します。
 
 ## 配布物から開始
 
@@ -54,3 +54,5 @@ DBだけを戻さず、最新のDB外forget.jsonlを必ず保持します。所�
 アプリと共有するときは`new MemoryHost({port,configuration,resolveSource})`へ、アプリ所有のread snapshot・同期write callback・journal・hostIntent purgeを渡します。`serveHost`で専用Unix socketを明示的に接続します。アプリ側のforget purgeから`invalidateDerivedInTransaction`を呼び、同じWriterでホストの依存記録も消去します。アプリDBを独立serveから開かないでください。既存Eumenes用のsharedHost portは実アプリのfixtureで検証し、稼働中環境への自動登録は行いません。
 
 非対話Codexで書込みも許可する場合は、このserverだけの`default_tools_approval_mode = "approve"`等を利用者が明示します。読取専用のままでは保存は拒否されます。ホスト側のscope・忘却・確認済み項目の権限は別途検査されます。
+
+配布物には、同梱コアの第三者表示と、ホストの実行時依存の一覧・ライセンス原文が入ります。実行時依存は `dist/runtime-notices/` から確認できます。

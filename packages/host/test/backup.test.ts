@@ -235,6 +235,59 @@ test("a checksum-valid backup with an incompatible host schema leaves the live D
 	expect(await items(h)).toHaveLength(2);
 });
 
+test.each(["before", "after"] as const)(
+	"owner crash %s publishing a restore leaves a startable store that still forgets",
+	async (when) => {
+		const h = await fixture();
+		const saved = await remember(h, SECRET);
+		const original = (await items(h))[0]!;
+		const copied = await backup(h);
+		await forget(h, original.itemId, [saved.source["sourceHandle"]]);
+		await h.host.backupIdle();
+		await remember(h, "復元前の追加記憶");
+		await h.close();
+		const journal = readFileSync(join(h.dir, "forget.jsonl"));
+		const target = realpathSync(h.dir);
+		const testModule = join(h.dir, "interrupt-restore.test.ts");
+		const script = `
+			import { test, spyOn } from "bun:test";
+			import * as fs from "node:fs";
+			const original = fs.renameSync;
+			const destination = ${JSON.stringify(join(target, "memory.db"))};
+			spyOn(fs, "renameSync").mockImplementation((from, to) => {
+				if (to === destination && ${when === "before"}) process.kill(process.pid, "SIGKILL");
+				original(from, to);
+				if (to === destination && ${when === "after"}) process.kill(process.pid, "SIGKILL");
+			});
+			const { restoreStore } = await import(${JSON.stringify(new URL("../src/transport.ts", import.meta.url).href)});
+			test("interrupt at publish", async () => {
+				const result = await restoreStore(${JSON.stringify(copied.path)}, ${JSON.stringify(target)}, () => ${h.clock.now});
+				throw Error("restore did not reach publication: " + JSON.stringify(result));
+			});
+		`;
+		writeFileSync(testModule, script);
+		const child = Bun.spawn([process.execPath, "test", testModule], {
+			stdout: "pipe",
+			stderr: "pipe",
+			stdin: "ignore",
+		});
+		const [out, diagnostics] = await Promise.all([
+			new Response(child.stdout).text(),
+			new Response(child.stderr).text(),
+			child.exited,
+		]);
+		if (child.signalCode !== "SIGKILL") throw Error(out + diagnostics);
+		expect(readFileSync(join(h.dir, "forget.jsonl"))).toEqual(journal);
+		await h.reopen();
+		const surviving = await items(h);
+		expect(surviving.some((item) => item.itemId === original.itemId)).toBe(
+			false,
+		);
+		expect(surviving).toHaveLength(when === "before" ? 1 : 0);
+	},
+	15000,
+);
+
 test("restore twice at the same time keeps both evacuations and leaves no staged copy", async () => {
 	const h = await fixture();
 	await remember(h, "コーヒーが好きです");

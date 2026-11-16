@@ -712,4 +712,5 @@ export type Complete = (
 	prompt: string,
 	schema: unknown,
 	task: ModelTask,
+	instructions?: string,
 ) => Promise<ModelResult>;

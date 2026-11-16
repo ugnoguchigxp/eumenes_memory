@@ -1,4 +1,5 @@
 import ts from "typescript";
+import { hostRuntimeDependencies } from "./host-runtime-dependencies.ts";
 /** Ship the dependency-free core as versioned runtime files, without a filesystem dependency on this checkout. */
 import {
 	cpSync,
@@ -27,6 +28,18 @@ cpSync(join(root, "dist"), vendor, { recursive: true });
 for (const name of ["LICENSE", "THIRD_PARTY_NOTICES.md"])
 	cpSync(join(root, name), join(vendor, name));
 rmSync(join(vendor, "release-manifest.json"), { force: true });
+// Keep license terms next to the manifest of dependencies the host actually resolves.
+const { packages, notices } = hostRuntimeDependencies(
+	join(host, "package.json"),
+);
+const noticeDirectory = join(host, "dist/runtime-notices");
+mkdirSync(noticeDirectory, { recursive: true });
+for (const [name, body] of notices)
+	writeFileSync(join(noticeDirectory, name), body);
+writeFileSync(
+	join(noticeDirectory, "manifest.json"),
+	JSON.stringify({ packages }, null, 2) + "\n",
+);
 const walk = (dir: string): string[] =>
 	readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
 		e.isDirectory() && e.name !== "core"

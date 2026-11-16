@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Client } from "@modelcontextprotocol/client";
@@ -539,6 +539,16 @@ test("T-INT Grok Bot style usage: save, search from another process, correct, fo
 		owner.kill("SIGTERM");
 		await owner.exited;
 		owner = undefined;
+		const journal = join(dir, "forget.jsonl");
+		const protectedJournal = join(dir, "protected-forget.jsonl");
+		const beforeRestore = readFileSync(join(dir, "memory.db"));
+		renameSync(journal, protectedJournal);
+		expect(await command(["restore", backupPath, dir])).toMatchObject({
+			code: 4,
+			result: { status: "blocked", code: "JOURNAL_MISSING" },
+		});
+		expect(readFileSync(join(dir, "memory.db"))).toEqual(beforeRestore);
+		renameSync(protectedJournal, journal);
 		const restored = await command(["restore", backupPath, dir]);
 		expect(restored.code).toBe(0);
 		owner = await serve(dir);

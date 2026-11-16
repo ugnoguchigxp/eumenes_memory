@@ -50,7 +50,7 @@ bun run check:memory:conversations:live # 人物・話題混在、曖昧な訂�
 | import | 内容 |
 |---|---|
 | `eumenes-memory` | 純粋 API と、各 family の型・定数・reasonCode・上限。`MemoryContractError` / `isMemoryContractError`、`CONTRACT_VERSIONS`（records / state / lifecycle / external。lifecycle は 2 で、Lifecycle の関数は 1 も受ける）、`LIMITS*`、`sliceUtf8Range`（UTF-8 byte 範囲の切り出し）、`verifyForgetJournal`（ジャーナルの鎖の検証）、`classifyValidity` / `periodFromStateMs`（成立期間の判定。時刻はホストが渡す） |
-| `eumenes-memory/sqlite` | 永続 API。ホストが渡す `MemoryDb`（bun:sqlite の `Database` が構造的に満たす。`inTransaction` は必須）に対する同期関数と `migrations`。`bun:sqlite` は import しない。State（`assertUserState` / `deactivateState` / `reactivateState` / `retractState` / `listState` / `readStateFact`）、Records（`captureRecord` / `readRecord` と、再生成可能な資料の `retainRecord` / `readRetainedRecord` / `useRetainedRecord` / `retainedRecordStats` / `evictRetainedRecords`）、Lifecycle（`planForget` / `applyForget` / `reconcileForgetJournal` / `getForgetReceipt` / `recordExternalDeletion` / `registerExternalDependents` / `unregisterExternalDependents`。契約版 2 の `planForget` は同じ scope の複数 target と、ホストの忘却意図 `hostIntent` を1つの entry にまとめる。[忘却とバックアップ復元](docs/host-guide.md#忘却とバックアップ復元)）、`assertMemorySchema` / `checkHostMigrations` / `migrations` / `MEMORY_DB_SCHEMA_VERSION`、`listMemoryChanges` / `latestMemoryChangeSeq`（scope で可視な変更の最大 seq。ホストが内部の表を読まずに世代を見る）、`MemoryStoreError`。State の `assertUserState` の origin は `user_confirmed` / `user_edited` / `agent_inferred`（ホストのエージェントが依頼なしに推定した内容。ユーザー由来の保護は受けない。意味は [State 契約](docs/host-guide.md#state-origin)）。起動手順と規則は [src/infrastructure/sqlite/README.md](docs/host-guide.md#startup) |
+| `eumenes-memory/sqlite` | 永続 API。ホストが渡す `MemoryDb`（bun:sqlite の `Database` が構造的に満たす。`inTransaction` は必須）に対する同期関数と `migrations`。`bun:sqlite` は import しない。State（`assertUserState` / `deactivateState` / `reactivateState` / `retractState` / `listState` / `readStateFact` / `searchState`）、Records（`captureRecord` / `readRecord` と、再生成可能な資料の `retainRecord` / `readRetainedRecord` / `useRetainedRecord` / `retainedRecordStats` / `evictRetainedRecords`）、Lifecycle（`planForget` / `applyForget` / `reconcileForgetJournal` / `getForgetReceipt` / `recordExternalDeletion` / `registerExternalDependents` / `unregisterExternalDependents`。契約版 2 の `planForget` は同じ scope の複数 target と、ホストの忘却意図 `hostIntent` を1つの entry にまとめる。[忘却とバックアップ復元](docs/host-guide.md#忘却とバックアップ復元)）、`assertMemorySchema` / `checkHostMigrations` / `migrations` / `MEMORY_DB_SCHEMA_VERSION`、`listMemoryChanges` / `latestMemoryChangeSeq`（scope で可視な変更の最大 seq。ホストが内部の表を読まずに世代を見る）、`MemoryStoreError`。State の `assertUserState` の origin は `user_confirmed` / `user_edited` / `agent_inferred`（ホストのエージェントが依頼なしに推定した内容。ユーザー由来の保護は受けない。意味は [State 契約](docs/host-guide.md#state-origin)）。起動手順と規則は [src/infrastructure/sqlite/README.md](docs/host-guide.md#startup) |
 
 ## Eumenes からの利用
 
@@ -95,10 +95,11 @@ const written = store.write((db) =>
 
 書込はホストが提供するtransaction内で行う。再生成可能な資料の更新は古い本文revisionを剪定するため、永続Stateや外部派生物が参照する資料、および外部送付記録を持つ資料の更新・削除は拒否する。先に所有者側の公開操作で依存を解決する。forgetは本文とretention metadataを除去し、再captureを墓標で拒否する。接続・SQL transaction・キャッシュの容量方針・checkpoint/vacuumはホストが所有する。
 
-## DB スキーマ（版 8）
+## DB スキーマ（版 9）
 
-`MEMORY_DB_SCHEMA_VERSION` は 8 で、パッケージの版とは独立（migration の本数と一致する）。登録済みの migration の本文と順序は変えず、変更は追記する。
+`MEMORY_DB_SCHEMA_VERSION` は 9 で、パッケージの版とは独立（migration の本数と一致する）。登録済みの migration の本文と順序は変えず、変更は追記する。
 
+- migration 0009 は State の全文検索索引を追加し、既存の active 項目を索引に入れる。SQLite 3.44 以上と FTS5 が必要。移行と起動時の照合は [ホスト導入手順](docs/host-guide.md#startup) を参照。
 - migration 0008 は、現在の機能が使わない永続物を削除する: 抽出の表（`memory_extraction_run` / `_input` / `_shown`、`memory_candidate` / `_evidence`、`memory_source_progress`）、全文索引 `memory_record_fts`、`memory_scope_state`、旧 node 種別（`candidate` / `extraction_run`）の依存辺と墓標。過去の忘却の記録（`memory_forget` / `memory_forget_external`）、State の item、Records は不変。
 - 既存の行が持ちうる語彙（`disputed` / `invalidated` の status、`admitted_extraction` の origin など）は読み取りのために残る。現在の API はこれらを書かない。そうした State の item はそのまま読めて、忘却の対象にもなる。
 - 旧い DB の閉包は狭くなる: 抽出の run が読んだだけで item が引用していない出典を忘れても、その run 経由で抽出由来の item には届かない。item が根拠として引用する出典は従来どおり届く。Eumenes は抽出を実行したことがなく、実データは無い。

@@ -61,23 +61,40 @@ export class UnavailableEvidenceError extends Error {
 		super("EVIDENCE_UNAVAILABLE");
 	}
 }
-export function recallPrompt(items: readonly ModelItem[], message: string) {
-	return JSON.stringify({ message, items });
+export function recallPrompt(
+	items: readonly ModelItem[],
+	message: string,
+	completeCoverage = true,
+) {
+	return JSON.stringify({
+		message,
+		items,
+		...(completeCoverage ? {} : { completeCoverage: false }),
+	});
 }
-/** Supply the entire authorized snapshot once. Provider limits/failures are surfaced, never truncated. */
+export const partialGroundingInstructions = `${hostGroundingInstructions}
+The supplied items are search results and do not cover all authorized memory. Report unknown when
+the results cannot establish an answer. Do not infer exhaustive lists, absence of a fact, or the
+absence of exceptions from partial coverage.`;
+/** Apply the same evidence contract to full and explicitly partial inputs. */
 export async function recallSnapshot(
 	input: readonly ModelItem[],
 	message: string,
 	complete: Complete,
+	completeCoverage = true,
 ) {
 	const items = structuredClone(input);
 	const ids = items.map((x) => x.itemId);
 	if (new Set(ids).size !== ids.length) throw Error("Duplicate snapshot IDs");
-	const response = await complete(
-		recallPrompt(items, message),
-		evidenceSchema,
-		"recall",
-	);
+	const prompt = recallPrompt(items, message, completeCoverage);
+	const response = completeCoverage
+		? await complete(prompt, evidenceSchema, "recall")
+		: await complete(
+				prompt,
+				evidenceSchema,
+				"recall",
+				partialGroundingInstructions,
+			);
 	const parts = parseEvidence(response.raw, ids);
 	if (parts.length === 0) throw Error("Missing requested parts");
 	const unavailable = new Set(
@@ -95,7 +112,7 @@ export async function recallSnapshot(
 		snapshotHash: createHash("sha256")
 			.update(JSON.stringify(items))
 			.digest("hex"),
-		coverage: { complete: true, itemCount: items.length },
+		coverage: { complete: completeCoverage, itemCount: items.length },
 		parts,
 	};
 }

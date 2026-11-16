@@ -1,14 +1,16 @@
 import { z } from "zod";
 import type { HostItem } from "./meaning/model-input.ts";
-import { demand, type HostResult, type Profile } from "./contracts.ts";
+import {
+	demand,
+	HostError,
+	type HostResult,
+	type Profile,
+} from "./contracts.ts";
 import { commandComplete, measureRecallInput } from "./model.ts";
 import { request } from "./transport.ts";
 import { modelItems } from "./meaning/model-input.ts";
 import { parsePlan, planningSchema } from "./meaning/planning.ts";
-import {
-	recallSnapshot,
-	UnavailableEvidenceError,
-} from "./meaning/retrieval.ts";
+import { naturalRecall, type RecallView } from "./natural-recall.ts";
 import type { Complete } from "./meaning/protocol.ts";
 
 const inputSchema = z
@@ -42,6 +44,22 @@ export async function natural(
 	complete: Complete = commandComplete(profile),
 ): Promise<HostResult> {
 	const input = inputSchema.parse(raw);
+	if (method === "recall") {
+		let view: RecallView | undefined;
+		try {
+			const full = await snapshot(profile, input.scopeKey);
+			const items = modelItems(full.items, [], { provenance: true });
+			if (measureRecallInput(items, input.message).fitsModelInput)
+				view = { id: full.id, items, complete: true };
+		} catch (error) {
+			if (
+				!(error instanceof HostError) ||
+				error.code !== "COMPLETE_SNAPSHOT_REQUIRED"
+			)
+				throw error;
+		}
+		return naturalRecall(profile, input, complete, view);
+	}
 	const view = await snapshot(profile, input.scopeKey);
 	const items = modelItems(view.items, [], { provenance: true });
 	if (method === "recall-size") {
@@ -53,27 +71,6 @@ export async function natural(
 			snapshotId: view.id,
 			epoch: fresh["epoch"],
 			measurement,
-		};
-	}
-	if (method === "recall") {
-		let answer: Awaited<ReturnType<typeof recallSnapshot>>;
-		try {
-			answer = await recallSnapshot(items, input.message, complete);
-		} catch (error) {
-			if (error instanceof UnavailableEvidenceError)
-				return { status: "blocked", code: "EVIDENCE_UNAVAILABLE" };
-			throw error;
-		}
-		const fresh = await request(profile, "read", { snapshotId: view.id });
-		if (fresh.status !== "found") return fresh;
-		return {
-			status: "found",
-			snapshotId: view.id,
-			epoch: fresh["epoch"],
-			...answer,
-			items: items.filter((x) =>
-				answer.parts.some((p) => p.evidenceIds.includes(x.itemId)),
-			),
 		};
 	}
 	let source: { content: string } | undefined;

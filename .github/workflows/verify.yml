@@ -26,6 +26,7 @@ jobs:
       - run: bun run verify:all
       - run: bun run verify:package
       - run: bun run verify:host
+      - run: bun run check:dependencies
       - name: Upload verification report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -33,5 +34,6 @@ jobs:
           name: verification-report-${{ matrix.os }}
           path: |
             verification-reports/latest.json
+            verification-reports/quality-80/dependencies.json
             verification-reports/quality-80/package.json
             verification-reports/host/package.json

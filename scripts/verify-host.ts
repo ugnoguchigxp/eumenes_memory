@@ -1,3 +1,4 @@
+import { hostRuntimeDependencies } from "./host-runtime-dependencies.ts";
 import { createHash } from "node:crypto";
 import {
 	cpSync,
@@ -100,6 +101,18 @@ return db.no_such_driver_field;
 			);
 		if (!installedMatches())
 			throw Error("Installed code differs from the verified archive");
+		const notices = join(installed, "dist/runtime-notices");
+		const runtime = hostRuntimeDependencies(join(installed, "package.json"));
+		const declared = JSON.parse(
+			readFileSync(join(notices, "manifest.json"), "utf8"),
+		);
+		if (JSON.stringify(declared.packages) !== JSON.stringify(runtime.packages))
+			throw Error(
+				"Installed runtime dependencies differ from the archived notices",
+			);
+		for (const [name, content] of runtime.notices)
+			if (!readFileSync(join(notices, name)).equals(content))
+				throw Error(`Missing or modified runtime notice: ${name}`);
 		const entry = join(installed, "dist/cli.js");
 		const check = join(scratch, "consumer.test.ts");
 		cpSync(join(root, "packages/host/test/process.test.ts"), check);
@@ -160,6 +173,7 @@ return db.no_such_driver_field;
 			typedConsumer: true,
 			tests: tests.trim(),
 			consumer: (output + error).trim(),
+			runtimeDependencies: runtime.packages,
 			negativeControls: ["modified artifact rejected"],
 			application: process.env["EUMENES_CHECKOUT"]
 				? "actual checkout fixture tested"

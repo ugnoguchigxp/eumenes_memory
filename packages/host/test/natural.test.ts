@@ -1,12 +1,26 @@
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { initialize } from "../src/storage.ts";
-import { request, startStandalone } from "../src/transport.ts";
+import { request, serveHost, startStandalone } from "../src/transport.ts";
 import { natural } from "../src/natural.ts";
 import { commandComplete } from "../src/model.ts";
 import type { StateItem } from "eumenes-memory";
+import { assertUserState } from "eumenes-memory/sqlite";
+import {
+	makeSource,
+	makeSpan,
+	value,
+} from "../../../src/domains/state/test/state-support.ts";
+import {
+	disposeFixtures,
+	fixture,
+	forget,
+	items as currentItems,
+	remember,
+} from "./support.ts";
+
 import { measureRecallInput, encodeModelInput } from "../src/model.ts";
 import { modelItems } from "../src/meaning/model-input.ts";
 import { evidenceSchema } from "../src/meaning/support.ts";
@@ -209,3 +223,130 @@ test("recall cannot return model output from a snapshot forgotten during model l
 		rmSync(dir, { recursive: true, force: true });
 	}
 });
+
+afterEach(disposeFixtures);
+
+test("recall retrieves bounded evidence from 1,001 authorized items and discloses partial coverage", async () => {
+	const h = await fixture({ scopes: ["personal", "work"] });
+	const target = "西京味噌で味付けします";
+	const saved = await remember(h, target, undefined, {
+		provenance: "user_message",
+	});
+	const expected = (await currentItems(h))[0]!;
+	const access = h.host.access(
+		h.configuration().credentials[h.profile.credential]!,
+	);
+	await h.owner.port.write((db) => {
+		for (let index = 0; index < 1001; index++) {
+			const scope = index === 1000 ? "work" : "personal";
+			const text =
+				index === 1000
+					? "西京味噌は秘密の職場情報"
+					: "合成データで負荷と範囲を確認します。".repeat(6);
+			const source = makeSource("large-" + index, text, index + 1, {}, scope);
+			const result = assertUserState(db, {
+				contractVersion: 1,
+				access,
+				scopeKey: scope,
+				clock: { atMs: h.clock.now },
+				kind: "preference",
+				subject: "self",
+				semanticKey: "large-" + index,
+				value: value(text),
+				origin: "agent_inferred",
+				evidence: [makeSpan(source, text)],
+				sources: [source],
+			});
+			if (result.status !== "applied") throw Error("test seed did not apply");
+		}
+	});
+	const server = await serveHost(h.host, h.profile.socketPath);
+	try {
+		const input = { scopeKey: "personal", message: "調味料には何を使いますか" };
+		const unavailable = async () => {
+			throw Error("recall-size must remain offline");
+		};
+		expect(
+			await natural(h.profile, "recall-size", input, unavailable),
+		).toMatchObject({
+			status: "found",
+			measurement: { itemCount: 1001, fitsModelInput: false },
+		});
+
+		let calls = 0;
+		const response = (value: unknown) => ({
+			raw: JSON.stringify(value),
+			threadId: null,
+			usage: null,
+		});
+		const answer = await natural(
+			h.profile,
+			"recall",
+			input,
+			async (prompt, schema, task, instructions) => {
+				calls++;
+				expect(
+					Buffer.byteLength(
+						encodeModelInput(prompt, schema, task, instructions),
+					),
+				).toBeLessThanOrEqual(128 * 1024);
+				const parsed = JSON.parse(prompt);
+				if (!parsed.items) {
+					expect(parsed).toEqual({ message: input.message });
+					expect(instructions).toContain("Select one literal text query");
+					return response({ query: "西京味噌" });
+				}
+				expect(parsed.completeCoverage).toBe(false);
+				expect(parsed.items).toMatchObject([
+					{ itemId: expected.itemId, value: { text: target } },
+				]);
+				expect(instructions).toContain("do not cover all authorized memory");
+				return response({
+					parts: [
+						{
+							request: "調味料",
+							status: "supported",
+							evidenceIds: [expected.itemId],
+						},
+					],
+				});
+			},
+		);
+		expect(answer).toMatchObject({
+			status: "found",
+			epoch: h.host.epoch,
+			coverage: { complete: false, itemCount: 1 },
+			items: [{ itemId: expected.itemId }],
+		});
+		expect(calls).toBe(2);
+
+		const stale = await natural(h.profile, "recall", input, async (prompt) => {
+			if (!JSON.parse(prompt).items) return response({ query: "西京味噌" });
+			expect(
+				(await forget(h, expected.itemId, [saved.source["sourceHandle"]]))
+					.status,
+			).toBe("completed");
+			return response({
+				parts: [
+					{
+						request: "調味料",
+						status: "supported",
+						evidenceIds: [expected.itemId],
+					},
+				],
+			});
+		});
+		expect(stale.status).not.toBe("found");
+		expect(stale["parts"]).toBeUndefined();
+		expect(
+			await natural(h.profile, "recall", input, async () =>
+				response({ query: "西京味噌" }),
+			),
+		).toMatchObject({
+			status: "blocked",
+			code: "SEARCH_COVERAGE_INSUFFICIENT",
+		});
+	} finally {
+		await server.close();
+	}
+}, 15000);

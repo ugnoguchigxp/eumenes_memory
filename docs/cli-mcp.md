@@ -95,9 +95,11 @@ applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持�
 
 ## 自然文CLIとモデル
 
-自然文planは`{scopeKey,message,sourceHandle}`、recallは`{scopeKey,message}`。利用者がprofileへmodelCommandとmodelDailyCallsを明示した場合のみ、外部Completeを1回呼び出す。既存の計画parser、意味指示、根拠選択を共用し、発話別の条件分岐を持たない。モデルなしの構造化操作も利用できる。
+自然文planは`{scopeKey,message,sourceHandle}`、recallは`{scopeKey,message}`。利用者がprofileへmodelCommandとmodelDailyCallsを明示した場合のみ、外部Completeを呼び出す。計画と全件が収まるrecallは1回、全文検索に切り替えるrecallは最大2回。既存の計画parser、意味指示、根拠選択を共用し、発話別の条件分岐を持たない。モデルなしの構造化操作も利用できる。
 
 Completeはstdinのversion/prompt/schema/task/instructions/maxOutputTokensを受け、stdoutへ`{"raw":"schema準拠JSON文字列"}`を返す。資格情報・provider金額予算はCompleteが所有する。ホスト側は入力128KiB・出力64KiB・120秒、同時実行1、永続台帳で日次回数を予約する。自動再生成は行わない。recallはsupported/unknown/conflictを項目ごとに返し、返却前の状態照合でモデル待ち中の変更を拒否する。
+
+全件が128 KiBに収まらない場合は、モデルが選んだ1つの文字列クエリで既存の全文検索を呼び、同じ根拠検査で回答する。`coverage.complete: false`は検索範囲に限った回答を表す。検索が適さない質問や、許可された候補が見つからない場合は`SEARCH_COVERAGE_INSUFFICIENT`を返す。検索の失敗は「記憶なし」に変換しない。`recall-size`は引き続き全件方式のサイズを計測する。
 
 自然文recallは指定した許可scopeの全Stateを渡す。snapshotの上限（10000項目／8MiB）と、モデル入力の上限（131072 UTF-8 bytes）は別であり、snapshotを取得できても自然文recallを実行できるとは限らない。モデル上限は記憶本文・ID・origin等の付帯情報、質問、指示、schema、JSONのエスケープを含む送信データ全体に適用する。128K tokenを意味しない。超過時はモデルを呼ぶ前に`blocked/MODEL_INPUT_TOO_LARGE`で拒否し、記憶を切り捨てたりunknownへ変換したりしない。
 

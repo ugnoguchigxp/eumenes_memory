@@ -134,3 +134,47 @@ test.each([
 		}
 	},
 );
+
+test("model overload rejects while a reservation is held and admits a request after release", async () => {
+	const dir = mkdtempSync(join(tmpdir(), "em-model-busy-"));
+	const signal = join(dir, "ready");
+	const release = join(dir, "release");
+	const program = join(dir, "adapter.ts");
+	writeFileSync(
+		program,
+		`
+		await Bun.stdin.text();
+		await Bun.write(${JSON.stringify(signal)}, "");
+		while (!(await Bun.file(${JSON.stringify(release)}).exists())) await Bun.sleep(10);
+		console.log(JSON.stringify({raw:"{}"}));
+	`,
+	);
+	const complete = commandComplete({
+		version: 1,
+		socketPath: join(dir, "m.sock"),
+		credential: "unused",
+		modelCommand: [process.execPath, program],
+		modelDailyCalls: 2,
+	});
+	const first = complete("{}", {}, "recall");
+	try {
+		for (let step = 0; step < 200 && !existsSync(signal); step++)
+			await Bun.sleep(10);
+		expect(existsSync(signal)).toBe(true);
+		await expect(complete("{}", {}, "recall")).rejects.toMatchObject({
+			code: "MODEL_BUSY",
+		});
+		writeFileSync(release, "");
+		await expect(first).resolves.toMatchObject({ raw: "{}" });
+		await expect(complete("{}", {}, "recall")).resolves.toMatchObject({
+			raw: "{}",
+		});
+		await expect(complete("{}", {}, "recall")).rejects.toMatchObject({
+			code: "MODEL_BUDGET_EXHAUSTED",
+		});
+	} finally {
+		writeFileSync(release, "");
+		await first.catch(() => {});
+		rmSync(dir, { recursive: true, force: true });
+	}
+});

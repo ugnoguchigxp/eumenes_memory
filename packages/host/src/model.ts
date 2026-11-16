@@ -16,6 +16,7 @@ export function encodeModelInput(
 	prompt: string,
 	schema: Parameters<Complete>[1],
 	task: Parameters<Complete>[2],
+	instructions?: string,
 ) {
 	return JSON.stringify({
 		version: 1,
@@ -23,7 +24,10 @@ export function encodeModelInput(
 		schema,
 		task,
 		instructions:
-			task === "decide" ? hostPlanningInstructions : hostGroundingInstructions,
+			instructions ??
+			(task === "decide"
+				? hostPlanningInstructions
+				: hostGroundingInstructions),
 		maxOutputTokens: 4096,
 	});
 }
@@ -64,12 +68,12 @@ export function measureRecallInput(
 
 /** A configured executable implements Complete. No shell, model key or provider fallback. */
 export function commandComplete(profile: Profile): Complete {
-	return async (prompt, schema, task) => {
+	return async (prompt, schema, task, instructions) => {
 		demand(
 			profile.modelCommand?.length && profile.modelDailyCalls,
 			"MODEL_NOT_CONFIGURED",
 		);
-		const input = encodeModelInput(prompt, schema, task);
+		const input = encodeModelInput(prompt, schema, task, instructions);
 		demand(
 			Buffer.byteLength(input) <= HOST_LIMITS.modelInputBytes,
 			"MODEL_INPUT_TOO_LARGE",
