@@ -106,7 +106,11 @@ function dump(store: TestStore): string {
 		.all() as { name: string }[];
 	const out: Record<string, unknown[]> = {};
 	for (const { name } of tables) {
-		out[name] = store.writer.query(`SELECT * FROM ${name} ORDER BY 1, 2`).all();
+		// 全文検索の索引（migration 0009）の表は列が 1 つなので、rowid を足して並べる。
+		const columns = name === "memory_state_fts" ? "rowid, *" : "*";
+		out[name] = store.writer
+			.query(`SELECT ${columns} FROM ${name} ORDER BY 1, 2`)
+			.all();
 	}
 	return JSON.stringify(out);
 }

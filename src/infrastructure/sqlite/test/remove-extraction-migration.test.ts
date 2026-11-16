@@ -219,9 +219,9 @@ describe("migration 0008: removing Extraction and Recall", () => {
 		store = seedSchema7();
 		expect(count(store, "SELECT COUNT(*) AS n FROM memory_candidate")).toBe(1);
 		expect(() => assertMemorySchema(store!.writer)).toThrow(/SCHEMA_OUTDATED/);
-		expect(migrations).toHaveLength(8);
+		// 0009（State の検索の索引）を足したので、0008 の後に残りの migration を適用して最新にする。
+		expect(migrations.length).toBeGreaterThanOrEqual(8);
 		store.writer.exec(migrations[7] as string);
-		assertMemorySchema(store.writer);
 		expect(
 			store.writer
 				.query(
@@ -229,6 +229,9 @@ describe("migration 0008: removing Extraction and Recall", () => {
 				)
 				.get(),
 		).toEqual({ value: "8" });
+		expect(store.writer.query("PRAGMA foreign_key_check").all()).toEqual([]);
+		for (const later of migrations.slice(8)) store.writer.exec(later);
+		assertMemorySchema(store.writer);
 		expect(store.writer.query("PRAGMA foreign_key_check").all()).toEqual([]);
 	});
 
@@ -266,7 +269,7 @@ describe("migration 0008: removing Extraction and Recall", () => {
 
 	test("removes the edges and tombstones of the removed node types and keeps the rest", () => {
 		store = seedSchema7();
-		store.writer.exec(migrations[7] as string);
+		for (const m of migrations.slice(7)) store.writer.exec(m);
 		expect(
 			store.writer
 				.query(
@@ -321,7 +324,7 @@ describe("migration 0008: removing Extraction and Recall", () => {
 
 	test("State rows from extraction stay readable with their origin", () => {
 		store = seedSchema7();
-		store.writer.exec(migrations[7] as string);
+		for (const m of migrations.slice(7)) store.writer.exec(m);
 		const listed = listState(store.writer, {
 			contractVersion: 1,
 			access: ACCESS,
@@ -339,7 +342,7 @@ describe("migration 0008: removing Extraction and Recall", () => {
 
 	test("forget keeps working after the upgrade: a source reaches the extraction-derived item, external dependents, and the journal reconciles", () => {
 		store = seedSchema7();
-		store.writer.exec(migrations[7] as string);
+		for (const m of migrations.slice(7)) store.writer.exec(m);
 		const s = store;
 		const planned = planForget(s.writer, {
 			contractVersion: 1,
@@ -402,7 +405,7 @@ describe("migration 0008: removing Extraction and Recall", () => {
 
 	test("a source that an old run only read no longer reaches the item that run produced (accepted narrowing); the cited source still does", () => {
 		store = seedSchema7();
-		store.writer.exec(migrations[7] as string);
+		for (const m of migrations.slice(7)) store.writer.exec(m);
 		const closureOf = (sourceKey: string) => {
 			const planned = planForget(store!.writer, {
 				contractVersion: 1,

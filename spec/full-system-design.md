@@ -26,7 +26,8 @@ H 前の機能を「完了」と書かない。
 
 非ゴール
 - HTTP サーバー、独自 DB 接続の open/close、PRAGMA 設定、queue / lease / retry / scheduler、モデル呼び出しと資格情報。
-- embedding / ベクトル検索、全文検索。
+- embedding / ベクトル検索。
+- 全文検索は非ゴールから外した（2026-11-16、利用者の承認。決定 1）。対象は State の active な item に限り、件数の上限 20 件で読み取り専用に返す。正本は [State の全文検索と結果上限の設計](state-search-design.md)。Records とビジネスナレッジの全文検索は引き続き対象外。
 - Continuity（goal / decision / open_question）の正本移管。会話原文のコピー保存（Records は外部取得物専用）。
 - World / Consolidation（別ドメイン・別リポジトリ。接続部は ExternalDependent と変更フィードだけ）、Procedure（Rule / Skill。指示の権限を持つのでホストが扱う）。
 

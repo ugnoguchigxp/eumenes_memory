@@ -14,6 +14,8 @@ import {
 	getForgetReceipt,
 	planForget,
 	reconcileForgetJournal,
+	rebuildStateSearchIndex,
+	verifyStateSearchIndex,
 	registerExternalDependents,
 	unregisterExternalDependents,
 	type MemoryDb,
@@ -29,8 +31,35 @@ import {
 	type HostResult,
 	type Method,
 	type MethodParams,
+	INTERNAL_PROVENANCES,
+	type Provenance,
+	type Trust,
 } from "./contracts.ts";
-import { hostSchemaSql, type AppPort } from "./storage.ts";
+import { join } from "node:path";
+import { realpathSync } from "node:fs";
+import {
+	HOST_SCHEMA_VERSION,
+	upgradeHostSchema,
+	type AppPort,
+} from "./storage.ts";
+import { backupStatus, createBackupFiles } from "./backup.ts";
+import { runSearch } from "./search.ts";
+import { runReview } from "./review.ts";
+import { scrubBackups } from "./scrub.ts";
+import {
+	EXPIRE_PLAN_ID,
+	expiresAtMs,
+	expiresOnText,
+	reactivate,
+	recordUse,
+	runExpire,
+} from "./expiry.ts";
+import {
+	activeUsage,
+	capacityLimits,
+	capacityReport,
+	NEAR_LIMIT_RATIO,
+} from "./capacity.ts";
 import {
 	accessFor,
 	digest,
@@ -69,21 +98,44 @@ export interface HostOptions {
 	port: AppPort;
 	configuration: () => HostConfig;
 	clock?: () => number;
+	/** 試験だけが上限を小さくする（CLI と MCP からは届かない）。指定の無い上限は `HOST_LIMITS`。 */
+	limits?: Partial<Record<keyof typeof HOST_LIMITS, number>>;
 	/** Tests inject a crash after durable append. Never reachable through CLI/MCP. */
 	afterJournalAppend?: () => void;
+	/**
+	 * バックアップの洗い直し（S4）だけが使う。ジャーナルの再適用で作った host intent は、検証済みの完全なジャーナルの
+	 * entry から再適用済みなので完了とし、ジャーナルへの追記を伴う回復を走らせない（ライブのジャーナルを書き換えないため）。
+	 */
+	replayJournalOnly?: boolean;
+	/** 試験だけがバックアップの洗い直しを失敗させる。CLI と MCP からは届かない。 */
+	beforeBackupScrub?: (file: string) => void;
 	/** Trusted application-only resolver. Client assertions never enter this callback as verified facts. */
 	resolveSource?: (
 		db: MemoryDb,
 		ref: SourceRef,
 	) => import("eumenes-memory").HostSourceState | undefined;
 }
+/**
+ * 出典を参照（namespace/kind/id）で探す SQL。ホストの表の版 1 からある部分索引 `host_source_ref` を使う
+ * （索引の式と同じ式で、`forgotten=0` も同じ。式を変えると索引が使われなくなるので、試験で確かめる）。
+ */
+export const SOURCE_BY_REF_SQL =
+	"SELECT * FROM host_source WHERE scope_key=? AND forgotten=0 AND json_extract(ref,'$.namespace')=? AND json_extract(ref,'$.kind')=? AND json_extract(ref,'$.id')=?";
+/** 根拠の版と状態を調べる関数（`MemoryHost.inspectEvidence` と同じ結果）。 */
+export type EvidenceInspector = (
+	item: StateItem,
+	ref: SourceRef,
+) => ReturnType<MemoryHost["inspectEvidence"]>;
 export class MemoryHost {
 	readonly epoch = randomUUID();
+	readonly startedAt: number;
 	readonly snapshots: SnapshotStore;
 	readonly clock: () => number;
 	healthy = false;
 	journalCount = 0;
 	activeOperation: string | undefined;
+	/** 起動時の検査で索引を作り直せなかった（§3.4）。search だけを止め、ほかの操作には影響させない。 */
+	searchIndexUnavailable = false;
 	readonly inFlight = new Map<string, Promise<HostResult>>();
 	private readonly handles = new Map<
 		string,
@@ -91,7 +143,11 @@ export class MemoryHost {
 	>();
 	constructor(readonly options: HostOptions) {
 		this.clock = options.clock ?? Date.now;
+		this.startedAt = this.clock();
 		this.snapshots = new SnapshotStore(this.epoch, this.clock);
+	}
+	limit(name: keyof typeof HOST_LIMITS): number {
+		return this.options.limits?.[name] ?? HOST_LIMITS[name];
 	}
 	get config(): HostConfig {
 		return this.options.configuration();
@@ -127,6 +183,7 @@ export class MemoryHost {
 		}
 		if (!recovery && (attempt.attempted || this.checkpointPending))
 			await this.checkpointAfterForget();
+		if (!recovery && attempt.attempted) this.queueBackupScrub();
 		return value;
 	}
 	private async checkpointAfterForget(): Promise<void> {
@@ -137,6 +194,27 @@ export class MemoryHost {
 		} catch {
 			this.checkpointPending = true;
 		}
+	}
+	private backupQueue: Promise<unknown> = Promise.resolve();
+	/** バックアップの作成と洗い直しを 1 本ずつ行う。 */
+	withBackupLock<T>(fn: () => Promise<T>): Promise<T> {
+		const task = this.backupQueue.then(fn);
+		this.backupQueue = task.catch(() => {});
+		return task;
+	}
+	/** 忘却の後、既存のバックアップを洗い直す（§4C.4 の 2、S4）。忘却の応答は待たせない。 */
+	private queueBackupScrub(): void {
+		void this.scheduleBackupScrub().catch(() => {});
+	}
+	async scheduleBackupScrub(): Promise<number> {
+		const directory = this.config.backupDirectory;
+		if (!directory || !this.options.port.databasePath)
+			return Promise.resolve(0);
+		return this.withBackupLock(() => scrubBackups(this, directory));
+	}
+	/** 試験と CLI が、予約済みのバックアップの処理の完了を待つ。 */
+	async backupIdle(): Promise<void> {
+		await this.backupQueue;
 	}
 	appendForgetEntry(entry: unknown): void {
 		demand(this.journalAttempt, "WRITER_TRANSACTION_REQUIRED");
@@ -182,19 +260,21 @@ export class MemoryHost {
 	}
 	authorizeForget(db: MemoryDb, grant: Grant): void {
 		this.admin(grant);
-		if (!grant.confirmedWrites)
-			demand(
-				!listItems(
-					db,
-					this.access(grant),
-					this.config.scopeKeys,
-					Infinity,
-					true,
-				).some(
-					(x) => x.origin === "user_confirmed" || x.origin === "user_edited",
-				),
-				"CONFIRMED_FORGET_REQUIRES_PERMISSION",
-			);
+		if (grant.confirmedWrites) return;
+		// 本人確認済みの item が 1 つでもあるか（全件を水和せずに SQL で探す。listItems と同じ条件で、
+		// 全 scope の読み取りの許可が要ることも同じ）。
+		demand(
+			this.config.scopeKeys.every((s) => grant.scopeKeys.includes(s)),
+			"SCOPE_NOT_PERMITTED",
+		);
+		demand(
+			!db
+				.query(
+					`SELECT 1 AS x FROM memory_state_item i WHERE i.principal=? AND i.scope_key IN (${this.config.scopeKeys.map(() => "?").join(",")}) AND i.status<>'forgotten' AND i.origin IN ('user_confirmed','user_edited') AND NOT EXISTS (SELECT 1 FROM memory_tombstone t WHERE t.target_type='state_item' AND t.target_id=i.item_id) LIMIT 1`,
+				)
+				.get(this.access(grant).principal, ...this.config.scopeKeys),
+			"CONFIRMED_FORGET_REQUIRES_PERMISSION",
+		);
 	}
 
 	async start(): Promise<void> {
@@ -202,11 +282,7 @@ export class MemoryHost {
 		try {
 			await this.write((db) => {
 				assertMemorySchema(db);
-				db.exec(hostSchemaSql);
-				const version = db.query("SELECT version FROM host_schema").get() as {
-					version: number;
-				};
-				demand(version.version === 1, "HOST_SCHEMA_MISMATCH");
+				upgradeHostSchema(db);
 				const entries = this.options.port.journal.read();
 				demand(Array.isArray(entries), "JOURNAL_INVALID");
 				this.journalCount = entries.length;
@@ -223,12 +299,36 @@ export class MemoryHost {
 						this.scrub(db, entry.hostIntent, entry.forgetId);
 					cleanExternal(this, db, entry.forgetId);
 				}
+				if (this.options.replayJournalOnly)
+					for (const entry of entries as import("eumenes-memory").ForgetJournalEntry[]) {
+						const intentId = entry.hostIntent?.["host.intent"]?.[0];
+						if (intentId)
+							db.query(
+								"UPDATE host_forget_intent SET completed=1 WHERE id=?",
+							).run(intentId);
+					}
 			}, true);
 			await this.write((db) => {
 				recoverIntents(this, db);
 				this.cleanup(db);
 			}, true);
+			// §3.4: 索引を検査し、一致しなければ writer の transaction の中で作り直す。失敗は search だけを止める。
+			// 次の checkpoint より前に行い、作り直しで捨てた古い索引のページ（忘れた本文の断片を含みうる）を DB ファイルに残さない。
+			await this.write((db) => {
+				if (verifyStateSearchIndex(db).consistent) return;
+				this.searchIndexUnavailable = !rebuildStateSearchIndex(db).consistent;
+			}, true).then(
+				() => {},
+				() => {
+					this.searchIndexUnavailable = true;
+				},
+			);
+			// ジャーナルの再適用や回復、索引の作り直しで消した本文を WAL に残さない（決定 9）。
 			await this.checkpointAfterForget();
+			this.queueBackupScrub();
+			// 決定 11: 起動時に、期限を過ぎた外部由来の item を停止する。失敗しても起動は止めない（次回に再試行）。
+			if (!this.options.replayJournalOnly)
+				await runExpire(this, { recovery: true }).catch(() => {});
 			this.healthy = true;
 		} catch (error) {
 			this.failClosed();
@@ -305,11 +405,25 @@ export class MemoryHost {
 					...(this.options.port.checkpoint
 						? { checkpointPending: this.checkpointPending }
 						: {}),
+					...backupStatus(
+						this.config.backupDirectory,
+						this.clock(),
+						this.startedAt,
+					),
 					...this.pendingStatus(grant),
+					...this.capacityStatus(grant),
 				};
 			if (name === "context") {
 				demand(grant.read, "READ_NOT_PERMITTED");
 				return this.context(grant, params as MethodParams<"context">);
+			}
+			if (name === "review") {
+				demand(grant.read, "READ_NOT_PERMITTED");
+				return runReview(this, grant, params as MethodParams<"review">);
+			}
+			if (name === "search") {
+				demand(grant.read, "READ_NOT_PERMITTED");
+				return runSearch(this, grant, params as MethodParams<"search">);
 			}
 			if (name === "read") {
 				demand(grant.read, "READ_NOT_PERMITTED");
@@ -321,7 +435,31 @@ export class MemoryHost {
 					this.operation(db, grant, params as MethodParams<"operation">),
 				);
 			}
+			if (name === "use") {
+				demand(grant.read, "READ_NOT_PERMITTED");
+				return await this.write((db) => {
+					const current = this.grant(credential);
+					demand(grantKey(current) === grantKey(grant), "ACCESS_CHANGED");
+					return this.use(db, current, params as MethodParams<"use">);
+				});
+			}
 			demand(grant.write, "WRITE_NOT_PERMITTED");
+			if (name === "backup") return await this.backup(grant);
+			if (name === "expire") {
+				this.admin(grant);
+				return { status: "completed", ...(await runExpire(this)) };
+			}
+			if (name === "reactivate")
+				return await this.write((db) => {
+					const current = this.grant(credential);
+					demand(grantKey(current) === grantKey(grant), "ACCESS_CHANGED");
+					return reactivate(
+						this,
+						db,
+						current,
+						(params as MethodParams<"reactivate">).itemId,
+					);
+				});
 			if (name === "apply")
 				return await applyPlan(
 					this,
@@ -341,6 +479,98 @@ export class MemoryHost {
 		} catch (error) {
 			return failure(error);
 		}
+	}
+	/**
+	 * 決定 11: 回答や行動に採用した item の報告。snapshot に入っていて revision が今のものと一致する item だけを受け付け、
+	 * 1 つでも合わなければ全体を拒否する（期限は変えない）。外部由来の item の最終利用日だけを、1 日 1 回まで更新する。
+	 * State の変更の seq を進めないので、snapshot と cursor は切れない。
+	 */
+	use(db: MemoryDb, grant: Grant, p: MethodParams<"use">): HostResult {
+		const snapshot = this.snapshots.get(p.snapshotId, grant, this.policy);
+		this.allowed(grant, snapshot.scopes);
+		const current = new Map(
+			listItems(
+				db,
+				this.access(grant),
+				snapshot.scopes,
+				Infinity,
+				false,
+				p.items.map((ref) => ref.itemId),
+			).map((x) => [x.itemId, x]),
+		);
+		const items = p.items.map((ref) => {
+			const seen = snapshot.items.find((x) => x.itemId === ref.itemId);
+			const item = current.get(ref.itemId);
+			demand(seen && item, "ITEM_NOT_AVAILABLE");
+			demand(
+				seen.revision === ref.revision && item.revision === ref.revision,
+				"STALE_REVISION",
+			);
+			return item;
+		});
+		const updated = recordUse(this, db, items);
+		return {
+			status: "completed",
+			items: items.map((item) =>
+				this.trust(db, item) === "external"
+					? {
+							itemId: item.itemId,
+							expiresOn: expiresOnText(expiresAtMs(db, item.itemId)),
+						}
+					: { itemId: item.itemId },
+			),
+			updated,
+		};
+	}
+	/** §4C.2: 所有者が writer の順番で `VACUUM INTO` し、ジャーナルの写しと一緒に置く。admin の grant が要る。 */
+	async backup(grant: Grant): Promise<HostResult> {
+		this.admin(grant);
+		const directory = this.config.backupDirectory;
+		demand(directory, "BACKUP_NOT_CONFIGURED");
+		const { exclusive, databasePath } = this.options.port;
+		demand(exclusive && databasePath, "BACKUP_UNSUPPORTED");
+		const meta = await this.withBackupLock(() =>
+			exclusive(() =>
+				createBackupFiles({
+					databasePath,
+					directory,
+					journal: this.options.port.journal.read() as unknown[],
+					atMs: this.clock(),
+					hostSchemaVersion: HOST_SCHEMA_VERSION,
+				}),
+			),
+		);
+		return {
+			status: "completed",
+			path: join(realpathSync(directory), meta.file),
+			bytes: meta.bytes,
+			sha256: meta.sha256,
+			schemaVersion: meta.schemaVersion,
+			journalHead: meta.journalHead,
+		};
+	}
+	/** §4D.2 の 1: 件数、大きさ、使用率と警告。本文は出さない。read の grant の scope だけを数える。 */
+	capacityStatus(grant: Grant): Record<string, unknown> {
+		if (!grant.read) return {};
+		return this.options.port.read((db) =>
+			capacityReport({
+				db,
+				principal: this.config.principal,
+				scopeKeys: grant.scopeKeys.filter((s) =>
+					this.config.scopeKeys.includes(s),
+				),
+				limits: capacityLimits((name) => this.limit(name)),
+				journalEntries: this.journalCount,
+				operationsThisEpoch: (
+					db
+						.query(
+							"SELECT count(*) AS n FROM host_operation WHERE epoch=? AND plan_id<>?",
+						)
+						.get(this.epoch, EXPIRE_PLAN_ID) as { n: number }
+				).n,
+				databasePath: this.options.port.databasePath,
+			}),
+		);
 	}
 	pendingStatus(grant: Grant): { pendingOperations: number } {
 		if (!grant.read) return { pendingOperations: 0 };
@@ -420,9 +650,20 @@ export class MemoryHost {
 		db.query(
 			"UPDATE host_operation SET payload=NULL,result=CASE WHEN EXISTS(SELECT 1 FROM json_each(result,'$.groups') WHERE value='not_run') THEN json_set(result,'$.status','indeterminate','$.code','EXECUTION_PAYLOAD_EXPIRED') ELSE result END WHERE payload IS NOT NULL AND created_at<=?",
 		).run(this.clock() - HOST_LIMITS.payloadTtlMs);
+		const receiptHorizon = this.clock() - this.limit("receiptTtlMs");
 		db.query(
 			"DELETE FROM host_operation WHERE epoch<>? AND payload IS NULL AND created_at <= ?",
-		).run(this.epoch, this.clock() - HOST_LIMITS.receiptTtlMs);
+		).run(this.epoch, receiptHorizon);
+		// 決定 8: 今の epoch の受領記録も 30 日で消し、消したことを epoch ごとに記録する。
+		// 以後、この epoch で記録の無い ID は「実行しなかった」とは答えず indeterminate にする。
+		db.query(
+			"DELETE FROM host_operation WHERE epoch=? AND payload IS NULL AND created_at <= ?",
+		).run(this.epoch, receiptHorizon);
+		const pruned = db.query("SELECT changes() AS n").get() as { n: number };
+		if (pruned.n > 0)
+			db.query(
+				"INSERT INTO host_operation_horizon(epoch,pruned_before) VALUES(?,?) ON CONFLICT(epoch) DO UPDATE SET pruned_before=max(pruned_before,excluded.pruned_before)",
+			).run(this.epoch, receiptHorizon);
 		const unused = db
 			.query(
 				"SELECT * FROM host_source WHERE content IS NOT NULL AND created_at < ? AND forgotten=0 AND NOT EXISTS(SELECT 1 FROM host_state_source s WHERE s.source_id=host_source.id) AND NOT EXISTS (SELECT 1 FROM host_plan p WHERE p.payload IS NOT NULL AND EXISTS(SELECT 1 FROM json_each(p.payload,'$.sourceIds') j WHERE j.value=host_source.id)) LIMIT 64",
@@ -444,7 +685,9 @@ export class MemoryHost {
 		if (prior) {
 			demand(!prior.forgotten && prior.content !== null, "SOURCE_UNAVAILABLE");
 			demand(
-				prior.content === p.content && prior.kind === p.kind,
+				prior.content === p.content &&
+					prior.kind === p.kind &&
+					(prior.provenance ?? "unknown") === p.provenance,
 				"SUBMISSION_ID_CONFLICT",
 			);
 			return this.sourceResult(prior, grant);
@@ -488,9 +731,10 @@ export class MemoryHost {
 			origin: "agent_inferred",
 			created_at: this.clock(),
 			forgotten: 0,
+			provenance: p.provenance,
 		};
 		db.query(
-			"INSERT INTO host_source(id,client_id,submission_id,scope_key,kind,content,ref,origin,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+			"INSERT INTO host_source(id,client_id,submission_id,scope_key,kind,content,ref,origin,created_at,provenance) VALUES(?,?,?,?,?,?,?,?,?,?)",
 		).run(
 			id,
 			grant.clientId,
@@ -501,6 +745,7 @@ export class MemoryHost {
 			row.ref,
 			row.origin,
 			row.created_at,
+			p.provenance,
 		);
 		const dependency = registerExternalDependents(db, {
 			contractVersion: 1,
@@ -537,6 +782,7 @@ export class MemoryHost {
 			sourceHandle: handle,
 			scopeKey: row.scope_key,
 			origin: row.origin,
+			provenance: row.provenance ?? "unknown",
 			byteLength: Buffer.byteLength(row.content ?? ""),
 			source: JSON.parse(row.ref),
 		};
@@ -597,9 +843,7 @@ export class MemoryHost {
 			};
 		}
 		const row = db
-			.query(
-				"SELECT * FROM host_source WHERE scope_key=? AND forgotten=0 AND json_extract(ref,'$.namespace')=? AND json_extract(ref,'$.kind')=? AND json_extract(ref,'$.id')=?",
-			)
+			.query(SOURCE_BY_REF_SQL)
 			.get(item.scopeKey, ref.namespace, ref.kind, ref.id) as SourceRow | null;
 		const source =
 			row && row.content !== null
@@ -629,10 +873,28 @@ export class MemoryHost {
 			version: [source.status, source.revision, source.digest],
 		};
 	}
-	withEvidenceStatus(db: MemoryDb, item: StateItem): HostItem {
-		const statuses = item.evidence.map(
-			(ref) => this.inspectEvidence(db, item, ref).status,
-		);
+	/**
+	 * 1 つの読み取りの中で、同じ根拠を何度も調べ直さないための `inspectEvidence`（scope と参照の全体で覚える）。
+	 * `withEvidenceStatus` と snapshot の指紋（全体と item ごと）が同じ根拠を調べるため。読み取りの外へ持ち出さない。
+	 */
+	evidenceInspector(db: MemoryDb): EvidenceInspector {
+		const seen = new Map<string, ReturnType<MemoryHost["inspectEvidence"]>>();
+		return (item, ref) => {
+			const key = JSON.stringify([item.scopeKey, ref]);
+			let result = seen.get(key);
+			if (!result) {
+				result = this.inspectEvidence(db, item, ref);
+				seen.set(key, result);
+			}
+			return result;
+		};
+	}
+	withEvidenceStatus(
+		db: MemoryDb,
+		item: StateItem,
+		inspect: EvidenceInspector = (x, ref) => this.inspectEvidence(db, x, ref),
+	): HostItem {
+		const statuses = item.evidence.map((ref) => inspect(item, ref).status);
 		const evidenceStatus: EvidenceStatus = statuses.includes("stale")
 			? "stale"
 			: statuses.includes("missing")
@@ -640,16 +902,48 @@ export class MemoryHost {
 				: !statuses.length || statuses.includes("unverified")
 					? "unverified"
 					: "current";
-		return { ...item, evidenceStatus };
+		const trust = this.trust(db, item);
+		return {
+			...item,
+			evidenceStatus,
+			trust,
+			...(trust === "external" && item.status === "active"
+				? { expiresOn: expiresOnText(expiresAtMs(db, item.itemId)) }
+				: {}),
+		};
 	}
-	fingerprint(db: MemoryDb, items: readonly StateItem[]): string {
+	/**
+	 * §4B.3: confirmed は本人確認済みの origin。inferred は根拠の出典がすべて user_message か agent_reasoning。
+	 * それ以外（外部由来、由来の分からない出典、ホストの出典に結び付かない根拠）は external。
+	 */
+	trust(db: MemoryDb, item: StateItem): Trust {
+		if (item.origin === "user_confirmed" || item.origin === "user_edited")
+			return "confirmed";
+		const rows = db
+			.query(
+				"SELECT s.provenance AS provenance FROM host_state_source l JOIN host_source s ON s.id=l.source_id WHERE l.item_id=?",
+			)
+			.all(item.itemId) as { provenance: string }[];
+		return rows.length > 0 &&
+			rows.length >= item.evidence.length &&
+			rows.every((r) =>
+				INTERNAL_PROVENANCES.includes(r.provenance as Provenance),
+			)
+			? "inferred"
+			: "external";
+	}
+	fingerprint(
+		db: MemoryDb,
+		items: readonly StateItem[],
+		inspect: EvidenceInspector = (x, ref) => this.inspectEvidence(db, x, ref),
+	): string {
 		const versions = [...items]
 			.sort((a, b) => a.itemId.localeCompare(b.itemId))
 			.flatMap((item) =>
 				item.evidence.map((ref) => [
 					item.itemId,
 					referenceKey(ref),
-					this.inspectEvidence(db, item, ref).version,
+					inspect(item, ref).version,
 				]),
 			);
 		return digest([stateFingerprint(items), versions]);
@@ -678,17 +972,18 @@ export class MemoryHost {
 			const scopes = p.scopeKeys ?? grant.scopeKeys;
 			this.allowed(grant, scopes);
 			snapshot = this.options.port.read((db) => {
+				const inspect = this.evidenceInspector(db);
 				const value = this.snapshots.create(
 					listItems(
 						db,
 						this.access(grant),
 						scopes,
 						HOST_LIMITS.snapshotItems,
-					).map((item) => this.withEvidenceStatus(db, item)),
+					).map((item) => this.withEvidenceStatus(db, item, inspect)),
 					scopes,
 					grant,
 					this.policy,
-					(items) => this.fingerprint(db, items),
+					(items) => this.fingerprint(db, items, inspect),
 				);
 				return value;
 			});
@@ -760,12 +1055,15 @@ export class MemoryHost {
 					current: true,
 				};
 			}
+			// 指定の item だけを読む（前は scope の先頭の snapshotItems 件だけを見ていたので、古い item が見つからなかった）。
 			const item = listItems(
 				db,
 				this.access(grant),
 				snapshot.scopes,
-				HOST_LIMITS.snapshotItems,
-			).find((x) => x.itemId === p.itemId);
+				Infinity,
+				false,
+				[p.itemId],
+			)[0];
 			demand(
 				snapshot.items.some((x) => x.itemId === p.itemId) && item,
 				"ITEM_NOT_AVAILABLE",
@@ -781,10 +1079,8 @@ export class MemoryHost {
 				if (inspected.status !== "current") return { status: inspected.status };
 				const row = (
 					db
-						.query(
-							"SELECT * FROM host_source WHERE scope_key=? AND forgotten=0",
-						)
-						.all(item.scopeKey) as SourceRow[]
+						.query(SOURCE_BY_REF_SQL)
+						.all(item.scopeKey, ref.namespace, ref.kind, ref.id) as SourceRow[]
 				).find(
 					(r) => r.ref && referenceKey(JSON.parse(r.ref)) === referenceKey(ref),
 				);
@@ -849,6 +1145,21 @@ export class MemoryHost {
 			throw new HostError("INVALID_PROPOSAL");
 		}
 		this.validatePlanDependencies(parsed);
+		// §4D.2 の 2: 90% を超えたら新しい key の保存だけを止める。訂正と忘却は通す（容量を減らす操作を止めない）。
+		if (
+			parsed.changes.some((c) =>
+				c.actions.some(
+					(a) => a.type === "remember" && a.replacesItemId === null,
+				),
+			)
+		) {
+			const usage = activeUsage(db, this.config.principal, snapshot.scopes);
+			demand(
+				usage.items < NEAR_LIMIT_RATIO * this.limit("snapshotItems") &&
+					usage.bytes < NEAR_LIMIT_RATIO * this.limit("snapshotBytes"),
+				"CAPACITY_NEAR_LIMIT",
+			);
+		}
 		const evidence = p.evidence.map((e) => {
 			const row = this.sourceByHandle(db, e.sourceHandle, grant);
 			demand(row.scope_key === p.scopeKey, "SOURCE_SCOPE_MISMATCH");
@@ -899,6 +1210,32 @@ export class MemoryHost {
 				const item = snapshot.items.find((x) => x.itemId === id);
 				if (item?.origin === "user_confirmed" || item?.origin === "user_edited")
 					demand(grant.confirmedWrites, "CONFIRMED_WRITE_NOT_PERMITTED");
+			}
+			// §4B.3 の 4: 外部由来の根拠だけでは、行動を縛る記憶を保存せず、外部でない記憶も置き換えない。
+			// 本人確認済みの保護（CONFIRMED_WRITE_NOT_PERMITTED）を先に検査する。
+			const remembered = change.actions[0];
+			const proof = evidence.find((x) => x.actionIndex === change.actionIndex);
+			if (remembered?.type === "remember" && proof) {
+				const source = db
+					.query("SELECT provenance FROM host_source WHERE id=?")
+					.get(proof.sourceId) as { provenance: string } | null;
+				if (
+					!INTERNAL_PROVENANCES.includes(
+						(source?.provenance ?? "unknown") as Provenance,
+					)
+				) {
+					demand(
+						remembered.kind !== "constraint",
+						"EXTERNAL_EVIDENCE_NOT_ALLOWED",
+					);
+					const replaced = remembered.replacesItemId
+						? snapshot.items.find((x) => x.itemId === remembered.replacesItemId)
+						: undefined;
+					demand(
+						!replaced || this.trust(db, replaced) === "external",
+						"EXTERNAL_EVIDENCE_NOT_ALLOWED",
+					);
+				}
 			}
 		}
 		for (const indexes of parsed.groups) {
@@ -1097,6 +1434,13 @@ export class MemoryHost {
 		}
 	}
 
+	/** 今の epoch で受領記録を消した時刻の上限。消していなければ undefined（決定 8）。 */
+	receiptHorizon(db: MemoryDb): number | undefined {
+		const row = db
+			.query("SELECT pruned_before FROM host_operation_horizon WHERE epoch=?")
+			.get(this.epoch) as { pruned_before: number } | null;
+		return row?.pruned_before;
+	}
 	operation(
 		db: MemoryDb,
 		grant: Grant,
@@ -1109,12 +1453,19 @@ export class MemoryHost {
 			result: string;
 			payload: string | null;
 		} | null;
-		if (!row)
+		if (!row) {
+			if (p.epoch === this.epoch && this.receiptHorizon(db) !== undefined)
+				return {
+					status: "indeterminate",
+					code: "OPERATION_RECEIPT_EXPIRED",
+					operationId: p.operationId,
+				};
 			return {
 				status: p.epoch === this.epoch ? "blocked" : "indeterminate",
 				code: "OPERATION_NOT_RECORDED",
 				operationId: p.operationId,
 			};
+		}
 		this.allowed(grant, JSON.parse(row.scope_keys));
 		const result = JSON.parse(row.result) as HostResult;
 		if (

@@ -14,7 +14,8 @@
 4. `assertMemorySchema(db)`を呼ぶ。SCHEMA_MISSING／OUTDATED／TOO_NEW／MISMATCHなら読み書きを開始しない。新しいDBへの旧バイナリの差戻しは安全なrollbackではない。
 5. DBと別に保管する最新の忘却journalを確認する。既存DBのjournalが無い場合は勝手に空ファイルを作らない。
 6. Worker起動前に、write transaction内で`reconcileForgetJournal(db,{contractVersion:2,entries,clock:{atMs}})`を呼ぶ。`inconsistent`ならMemory全利用を停止し、正しいjournal・DBの組を回復する。`feedResyncRequired`なら外部購読カーソルを捨て全再同期する。`hostIntentsToReapply`があれば、同じtransactionの中で各`hostIntent`に対するホスト自身の消去を冪等に再実行する。
-7. 以後はwriteをtransaction内の同期関数として呼ぶ。async関数をtransactionへ渡さない。読み出しの複数SQL・ページ列挙の一貫性はホストのread transactionで守る。
+7. 全文検索の索引（migration 0009）はSQLite 3.44以上とFTS5が要る。`pragma_compile_options`の`ENABLE_FTS5`と`sqlite_version()`を確かめ、満たさなければ起動しない。版8のDBへ0009を適用すると、既存のactiveなitemを同じtransactionで索引に入れる。起動時にwrite transactionの中で`verifyStateSearchIndex(db)`を呼び、`consistent: false`なら`rebuildStateSearchIndex(db)`で作り直す。索引は削除をtriggerで、追加を本体の書き込み関数で行う派生物で、本文の正本ではない。
+8. 以後はwriteをtransaction内の同期関数として呼ぶ。async関数をtransactionへ渡さない。読み出しの複数SQL・ページ列挙の一貫性はホストのread transactionで守る。
 
 Bunで新規の使い捨てDBを準備する最小例。実運用では上記migration管理とjournal存在確認を先に実装する。
 
@@ -41,6 +42,8 @@ Stateは`assertUserState`へsubject、kind、semanticKey、値、出典の本文
 
 `user_confirmed`／`user_edited`は本人由来の明示操作、`agent_inferred`はホストの推定。推定を本人確認と表示しない。同値の本人確認はoriginを昇格し、同値の推定では降格しない。`validity`や期限は保存するだけで、現在性はホストが`classifyValidity`等で判定する。
 
+
+同梱のホストは出典に由来（`provenance`、host schema 3。版上げ前の出典は`unknown`）を記録し、itemの根拠の出典からitemの信頼度（`trust`）を計算して表示する。由来は自己申告なので、`user_message`と申告された外部の文は`inferred`として扱われうる。保証されるのは、どの申告でもconfirmedに上がらないことと、`web`などと申告された出典の記憶が確実に`external`になることだけである。
 ## 忘却とバックアップ復元
 
 `planForget`は読取のみ。plan・journalへの追記・`applyForget`は、単一Writerの同じwrite transactionの中で行う。entryの`seq`/`prevHash`はplan時点のDBのheadの次なので、planとapplyの間に別の忘却が入ると、適用できないentryがjournalに残り、次のreconcileが`JOURNAL_CHAIN_BROKEN`になる。追記では完全な書込み・fsyncを確認してから`applyForget`を呼ぶ。journalへの初回作成・置換ではdirectoryのfsyncも必要。fsyncの間はWriterを保持する。journalの書込みはDBのrollbackでは戻らない。journal後・DB適用前の失敗では利用を止め、起動時reconcileで回復する。
@@ -72,6 +75,18 @@ World、Consolidation、他エージェント、索引・キャッシュ等がMe
 - `planForget`・`getForgetReceipt`が返す件数と外部派生物は、同じprincipalの閉包全体で、対象のscopeに限らない。
 - `applyForget`に渡すのは`planForget`が返したentryだけ。入力はJSON由来のplainなデータにする（Proxyやgetterは検査対象外）。
 - memory recordを出典に引用するときは`representation:"text"`を必ず付ける（省略は契約エラー）。
+
+## 同梱ホストの検索、バックアップ、容量
+
+State の全文検索の設計（リポジトリの `spec/state-search-design.md`、2026-11-16 承認）に沿って、同梱のホスト（`eumenes-memory-host`）は次を行う。使い方は [CLIとメモリーMCP](cli-mcp.md)。
+
+- 起動時に、SQLiteの機能（`SQLITE_FEATURE_MISSING`）を確かめ、未適用の核のmigrationを適用し、索引を検査する（件数と対応表、索引の文書が正本と同じこと、FTS5の`integrity-check`。一致しなければ作り直し、その後のcheckpointで古い索引のページをDBファイルに残さない。作り直せなければ`search`だけを止める）。版8の本体へ戻すときは、サーバーを止めてからリポジトリの`packages/host/scripts/rollback-0009.ts <directory>`で索引を消し、版を8に戻す（その後VACUUMする）。
+- 全文検索（`search`、MCP `memory_search`）: 核の`searchState`を、無害化した語、件数20件、返すitemのJSONの合計`maxBytes`（既定32768）の上限で呼ぶ。返すitemは`context`と同じ水和と`evidenceStatus`・`trust`を通す。続きのcursorは出さない。
+- 忘却の後の`wal_checkpoint(TRUNCATE)`（失敗したら`status`の`checkpointPending`）、操作の受領記録の30日保持（今のepochも対象）。
+- `VACUUM INTO`のバックアップ（`backup`、管理用）と、忘却の後の洗い直し、`restore`（完全な写しを作ってchecksumを確かめてから入れ替える）。途中で止まった作成や洗い直しの残り（記録の無いファイル、`.tmp`、`.scrub-*`）は、次のバックアップか洗い直しの後に0で上書きして消す。
+- 出典の由来（`provenance`）とitemの信頼度（`trust`）。
+- 容量の監視（`status`の`capacity`と`capacityWarnings`、90%での新しいkeyの保存の制限）。
+- 外部由来のitemの自動停止と再利用による延長（`host_item_use`、host schema 4、`use`・`expire`・`reactivate`）と、見直しの一覧（`review`、CLIのみ）。
 
 ## 再生成資料と容量
 

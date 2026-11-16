@@ -749,6 +749,37 @@ describe("listState", () => {
 		expect(otherPrincipal.status === "ok" && otherPrincipal.items).toEqual([]);
 	});
 
+	test("itemIds narrows the list to the given items in the scope, and is validated", () => {
+		const s = open();
+		const { coffee, note, habit } = seed(s);
+		const list = (itemIds: unknown) =>
+			s.read((db) =>
+				listState(db, {
+					contractVersion: 1,
+					access: ACCESS,
+					scopeKey: SCOPE,
+					itemIds,
+				} as never),
+			);
+		const some = list([coffee.itemId, habit.itemId, "no-such-item"]);
+		expect(some.status === "ok" && some.items.map((i) => i.itemId)).toEqual([
+			habit.itemId,
+			coffee.itemId,
+		]);
+		expect(note.itemId).not.toBe(habit.itemId);
+		const other = s.read((db) =>
+			listState(db, {
+				contractVersion: 1,
+				access: { ...ACCESS, scopeKeys: [SCOPE, OTHER_SCOPE] },
+				scopeKey: OTHER_SCOPE,
+				itemIds: [coffee.itemId],
+			}),
+		);
+		expect(other.status === "ok" && other.items).toEqual([]);
+		for (const bad of [[], [coffee.itemId, coffee.itemId], [""], "x"])
+			expect(() => list(bad)).toThrow();
+	});
+
 	test("rows with a tombstone or forgotten status are not listed, even if status was restored", () => {
 		const s = open();
 		const { coffee, habit } = seed(s);

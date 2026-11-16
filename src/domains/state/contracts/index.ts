@@ -20,7 +20,11 @@
  *   `candidate` の cause）は、DB の CHECK 制約と既存の行を表す。API はこれらを書かない（読み取りだけ）。
  * - 本体は `forget` を reducer に通さない（lifecycle が閉包で value を消し status を `forgotten` にする）。
  */
-import type { SourceRef, SourceState } from "../../../contracts/types.ts";
+import type {
+	AccessContext,
+	SourceRef,
+	SourceState,
+} from "../../../contracts/types.ts";
 import type {
 	EvidenceSpan,
 	MissingStatus,
@@ -274,6 +278,8 @@ export interface ListStateInput extends ScopedRead {
 	/** Continue the same scope/filter in updated-seq descending, item-ID ascending order.
 	 * Read all pages in one host read transaction for a consistent snapshot. */
 	readonly after?: { readonly updatedSeq: number; readonly itemId: string };
+	/** 指定した item だけに絞る（1〜1000 件、重複なし）。scope と状態の条件はそのまま効き、無い ID は黙って除く。 */
+	readonly itemIds?: readonly string[];
 }
 
 export type ListStateResult =
@@ -309,3 +315,42 @@ export type ReadStateFactResult =
 	  }
 	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode }
 	| { readonly status: MissingStatus };
+
+// ---- 全文検索（`searchState`、設計 `spec/state-search-design.md` §4.1）----
+
+/**
+ * 許可された scope の active な item を全文検索する。語の無害化（分割、長さ、制御文字）はホストが行い、
+ * 核は受け取った語を phrase として引用し、束縛変数で渡すだけにする。
+ * - `terms.indexed`: 3 文字（コードポイント）以上の語。FTS5 trigram の MATCH に使う（AND）。
+ * - `terms.scanned`: 3 文字未満の語。`instr(lower(文書), lower(語))` で絞る（AND）。
+ * - 語がすべて `scanned` のときは、許可 scope の active な item を走査する。対象が `scanMax` を超えたら blocked。
+ * 並びは bm25（走査の経路では使わない）、`updatedSeq` の降順、itemId の昇順。スコアの数値は返さない。
+ */
+export interface SearchStateInput {
+	readonly contractVersion: 1;
+	readonly access: AccessContext;
+	readonly scopeKeys: readonly string[];
+	readonly terms: {
+		readonly indexed: readonly string[];
+		readonly scanned: readonly string[];
+	};
+	readonly kinds?: readonly StateKind[];
+	readonly subject?: StateSubject;
+	/** 返す件数（1〜21）。核は limit + 1 件を読み、続きがあれば `more: true`。 */
+	readonly limit: number;
+	/** 走査の経路の対象の上限（既定 20000）。 */
+	readonly scanMax?: number;
+}
+
+export type SearchStateReasonCode =
+	| StoreAccessReasonCode
+	| "SCAN_LIMIT_EXCEEDED";
+
+export type SearchStateResult =
+	| {
+			readonly status: "ok";
+			readonly items: readonly StateItem[];
+			readonly more: boolean;
+			readonly mode: "fts" | "scan";
+	  }
+	| { readonly status: "blocked"; readonly reasonCode: SearchStateReasonCode };

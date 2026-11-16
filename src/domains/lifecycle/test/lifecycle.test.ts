@@ -22,13 +22,14 @@ import { captureRecord, readRecord } from "../../records/sqlite.ts";
 import { openTestStore } from "../../../../test/support/store.ts";
 import type { TestStore } from "../../../../test/support/store.ts";
 
-let store: TestStore | undefined;
+// 1 つの試験で複数の店を開くことがあるので、開いたものをすべて閉じる（一時ディレクトリを残さない）。
+const stores: TestStore[] = [];
 afterEach(() => {
-	store?.close();
-	store = undefined;
+	for (const store of stores.splice(0)) store.close();
 });
 function open(): TestStore {
-	store = openTestStore();
+	const store = openTestStore();
+	stores.push(store);
 	return store;
 }
 

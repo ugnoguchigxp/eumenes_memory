@@ -25,6 +25,8 @@ bun run lint:fix     # 自動修正（verifyではソースを変更しない）
 
 同じストアをCLIと複数のコーディングエージェントから使う入口を、独立した`eumenes-memory-host`配布物に用意しています。保存・訂正・忘却は一つの所有者で処理し、再試行・復元・権限も共通で検査します。[導入と検証手順](docs/cli-mcp.md)を参照してください。本体ライブラリの実行時依存は引き続きゼロです。
 
+質問に答えるときは、全件を読む`context`ではなく`search`（MCP `memory_search`）を使います。許可されたactiveなStateを全文検索し、最大20件、返すitemの合計は既定32 KiBまでで、続きのcursorは出しません（`moreAvailable`は語を足して絞る合図）。見つからないことは、無いことの証拠ではありません。回答や行動に採用したitemだけを`use`（MCP `memory_use`）で報告すると、外部由来のitemの期限（最後の利用から90日）が延びます。見直しの一覧は`review`（CLIのみ）です。設計はリポジトリの `spec/state-search-design.md`、測定は `spec/search-bench-results.md`。
+
 ## 記憶の計画と適用
 
 通常利用は [独立ホストの入口](docs/host-guide.md#development-examples) の `bun run memory` を使う。計画と適用を分け、グループ単位の保存、再試行の記録、古い計画の拒否を適用する。以下の `check:memory` は従来方式を含む検証用コマンド。

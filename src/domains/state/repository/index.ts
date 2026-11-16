@@ -31,6 +31,8 @@ import type {
 	ListStateResult,
 	ReadStateFactInput,
 	ReadStateFactResult,
+	SearchStateInput,
+	SearchStateResult,
 	StateCause,
 	StateEventDraft,
 	StateItem,
@@ -61,7 +63,9 @@ import {
 	parseAssertUserStateInput,
 	parseListStateInput,
 	parseReadStateFactInput,
+	parseSearchStateInput,
 	parseStateTargetInput,
+	STATE_SEARCH_LIMITS,
 } from "../service/parse.ts";
 import {
 	applyStateTransition,
@@ -86,6 +90,7 @@ import {
 	enterWrite,
 } from "../../../infrastructure/sqlite/session.ts";
 import { isTombstoned } from "../../../infrastructure/sqlite/tombstone.ts";
+import { syncStateSearch } from "./search-index.ts";
 
 // ---- 行の読み取り ----
 
@@ -468,6 +473,29 @@ function insertAttributes(
 	}
 }
 
+/** 保存済みの属性が value の属性と同じか（鍵の集合と値が一致）。 */
+function sameAttributes(
+	db: MemoryDb,
+	itemId: string,
+	value: StateValue,
+): boolean {
+	const wanted = ownValue(value, "attributes") ?? {};
+	const rows = guarded(() =>
+		db
+			.query(
+				"SELECT attr_key, attr_value FROM memory_state_attribute WHERE item_id = ?",
+			)
+			.all(itemId),
+	);
+	if (rows.length !== Object.keys(wanted).length) return false;
+	return rows.every((row) => {
+		const key = readText(row, "attr_key");
+		return (
+			Object.hasOwn(wanted, key) && wanted[key] === readText(row, "attr_value")
+		);
+	});
+}
+
 function insertEvidence(
 	db: MemoryDb,
 	ctx: WriteContext,
@@ -570,13 +598,10 @@ function writeItem(
 		run(
 			db,
 			`UPDATE memory_state_item
-			SET status = ?, revision = ?, value_text = ?, polarity = ?, origin = ?,
-				evidence_ordinal = ?, updated_seq = ?
+			SET revision = ?, polarity = ?, origin = ?, evidence_ordinal = ?, updated_seq = ?
 			WHERE item_id = ? AND principal = ? AND scope_key = ?`,
 			[
-				view.status,
 				view.revision,
-				view.value.text,
 				view.value.polarity,
 				view.origin,
 				view.evidenceOrdinal,
@@ -586,14 +611,34 @@ function writeItem(
 				ctx.scopeKey,
 			],
 		);
+		// 索引に入る列（status、value_text）は、値が変わるときだけ書く。migration 0009 の trigger は
+		// SET に列が現れるだけで発火し、secure-delete の消去を伴うので、確認や根拠の追加で索引を作り直さない。
+		run(
+			db,
+			`UPDATE memory_state_item SET status = ?, value_text = ?
+			WHERE item_id = ? AND principal = ? AND scope_key = ?
+				AND (status IS NOT ? OR value_text IS NOT ?)`,
+			[
+				view.status,
+				view.value.text,
+				view.itemId,
+				ctx.principal,
+				ctx.scopeKey,
+				view.status,
+				view.value.text,
+			],
+		);
 		const edited = result.events.some(
 			(event) => event.itemId === view.itemId && event.action === "edit",
 		);
 		if (edited) {
-			run(db, "DELETE FROM memory_state_attribute WHERE item_id = ?", [
-				view.itemId,
-			]);
-			insertAttributes(db, view.itemId, view.value);
+			// 属性が同じなら書き直さない（属性の trigger が索引の行を消し、作り直しになるため）。
+			if (!sameAttributes(db, view.itemId, view.value)) {
+				run(db, "DELETE FROM memory_state_attribute WHERE item_id = ?", [
+					view.itemId,
+				]);
+				insertAttributes(db, view.itemId, view.value);
+			}
 			if (replacedEvidence !== null) {
 				run(db, "DELETE FROM memory_state_evidence WHERE item_id = ?", [
 					view.itemId,
@@ -687,6 +732,11 @@ function persist(
 		);
 	}
 	for (const draft of result.events) writeEvent(db, ctx, draft);
+	// 全文検索の索引へ、変更した item を正本から登録し直す（削除は migration 0009 の trigger が行う）。
+	syncStateSearch(
+		db,
+		result.items.map((view) => view.itemId),
+	);
 	for (const view of result.items) {
 		appendMemoryChange(db, {
 			principal: ctx.principal,
@@ -940,6 +990,105 @@ export function retractState(
 
 // ---- 読み取り ----
 
+/** FTS5 の phrase として引用する（`"` は `""`）。利用者の入力を FTS5 の構文として解釈させない。 */
+function quotePhrase(term: string): string {
+	return `"${term.replaceAll('"', '""')}"`;
+}
+
+/**
+ * 全文検索（設計 §3.5〜3.8）。絞り込み（principal、scope、active、kind、subject、短い語）は WHERE の中、
+ * 順位は ORDER BY、件数は LIMIT で、全体の上位を取ってから権限で間引くことはしない。
+ * 索引は候補の ID を出すだけで、返す item は正本（`memory_state_item`）から読み直す（active で墓標の無いものだけ）。
+ * 読み取り専用。複数の SQL の一貫性はホストの read transaction で守る。
+ */
+export function searchState(
+	db: MemoryDb,
+	input: SearchStateInput,
+): SearchStateResult {
+	const parsed = parseSearchStateInput(input);
+	enterRead(db);
+	if (
+		!parsed.scopeKeys.every((scopeKey) => isPermitted(parsed.access, scopeKey))
+	) {
+		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
+	}
+	const kinds = ownValue(parsed, "kinds");
+	const subject = ownValue(parsed, "subject");
+	const filterParams: SqlValue[] = [
+		parsed.access.principal,
+		...parsed.scopeKeys,
+	];
+	let filter = `i.principal = ? AND i.scope_key IN (${placeholders(parsed.scopeKeys.length)})
+		AND i.status = 'active' AND ${NO_TOMBSTONE}`;
+	if (kinds !== undefined) {
+		filter += ` AND i.kind IN (${placeholders(kinds.length)})`;
+		filterParams.push(...kinds);
+	}
+	if (subject !== undefined) {
+		filter += " AND i.subject = ?";
+		filterParams.push(subject);
+	}
+	const { indexed, scanned } = parsed.terms;
+	const fetch = parsed.limit + 1;
+	let rows: unknown[];
+	let mode: "fts" | "scan";
+	if (indexed.length > 0) {
+		mode = "fts";
+		const short = scanned
+			.map(() => " AND instr(lower(f.doc), lower(?)) > 0")
+			.join("");
+		rows = guarded(() =>
+			db
+				.query(
+					`SELECT ${ITEM_COLUMNS}, i.scope_key AS scope_key
+					FROM memory_state_fts f
+					JOIN memory_state_search_row r ON r.search_rowid = f.rowid
+					JOIN memory_state_item i ON i.item_id = r.item_id
+					WHERE memory_state_fts MATCH ? AND ${filter}${short}
+					ORDER BY bm25(memory_state_fts), i.updated_seq DESC, i.item_id ASC
+					LIMIT ?`,
+				)
+				.all(
+					indexed.map(quotePhrase).join(" AND "),
+					...filterParams,
+					...scanned,
+					fetch,
+				),
+		);
+	} else {
+		mode = "scan";
+		const scanMax =
+			ownValue(parsed, "scanMax") ?? STATE_SEARCH_LIMITS.defaultScanMax;
+		const total = guarded(() =>
+			db
+				.query(`SELECT count(*) AS n FROM memory_state_item i WHERE ${filter}`)
+				.get(...filterParams),
+		);
+		if (readInteger(total, "n") > scanMax) {
+			return { status: "blocked", reasonCode: "SCAN_LIMIT_EXCEEDED" };
+		}
+		const short = scanned
+			.map(() => " AND instr(lower(d.doc), lower(?)) > 0")
+			.join("");
+		rows = guarded(() =>
+			db
+				.query(
+					`SELECT ${ITEM_COLUMNS}, i.scope_key AS scope_key
+					FROM memory_state_item i
+					JOIN memory_state_search_doc d ON d.item_id = i.item_id
+					WHERE ${filter}${short}
+					ORDER BY i.updated_seq DESC, i.item_id ASC
+					LIMIT ?`,
+				)
+				.all(...filterParams, ...scanned, fetch),
+		);
+	}
+	const items = rows
+		.slice(0, parsed.limit)
+		.flatMap((row) => hydrate(db, readText(row, "scope_key"), [row]));
+	return { status: "ok", items, more: rows.length > parsed.limit, mode };
+}
+
 /** scope 内の state item を返す（`forgotten` は常に除く）。順序は updated_seq の降順、同じなら itemId。 */
 export function listState(
 	db: MemoryDb,
@@ -962,10 +1111,15 @@ export function listState(
 		parsed.scopeKey,
 		...statuses,
 	];
-	let kindClause = "";
+	let filterClause = "";
 	if (kinds !== undefined) {
-		kindClause = ` AND i.kind IN (${placeholders(kinds.length)})`;
+		filterClause = ` AND i.kind IN (${placeholders(kinds.length)})`;
 		params.push(...kinds);
+	}
+	const itemIds = ownValue(parsed, "itemIds");
+	if (itemIds !== undefined) {
+		filterClause += ` AND i.item_id IN (${placeholders(itemIds.length)})`;
+		params.push(...itemIds);
 	}
 	const after = ownValue(parsed, "after");
 	let cursorClause = "";
@@ -981,7 +1135,7 @@ export function listState(
 			.query(
 				`SELECT ${ITEM_COLUMNS} FROM memory_state_item i
 				WHERE i.principal = ? AND i.scope_key = ?
-					AND i.status IN (${placeholders(statuses.length)})${kindClause}${cursorClause}
+					AND i.status IN (${placeholders(statuses.length)})${filterClause}${cursorClause}
 					AND ${NO_TOMBSTONE}
 				ORDER BY i.updated_seq DESC, i.item_id ASC
 				LIMIT ?`,

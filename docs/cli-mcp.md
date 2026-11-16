@@ -28,9 +28,11 @@ macOS/Linuxの同じOSユーザー向け。所有者は明示的に起動し、U
 
 すべての操作はJSON入力（`--input file.json`または`--input -`）・JSON出力。source→context→plan→applyを使う。source登録と事実の採用を区別する。contextは原文の指示を実行権限として扱わず、origin、主体、期間、revision、取得範囲、提案schemaと指示を返す。呼出し元モデルが意味を判断し、ホストは出典と変更の契約を検査する。
 
+sourceは任意の`provenance`（`user_message`・`agent_reasoning`・`tool_result`・`web`・`other_agent`・`import`・`unknown`、既定`unknown`）を受ける。呼出し側の自己申告で、ホストは確かめない。由来は信頼を下げる方向にだけ効き、どの申告でもoriginは`agent_inferred`のまま。context・readのitemには`trust`（`confirmed`: 本人確認済み、`inferred`: 根拠がすべて`user_message`か`agent_reasoning`、`external`: それ以外）が付く。外部由来の根拠だけでは`constraint`を保存できず、外部由来でないitemを置き換えられない（`EXTERNAL_EVIDENCE_NOT_ALLOWED`）。
+
 planのproposalはdecision/relations/groups、evidenceはactionIndex/sourceHandle/startByte/endByte。引用は原文の連続した1024 UTF-8 bytes以内。複数回出現する文も位置を明示し、無効な引用は修正せず拒否する。訂正はsupersedesとreplacesItemId、意味の異なる共存はcoexists、未解決の矛盾はconflictsとclarificationで表す。
 
-applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持し、応答を失ったら同じIDでoperationを照会・applyを再送する。結果照会を古い計画の拒否より先に行うため、成功済み操作を再実行しない。古いDB復元で操作記録が不在の旧世代はindeterminateになり、未実行と断定しない。
+applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持し、応答を失ったら同じIDでoperationを照会・applyを再送する。結果照会を古い計画の拒否より先に行うため、成功済み操作を再実行しない。古いDB復元で操作記録が不在の旧世代はindeterminateになり、未実行と断定しない。操作の受領記録は30日保持し、今の起動世代（epoch）の記録も30日で消す。消した後に来た古いIDには`indeterminate`/`OPERATION_RECEIPT_EXPIRED`を返し、再実行しない。1世代の記録の上限（`operationsPerEpoch`）は保持中の記録で数えるので、古い記録を消せば回復する。
 
 忘却も同じplan/applyで、`forget plan`/`forget apply`は別名。Stateの忘却とsourceHandlesによる原文全体の消去を区別する。保持したい事実の原文を一緒に消す提案や、相互依存する保存/忘却の混在groupは要確認。限定scopeのクライアントに閉包の件数や外部IDを返す前に拒否する。確認済み項目を保護する権限も別に検査する。
 
@@ -44,7 +46,50 @@ applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持�
 {"command":"bun","args":["/absolute/path/node_modules/eumenes-memory-host/dist/cli.js","--profile","/tmp/shared-memory/profile.json","mcp"]}
 ```
 
-公開ツールはmemory_source/context/read/plan/apply/operation/status。公式MCP SDK 2.4.0のstdioで、接続プロセスは所有者へ中継する。接続を一つ閉じても所有者と他のクライアントは動く。stdoutに診断ログを混ぜない。MCP側の追加モデルやAPIキーは不要。
+公開ツールはmemory_source/context/search/read/plan/apply/operation/status/use。公式MCP SDK 2.4.0のstdioで、接続プロセスは所有者へ中継する。接続を一つ閉じても所有者と他のクライアントは動く。stdoutに診断ログを混ぜない。MCP側の追加モデルやAPIキーは不要。
+
+## バックアップと復元
+
+`eumenes-memory --profile <profile.json> backup`は、所有者がwriterの順番で読取専用の別接続から`VACUUM INTO`し、owner.jsonの`backupDirectory`（`init`の`--backups`、既定は隣の`<名前>-backups`）に置く。管理用（全scopeとforgetAllのgrant）でMCPには出さない。出力は`path`・`bytes`・`sha256`・`schemaVersion`・`journalHead`。忘却ジャーナルの写し（本文を含まない）を同じ組で置き、7世代を残して古いものは0で上書きしてから消す。`status`は`lastBackupAt`と、36時間を超えると`backupOverdue: true`を返す。日次の実行（例: JST 4:00）はホストの外の定期実行からこのCLIを呼ぶ。
+
+忘却をcommitした後、所有者はそれより前のバックアップを洗い直す（一時的な場所で最新のジャーナルを再適用し、`VACUUM INTO`で作り直して原子的に置き換え、古い中身を0で上書きする。応答は待たせない）。失敗したバックアップには印を付け、`status`の`backupScrubPending: true`で知らせ、作成から7日で必ず消す。OSのsnapshot、ファイルシステムの空き領域、利用者が別の場所に写したものは保証の外。
+
+`eumenes-memory restore <backup.db> <directory>`はサーバーを止めて行う（動いていれば`OWNER_ALREADY_RUNNING`）。sha256を照合し、ライブの`forget.jsonl`を優先する（失われていればバックアップの写しのうち最新を使う）。ジャーナルの先頭がバックアップの`journalHead`より古ければ`JOURNAL_OLDER_THAN_BACKUP`で止める。今のDBとWALは`restore-<時刻>/`へ退避し、バックアップを`memory.db`に置いて所有者を一度起動し、schemaの検査とジャーナルの再適用を通す。退避したファイルは、`status`と`context`で確認した後に利用者が0で上書きして消す。
+
+## 容量
+
+`status`は読取のgrantがあれば`capacity`を返す。許可されたscopeごとのactive件数、kind別・`trust`別のactive件数、State行の状態別件数（active/superseded/forgotten）、DBとWALのバイト数、上限ごとの使用量（`snapshotItems`・`snapshotBytes`・`maxSources`・`operationsPerEpoch`・`maxJournalEntries`）。本文は出さない。`snapshotBytes`は本文と属性の長さに1件あたり700バイトを足した見積もり。上限の70%と90%を超えると`capacityWarnings`に`{limit, level, ratio}`を出す。`snapshotItems`か`snapshotBytes`が90%以上のときは、新しいkeyの保存（`replacesItemId: null`の`remember`）だけを`plan`で`CAPACITY_NEAR_LIMIT`として止める。訂正と忘却は通す。
+
+## 外部由来の記憶の期限と利用の報告
+
+`trust: external`のitemは、最後に再利用された日（無ければ作成日）から90日で停止する（`deactivateState`。忘却ではなくジャーナルを使わない）。itemには停止する日`expiresOn`（JSTの日付）が付く。再利用に数えるのは次の2つだけ。
+
+- `use`（MCP `memory_use`）: 回答や行動に採用した後に`{"snapshotId": ..., "items": [{"itemId": ..., "revision": ...}]}`（20件まで）を報告する。snapshotにあり、revisionが今のものと一致するitemだけを受け付け、1つでも合わなければ全体を拒否する。読取のgrantで呼べる。最終利用日は外部由来のitemだけに日単位で持ち、1日に1回まで更新する。Stateの変更のseqを進めないので、snapshotとcursorは切れない。
+- 適用が完了したplanの`relatedItemIds`（関係がforgetのものを除く）。
+
+`context`・`read`・未適用の`plan`は期限を延ばさない。停止は所有者の起動時と、`eumenes-memory --profile <profile.json> expire`（管理用、1回500件まで）で行う。日次の`backup`と同じ定期実行から呼ぶ。停止したitemは`eumenes-memory --profile <profile.json> reactivate --input <file>`（`{"itemId": ...}`、管理用）で戻せ、戻した日から90日を数え直す。最終利用日はitemの忘却で一緒に消える。
+
+## 検索
+
+`eumenes-memory --profile <profile.json> search --input <file|->`（MCP `memory_search`）は、許可されたactiveなStateを全文検索する読み取り専用の操作（読取のgrantで呼べる。Stateの変更のseqも操作の記録も変えない）。入力は`{"query": "...", "scopeKeys"?: [...], "kinds"?: [...], "subject"?: "self"|"other:...", "limit"?: 1〜20, "maxBytes"?: 16384〜65536}`。`kinds`は重複なし、`subject`の`other:`の後ろは1文字以上で、全体はUTF-8で128 byteまで（制御文字とlone surrogateは不可）。違反は`INVALID_INPUT`。
+
+- 件数は20件まで（既定20、設定でも緩められない）。返すitemのJSONの合計は`maxBytes`（既定32768）まで。`moreAvailable: true`は「語を足すか`kinds`/`subject`/`scopeKeys`で絞る」の合図で、続きのcursorは出さない。`truncatedBy`は`count`、`bytes`、`null`のどれか。
+- queryは256文字かつ1024 Bまで。空白（U+0020、U+3000、タブ）で語に分け、重複を除き8語まで、1語64文字まで。語はすべてANDで、FTSの構文（`OR`、`NOT`、`"`、`*`、`col:`など）はただの文字として扱う。違反は`QUERY_INVALID`、空は`QUERY_EMPTY`。
+- 3文字以上の語は索引（FTS5 trigram）で引き、3文字未満の語は本文の走査で絞る。すべての語が3文字未満で、走査の対象が20000件を超えると`QUERY_TOO_SHORT`（語を足す）。大文字と小文字はASCIIだけ同じに扱い、NFKCの正規化はしない（全角のＡＢＣはABCと一致しない）。
+- 並びは一致の度合い（bm25）、新しさ、itemIdの順。スコアの数値は返さない。itemは`context`と同じ形（`evidenceStatus`、`trust`、`expiresOn`を含む）。`current`だけが回答の根拠になる。見つからないことは、無いことの証拠ではない。
+- 応答の`snapshotId`は返したitemだけを含む不完全なsnapshot（検索用の枠で32個、5分、古いものから捨てる）。`read`（itemId）と`use`に使えるが、`plan`には使えない（`COMPLETE_SNAPSHOT_REQUIRED`）。
+- 索引の検査や作り直しに失敗したときは、`search`だけが`failed / SEARCH_INDEX_UNAVAILABLE`（終了コード1）になり、ほかの操作は動く。
+
+## 見直しの一覧
+
+`eumenes-memory --profile <profile.json> review [--input <file|->]`（`{"scopeKeys"?: [...]}`、CLIのみ、読取のgrant）は、見直したほうがよいitemのIDと鍵（scopeKey、subject、kind、semanticKey、status、revision、origin）と理由を20件まで返す読み取り専用の操作。本文は返さず、cursorも出さない（`moreAvailable`だけ）。理由は次の4つ。
+
+- `external_stopped`: `trust: external`で停止したもの（inactive）
+- `external_expiring`: `trust: external`で、自動停止まで14日以内のもの（`expiresOn`つき）
+- `validity_ended`: 成立期間（`validUntilMs`）が過ぎたもの
+- `inferred_unconfirmed`: `agent_inferred`で、作成から180日を超え、一度も確認や訂正をされていないもの
+
+並びは期限の早い順。一覧を見て忘れるときは、通常の`plan`と`apply`でforgetする（特別な削除の経路は無い）。自動では忘れない。
 
 ## 自然文CLIとモデル
 

@@ -17,6 +17,7 @@ import {
 	readContractVersion,
 	readHostClock,
 	readScopeKey,
+	readScopeKeys,
 } from "../../../contracts/parse-store.ts";
 import {
 	checkKeys,
@@ -44,6 +45,7 @@ import type {
 	HostSourceState,
 	ListStateInput,
 	ReadStateFactInput,
+	SearchStateInput,
 	StateTargetInput,
 	StateValue,
 } from "../contracts/index.ts";
@@ -453,6 +455,7 @@ export function parseListStateInput(value: unknown): ListStateInput {
 		"includeInactive",
 		"limit",
 		"after",
+		"itemIds",
 	]);
 	const header = readScopedHeader(record, path);
 	let kinds: ListStateInput["kinds"];
@@ -505,12 +508,28 @@ export function parseListStateInput(value: unknown): ListStateInput {
 			),
 		};
 	}
+	let itemIds: ListStateInput["itemIds"];
+	if (Object.hasOwn(record, "itemIds")) {
+		const idsPath = keyPath(path, "itemIds");
+		const parsed = readArray(
+			record["itemIds"],
+			idsPath,
+			LIMITS_STATE.maxListItems,
+		).map((element, index) =>
+			readIdentifier(element, indexPath(idsPath, index), LIMITS.maxItemIdBytes),
+		);
+		if (parsed.length === 0 || new Set(parsed).size !== parsed.length) {
+			return fail("INVALID_VALUE", idsPath);
+		}
+		itemIds = parsed;
+	}
 	return deepFreeze({
 		...header,
 		...(kinds === undefined ? {} : { kinds }),
 		...(includeInactive === undefined ? {} : { includeInactive }),
 		...(limit === undefined ? {} : { limit }),
 		...(after === undefined ? {} : { after }),
+		...(itemIds === undefined ? {} : { itemIds }),
 	});
 }
 
@@ -526,4 +545,135 @@ export function parseReadStateFactInput(value: unknown): ReadStateFactInput {
 			LIMITS.maxItemIdBytes,
 		),
 	});
+}
+
+/** 全文検索の入力の上限（設計 §3.7、§3.2）。 */
+export const STATE_SEARCH_LIMITS = Object.freeze({
+	maxTerms: 8,
+	maxTermChars: 64,
+	maxTermBytes: 256,
+	minIndexedChars: 3,
+	maxResults: 21,
+	defaultScanMax: 20000,
+	maxScanMax: 1000000,
+});
+
+function readTerms(
+	value: unknown,
+	path: string,
+	indexed: boolean,
+): readonly string[] {
+	const terms = readArray(value, path, STATE_SEARCH_LIMITS.maxTerms).map(
+		(element, index) => {
+			const termPath = indexPath(path, index);
+			const term = readIdentifier(
+				element,
+				termPath,
+				STATE_SEARCH_LIMITS.maxTermBytes,
+			);
+			const chars = [...term].length;
+			if (
+				chars > STATE_SEARCH_LIMITS.maxTermChars ||
+				(indexed
+					? chars < STATE_SEARCH_LIMITS.minIndexedChars
+					: chars >= STATE_SEARCH_LIMITS.minIndexedChars)
+			) {
+				return fail("INVALID_VALUE", termPath);
+			}
+			return term;
+		},
+	);
+	return terms;
+}
+
+export function parseSearchStateInput(value: unknown): SearchStateInput {
+	const path = "$";
+	const record = readRecord(value, path);
+	checkKeys(record, path, [
+		"contractVersion",
+		"access",
+		"scopeKeys",
+		"terms",
+		"kinds",
+		"subject",
+		"limit",
+		"scanMax",
+	]);
+	const contractVersion = readContractVersion(
+		record,
+		path,
+		CONTRACT_VERSIONS.state,
+	);
+	const access = readAccessContext(
+		requiredField(record, path, "access"),
+		keyPath(path, "access"),
+	);
+	const scopeKeys = readScopeKeys(
+		requiredField(record, path, "scopeKeys"),
+		keyPath(path, "scopeKeys"),
+	);
+	const termsPath = keyPath(path, "terms");
+	const termsRecord = readRecord(
+		requiredField(record, path, "terms"),
+		termsPath,
+	);
+	checkKeys(termsRecord, termsPath, ["indexed", "scanned"]);
+	const indexed = readTerms(
+		requiredField(termsRecord, termsPath, "indexed"),
+		keyPath(termsPath, "indexed"),
+		true,
+	);
+	const scanned = readTerms(
+		requiredField(termsRecord, termsPath, "scanned"),
+		keyPath(termsPath, "scanned"),
+		false,
+	);
+	if (
+		indexed.length + scanned.length === 0 ||
+		indexed.length + scanned.length > STATE_SEARCH_LIMITS.maxTerms
+	) {
+		return fail("INVALID_VALUE", termsPath);
+	}
+	let kinds: SearchStateInput["kinds"];
+	if (Object.hasOwn(record, "kinds")) {
+		const kindsPath = keyPath(path, "kinds");
+		const parsed = readArray(
+			record["kinds"],
+			kindsPath,
+			STATE_KINDS.length,
+		).map((element, index) =>
+			readEnum(element, indexPath(kindsPath, index), STATE_KINDS),
+		);
+		if (parsed.length === 0 || new Set(parsed).size !== parsed.length) {
+			return fail("INVALID_VALUE", kindsPath);
+		}
+		kinds = parsed;
+	}
+	const subject = Object.hasOwn(record, "subject")
+		? readStateSubject(record["subject"], keyPath(path, "subject"))
+		: undefined;
+	const limit = readSafeInteger(
+		requiredField(record, path, "limit"),
+		keyPath(path, "limit"),
+		1,
+		STATE_SEARCH_LIMITS.maxResults,
+	);
+	const scanMax = Object.hasOwn(record, "scanMax")
+		? readSafeInteger(
+				record["scanMax"],
+				keyPath(path, "scanMax"),
+				0,
+				STATE_SEARCH_LIMITS.maxScanMax,
+			)
+		: undefined;
+	return deepFreeze({
+		contractVersion,
+		access,
+		scopeKeys,
+		terms: { indexed, scanned },
+		...(kinds === undefined ? {} : { kinds }),
+		...(subject === undefined ? {} : { subject }),
+		limit,
+		...(scanMax === undefined ? {} : { scanMax }),
+	}) as SearchStateInput;
 }

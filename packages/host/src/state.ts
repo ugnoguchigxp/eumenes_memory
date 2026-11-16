@@ -26,6 +26,8 @@ export interface SourceRow {
 	origin: "agent_inferred" | "user_confirmed" | "user_edited";
 	created_at: number;
 	forgotten: number;
+	/** host schema 3 から。 */
+	provenance?: string;
 }
 export function sourceState(
 	row: SourceRow,
@@ -59,33 +61,56 @@ export function listItems(
 	scopeKeys: readonly string[],
 	cap = Infinity,
 	includeInactive = false,
+	itemIds?: readonly string[],
 ): StateItem[] {
 	const items: StateItem[] = [];
-	for (const scopeKey of [...scopeKeys].sort()) {
-		let after: { updatedSeq: number; itemId: string } | undefined;
-		do {
-			const result = listState(db, {
-				contractVersion: 1,
-				access,
-				scopeKey,
-				limit: 1000,
-				includeInactive,
-				...(after ? { after } : {}),
-			});
-			demand(result.status === "ok", "SCOPE_NOT_PERMITTED");
-			items.push(...result.items);
-			if (items.length > cap) return items.slice(0, cap + 1);
-			after = result.nextCursor;
-		} while (after);
-	}
+	// ID を指定したときは、その item だけを読む（scope の全件を水和しない）。核の上限の 1000 件ずつに分ける。
+	const unique = itemIds === undefined ? undefined : [...new Set(itemIds)];
+	const groups =
+		unique === undefined
+			? [undefined]
+			: Array.from({ length: Math.ceil(unique.length / 1000) }, (_, i) =>
+					unique.slice(i * 1000, (i + 1) * 1000),
+				);
+	for (const scopeKey of [...scopeKeys].sort())
+		for (const wanted of groups) {
+			let after: { updatedSeq: number; itemId: string } | undefined;
+			do {
+				const result = listState(db, {
+					contractVersion: 1,
+					access,
+					scopeKey,
+					limit: 1000,
+					includeInactive,
+					...(after ? { after } : {}),
+					...(wanted ? { itemIds: wanted } : {}),
+				});
+				demand(result.status === "ok", "SCOPE_NOT_PERMITTED");
+				items.push(...result.items);
+				if (items.length > cap) return items.slice(0, cap + 1);
+				after = result.nextCursor;
+			} while (after);
+		}
 	return items;
 }
 export function stateFingerprint(
-	items: readonly (StateItem & { evidenceStatus?: string })[],
+	items: readonly (StateItem & {
+		evidenceStatus?: string;
+		trust?: string;
+		expiresOn?: string;
+	})[],
 ): string {
 	return digest(
 		items
-			.map(({ evidenceStatus: _status, ...state }) => state)
+			// ホストが計算して付ける表示用の値は、State の指紋に入れない。
+			.map(
+				({
+					evidenceStatus: _status,
+					trust: _trust,
+					expiresOn: _expires,
+					...state
+				}) => state,
+			)
 			.sort((a, b) => (a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0)),
 	);
 }
@@ -103,6 +128,8 @@ export interface Snapshot {
 	itemFingerprints: ReadonlyMap<string, string>;
 	complete: boolean;
 	expiresAt: number;
+	/** `search` が作った不完全な snapshot（§4.2）。context の枠とは別に数える。 */
+	pool?: "search";
 }
 export class SnapshotStore {
 	private readonly snapshots = new Map<string, Snapshot>();
@@ -116,11 +143,22 @@ export class SnapshotStore {
 		grant: Grant,
 		policy: string,
 		fingerprint: (items: readonly StateItem[]) => string = stateFingerprint,
+		pool?: "search",
 	): Snapshot {
 		for (const [id, snapshot] of this.snapshots)
 			if (snapshot.expiresAt <= this.clock()) this.snapshots.delete(id);
-		demand(this.snapshots.size < HOST_LIMITS.snapshots, "SNAPSHOT_CAPACITY");
-		let complete = items.length <= HOST_LIMITS.snapshotItems;
+		const inPool = [...this.snapshots.values()].filter((x) => x.pool === pool);
+		if (pool === "search") {
+			// 検索用の枠（§4.2）: 32 個を超えたら、古いもの（Map の挿入順の先頭）から捨てる。
+			for (const old of inPool.slice(
+				0,
+				Math.max(0, inPool.length - HOST_LIMITS.searchSnapshots + 1),
+			))
+				this.snapshots.delete(old.id);
+		} else demand(inPool.length < HOST_LIMITS.snapshots, "SNAPSHOT_CAPACITY");
+		// 検索の snapshot は返した item だけを含むので、常に不完全（plan には使えない）。
+		let complete =
+			pool !== "search" && items.length <= HOST_LIMITS.snapshotItems;
 		let size = 0;
 		const shown: HostItem[] = [];
 		for (const item of items.slice(0, HOST_LIMITS.snapshotItems)) {
@@ -147,6 +185,7 @@ export class SnapshotStore {
 			),
 			complete,
 			expiresAt: this.clock() + HOST_LIMITS.snapshotTtlMs,
+			...(pool ? { pool } : {}),
 		};
 		this.snapshots.set(snapshot.id, snapshot);
 		return snapshot;
