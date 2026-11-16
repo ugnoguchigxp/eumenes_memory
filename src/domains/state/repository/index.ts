@@ -31,6 +31,8 @@ import type {
 	ListStateResult,
 	ReadStateFactInput,
 	ReadStateFactResult,
+	SearchStateInput,
+	SearchStateResult,
 	StateCause,
 	StateEventDraft,
 	StateItem,
@@ -61,7 +63,9 @@ import {
 	parseAssertUserStateInput,
 	parseListStateInput,
 	parseReadStateFactInput,
+	parseSearchStateInput,
 	parseStateTargetInput,
+	STATE_SEARCH_LIMITS,
 } from "../service/parse.ts";
 import {
 	applyStateTransition,
@@ -945,6 +949,105 @@ export function retractState(
 }
 
 // ---- 読み取り ----
+
+/** FTS5 の phrase として引用する（`"` は `""`）。利用者の入力を FTS5 の構文として解釈させない。 */
+function quotePhrase(term: string): string {
+	return `"${term.replaceAll('"', '""')}"`;
+}
+
+/**
+ * 全文検索（設計 §3.5〜3.8）。絞り込み（principal、scope、active、kind、subject、短い語）は WHERE の中、
+ * 順位は ORDER BY、件数は LIMIT で、全体の上位を取ってから権限で間引くことはしない。
+ * 索引は候補の ID を出すだけで、返す item は正本（`memory_state_item`）から読み直す（active で墓標の無いものだけ）。
+ * 読み取り専用。複数の SQL の一貫性はホストの read transaction で守る。
+ */
+export function searchState(
+	db: MemoryDb,
+	input: SearchStateInput,
+): SearchStateResult {
+	const parsed = parseSearchStateInput(input);
+	enterRead(db);
+	if (
+		!parsed.scopeKeys.every((scopeKey) => isPermitted(parsed.access, scopeKey))
+	) {
+		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
+	}
+	const kinds = ownValue(parsed, "kinds");
+	const subject = ownValue(parsed, "subject");
+	const filterParams: SqlValue[] = [
+		parsed.access.principal,
+		...parsed.scopeKeys,
+	];
+	let filter = `i.principal = ? AND i.scope_key IN (${placeholders(parsed.scopeKeys.length)})
+		AND i.status = 'active' AND ${NO_TOMBSTONE}`;
+	if (kinds !== undefined) {
+		filter += ` AND i.kind IN (${placeholders(kinds.length)})`;
+		filterParams.push(...kinds);
+	}
+	if (subject !== undefined) {
+		filter += " AND i.subject = ?";
+		filterParams.push(subject);
+	}
+	const { indexed, scanned } = parsed.terms;
+	const fetch = parsed.limit + 1;
+	let rows: unknown[];
+	let mode: "fts" | "scan";
+	if (indexed.length > 0) {
+		mode = "fts";
+		const short = scanned
+			.map(() => " AND instr(lower(f.doc), lower(?)) > 0")
+			.join("");
+		rows = guarded(() =>
+			db
+				.query(
+					`SELECT ${ITEM_COLUMNS}, i.scope_key AS scope_key
+					FROM memory_state_fts f
+					JOIN memory_state_search_row r ON r.search_rowid = f.rowid
+					JOIN memory_state_item i ON i.item_id = r.item_id
+					WHERE memory_state_fts MATCH ? AND ${filter}${short}
+					ORDER BY bm25(memory_state_fts), i.updated_seq DESC, i.item_id ASC
+					LIMIT ?`,
+				)
+				.all(
+					indexed.map(quotePhrase).join(" AND "),
+					...filterParams,
+					...scanned,
+					fetch,
+				),
+		);
+	} else {
+		mode = "scan";
+		const scanMax =
+			ownValue(parsed, "scanMax") ?? STATE_SEARCH_LIMITS.defaultScanMax;
+		const total = guarded(() =>
+			db
+				.query(`SELECT count(*) AS n FROM memory_state_item i WHERE ${filter}`)
+				.get(...filterParams),
+		);
+		if (readInteger(total, "n") > scanMax) {
+			return { status: "blocked", reasonCode: "SCAN_LIMIT_EXCEEDED" };
+		}
+		const short = scanned
+			.map(() => " AND instr(lower(d.doc), lower(?)) > 0")
+			.join("");
+		rows = guarded(() =>
+			db
+				.query(
+					`SELECT ${ITEM_COLUMNS}, i.scope_key AS scope_key
+					FROM memory_state_item i
+					JOIN memory_state_search_doc d ON d.item_id = i.item_id
+					WHERE ${filter}${short}
+					ORDER BY i.updated_seq DESC, i.item_id ASC
+					LIMIT ?`,
+				)
+				.all(...filterParams, ...scanned, fetch),
+		);
+	}
+	const items = rows
+		.slice(0, parsed.limit)
+		.flatMap((row) => hydrate(db, readText(row, "scope_key"), [row]));
+	return { status: "ok", items, more: rows.length > parsed.limit, mode };
+}
 
 /** scope 内の state item を返す（`forgotten` は常に除く）。順序は updated_seq の降順、同じなら itemId。 */
 export function listState(

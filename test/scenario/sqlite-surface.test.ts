@@ -20,6 +20,7 @@ const PERSISTENCE_OPERATIONS = [
 	"listState",
 	"readStateFact",
 	"rebuildStateSearchIndex",
+	"searchState",
 	"verifyStateSearchIndex",
 	"latestMemoryChangeSeq",
 	"planForget",

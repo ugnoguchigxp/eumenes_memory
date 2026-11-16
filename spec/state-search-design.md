@@ -833,3 +833,8 @@ search: z.object({
 | S7 | ホストは `openStandalone` で、適用済みの migration の hash が本体と一致するときだけ、未適用の核の migration を 1 つの transaction で適用する（その後 `assertMemorySchema`）。SQLite の下限は 3.44.0 とした | ［事実］ | §5 の「実際の下限は 3.44」 |
 | S7 | 0009 の追加に合わせて、既存の試験を直した: 0008 の試験は 0008 の後に残りの migration を適用してから核の関数を呼ぶ。全表を書き出す補助（3 か所）は、列が 1 つの `memory_state_fts` に rowid を足して並べる | ［事実］ | 検査の内容は変えていない |
 | S7 | T-MIG-1 は、版 8 の DB に核の書き込み関数が使えないため、行を直接入れて作った。T-IDX-4 の「再登録の漏れ」は、置き換えの後に新しい item の対応表と索引の行を消して作った。T-LEAK-5 は検索の関数が要るので S8 で足す | ［事実］ | ― |
+| S8 | 核の `searchState` の入力に `scanMax`（走査の対象の上限、既定 20000）を足し、出力に `mode`（`fts` か `scan`）を足した。走査の上限を超えたときの核の reasonCode は `SCAN_LIMIT_EXCEEDED` とし、ホストが `QUERY_TOO_SHORT` に写す | ［事実］ | T-Q-4 の「試験用に上限を小さくする」と、§4.2 の応答の `query.mode` のため。核の reasonCode をホストの入力の言葉にしないため |
+| S8 | 上限の数（語の数 8、1 語 64 文字・256 B、limit 1〜21、短い語は 3 文字未満）は核の `service/parse.ts` の内部の定数 `STATE_SEARCH_LIMITS` に置き、契約（`contracts`）の値の export にはしない | ［事実］ | 根の `export *` を通じて公開面が広がるのを避けるため |
+| S8 | 短い語の絞り込みは `instr(lower(文書), lower(語))`。SQLite の `lower()` は ASCII だけを畳むので、大文字と小文字を同じに扱うのは ASCII だけ（全角の ＡＢＣ は ABC と一致しない。T-Q-5 と同じ） | ［事実］ | §3.2 の trigram の `case_sensitive 0` と揃えるため |
+| S8 | bench は「索引なし」の書き込みと忘却を測れなかった（核は版 9 を要求する）。代わりに索引の更新だけ（`syncStateSearch`）の時間を測った。ホスト経由の検索は S9 の後に測る。結果は `spec/search-bench-results.md` | ［事実］ | ― |
+| S8 | bench で、10 万件のよく出る語の p95 が 113.7 ms と、§6.2 の目標（100 ms）を超えた。§6.2 の「bm25 を使わず `updated_seq` で並べる案」は、設計の変更になるので実装せず、利用者の判断が要る事項としてここと bench の結果に残した。`SEARCH_SCAN_MAX = 20000` は、走査の対象が 2 万件のときの p95 が約 81 ms で、そのまま採った | ［事実］（数値）／判断は［推論］ | 承認された順位の規則（§3.6）を独断で変えないため |

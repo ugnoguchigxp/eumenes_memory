@@ -37,6 +37,7 @@ export {
 	readStateFact,
 	rebuildStateSearchIndex,
 	retractState,
+	searchState,
 	verifyStateSearchIndex,
 } from "./domains/state/sqlite.ts";
 export {
