@@ -1,5 +1,5 @@
 /** S3（§4C、決定 10）: VACUUM INTO のバックアップと、ジャーナルを優先する復元。 */
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -12,6 +12,7 @@ import {
 } from "../src/backup.ts";
 import { restoreStore } from "../src/transport.ts";
 import {
+	disposeFixtures,
 	fixture,
 	forget,
 	items,
@@ -19,6 +20,8 @@ import {
 	remember,
 	type Fixture,
 } from "./support.ts";
+
+afterEach(disposeFixtures);
 
 const SECRET = "ZQXWVU秘密の好み";
 

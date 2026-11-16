@@ -1,8 +1,17 @@
 /** S10: 見直しの一覧（設計 §4D.2 の 3）。CLI だけ、読み取り専用、20 件まで、本文を返さない。 */
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { assertUserState } from "eumenes-memory/sqlite";
-import { DAY_MS, fixture, items, remember, type Fixture } from "./support.ts";
+import {
+	disposeFixtures,
+	DAY_MS,
+	fixture,
+	items,
+	remember,
+	type Fixture,
+} from "./support.ts";
+
+afterEach(disposeFixtures);
 import { writeMarkers } from "./support.ts";
 
 const T0 = 20000 * DAY_MS + 3600000;

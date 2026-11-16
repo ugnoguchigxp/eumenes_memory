@@ -1,5 +1,5 @@
 /** 段階 S1 以降の試験で共有する組み立て。既存の service.test.ts の fixture と同じ形。 */
-import { afterEach, expect } from "bun:test";
+import { expect } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -9,9 +9,14 @@ import type { HostConfig } from "../src/contracts.ts";
 
 export const DAY_MS = 86400000;
 const dispose: (() => Promise<void>)[] = [];
-afterEach(async () => {
+/**
+ * fixture を閉じて一時ディレクトリを消す。1 つのプロセスで複数の試験ファイルを走らせると、この module は 1 回だけ評価されるので、
+ * ここで afterEach を登録すると最初のファイルにしか付かない（/tmp に残っていた）。fixture を使う試験ファイルは、
+ * それぞれ `afterEach(disposeFixtures)` を呼ぶ。
+ */
+export async function disposeFixtures(): Promise<void> {
 	for (const close of dispose.splice(0).reverse()) await close();
-});
+}
 export function onDispose(close: () => Promise<void>): void {
 	dispose.push(close);
 }

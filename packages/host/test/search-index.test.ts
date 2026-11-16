@@ -1,5 +1,5 @@
 /** S7: 全文検索の索引のホスト側（既存の DB への 0009 の適用、戻し方、SQLite の機能の検査、復元後の漏れ、起動時の検査）。 */
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { join } from "node:path";
 import { checkSchemaAgainst } from "../../../src/infrastructure/sqlite/schema-check.ts";
@@ -8,6 +8,7 @@ import { rollback0009 } from "../scripts/rollback-0009.ts";
 import { initialize, openStandalone } from "../src/storage.ts";
 import { restoreStore } from "../src/transport.ts";
 import {
+	disposeFixtures,
 	fixture,
 	forget,
 	items,
@@ -15,7 +16,9 @@ import {
 	remember,
 	type Fixture,
 } from "./support.ts";
-import { mkdtempSync } from "node:fs";
+
+afterEach(disposeFixtures);
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 const SECRET = "ZQXWVU秘密の合言葉です";
@@ -83,22 +86,26 @@ test("rollback refuses while the owner is running", async () => {
 	expect(() => rollback0009(h.dir)).toThrow("OWNER_ALREADY_RUNNING");
 });
 
-test("T-MIG-3 missing fts5 fails closed at startup", () => {
+test("T-MIG-3 missing fts5 fails closed at startup", async () => {
 	const dir = mkdtempSync(join(tmpdir(), "emh-"));
-	initialize(dir);
-	expect(() =>
-		openStandalone(dir, {
-			features: () => ({ fts5: false, version: "3.53.4" }),
-		}),
-	).toThrow("SQLITE_FEATURE_MISSING");
-	expect(() =>
-		openStandalone(dir, {
-			features: () => ({ fts5: true, version: "3.43.2" }),
-		}),
-	).toThrow("SQLITE_FEATURE_MISSING");
-	// 失敗した後も lock は残らず、正しい環境なら開ける。
-	const owner = openStandalone(dir);
-	void owner.close();
+	try {
+		initialize(dir);
+		expect(() =>
+			openStandalone(dir, {
+				features: () => ({ fts5: false, version: "3.53.4" }),
+			}),
+		).toThrow("SQLITE_FEATURE_MISSING");
+		expect(() =>
+			openStandalone(dir, {
+				features: () => ({ fts5: true, version: "3.43.2" }),
+			}),
+		).toThrow("SQLITE_FEATURE_MISSING");
+		// 失敗した後も lock は残らず、正しい環境なら開ける。
+		const owner = openStandalone(dir);
+		await owner.close();
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
 });
 
 test("T-LEAK-2 forget via journal reconcile on a restored DB", async () => {

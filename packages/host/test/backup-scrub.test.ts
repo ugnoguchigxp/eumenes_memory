@@ -1,5 +1,5 @@
 /** S4（§4C.4）: 忘却の後のバックアップの洗い直しと、失敗したときの上限。 */
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import {
 	BACKUP_GENERATIONS,
@@ -9,6 +9,7 @@ import {
 } from "../src/backup.ts";
 import { restoreStore } from "../src/transport.ts";
 import {
+	disposeFixtures,
 	fixture,
 	forget,
 	items,
@@ -16,6 +17,8 @@ import {
 	remember,
 	type Fixture,
 } from "./support.ts";
+
+afterEach(disposeFixtures);
 
 const SECRET = "ZQXWVU秘密の好み";
 

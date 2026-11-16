@@ -1,9 +1,10 @@
 /** S2（§4A、決定 8）: 操作の受領記録の保持と、再送しても二重に書かないこと。 */
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { HOST_LIMITS } from "../src/contracts.ts";
 import {
+	disposeFixtures,
 	DAY_MS,
 	fixture,
 	items,
@@ -11,6 +12,8 @@ import {
 	remember,
 	type Fixture,
 } from "./support.ts";
+
+afterEach(disposeFixtures);
 
 function counts(h: Fixture) {
 	return h.owner.port.read((db) => ({

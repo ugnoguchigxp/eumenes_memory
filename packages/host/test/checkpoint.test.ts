@@ -1,7 +1,16 @@
 /** S1（決定 9）: 忘却の apply の後に wal_checkpoint(TRUNCATE) を行い、WAL に古い本文を残さない。 */
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { fixture, forget, items, leakedTrigrams, remember } from "./support.ts";
+import {
+	disposeFixtures,
+	fixture,
+	forget,
+	items,
+	leakedTrigrams,
+	remember,
+} from "./support.ts";
+
+afterEach(disposeFixtures);
 
 const SECRET = "ZQXWVU秘密の好み";
 

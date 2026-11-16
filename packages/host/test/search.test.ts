@@ -1,11 +1,19 @@
 /** S9: ホストの `search`（設計 §3.7、§3.8、§4.2）。件数と byte の上限、無害化、検索用の snapshot、読み取り専用。 */
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { assertUserState, verifyStateSearchIndex } from "eumenes-memory/sqlite";
 import { exitCode, type HostResult } from "../src/contracts.ts";
 import { sanitizeQuery } from "../src/search.ts";
 import { restoreStore } from "../src/transport.ts";
-import { fixture, items, remember, type Fixture } from "./support.ts";
+import {
+	disposeFixtures,
+	fixture,
+	items,
+	remember,
+	type Fixture,
+} from "./support.ts";
+
+afterEach(disposeFixtures);
 
 let counter = 0;
 /** 本人確認済みの item を、ホストの書き込みの順番で直接入れる（plan と apply を何十回も通さないため）。 */

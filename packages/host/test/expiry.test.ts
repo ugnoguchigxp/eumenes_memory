@@ -1,5 +1,5 @@
 /** S6b（§4D.2a、決定 11）: 外部由来の item の自動停止と、再利用（use と適用した plan の参照）による延長。 */
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
@@ -8,6 +8,7 @@ import { runExpire } from "../src/expiry.ts";
 import { restoreStore } from "../src/transport.ts";
 import type { HostConfig } from "../src/contracts.ts";
 import {
+	disposeFixtures,
 	DAY_MS,
 	fixture,
 	forget,
@@ -15,6 +16,8 @@ import {
 	remember,
 	type Fixture,
 } from "./support.ts";
+
+afterEach(disposeFixtures);
 
 /** UTC の日の境目から 1 時間後（日単位の判定を決まった形にする）。 */
 const T0 = 20000 * DAY_MS + 3600000;

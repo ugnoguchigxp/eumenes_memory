@@ -1,11 +1,20 @@
 /** S5（§4B、決定 12）: 出典の由来と item の信頼度。由来は信頼を下げる方向にだけ効く。 */
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { Database } from "bun:sqlite";
 import { join } from "node:path";
 import { assertUserState } from "eumenes-memory/sqlite";
 import { toolDescriptions } from "../src/mcp.ts";
-import { fixture, items, plan, remember, type Fixture } from "./support.ts";
+import {
+	disposeFixtures,
+	fixture,
+	items,
+	plan,
+	remember,
+	type Fixture,
+} from "./support.ts";
+
+afterEach(disposeFixtures);
 
 function stateCount(h: Fixture) {
 	return h.owner.port.read(

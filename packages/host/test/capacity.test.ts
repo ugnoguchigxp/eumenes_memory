@@ -1,6 +1,7 @@
 /** S6（§4D.2）: 容量の監視と、上限に近いときの新しい key の保存の制限。 */
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import {
+	disposeFixtures,
 	fixture,
 	forget,
 	items,
@@ -9,6 +10,8 @@ import {
 	writeMarkers,
 	type Fixture,
 } from "./support.ts";
+
+afterEach(disposeFixtures);
 
 const SECRET = "ZQXWVU秘密の好み";
 
