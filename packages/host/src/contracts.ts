@@ -69,6 +69,8 @@ export const configSchema = z
 		scopeKeys: scopes,
 		socketPath: id,
 		credentials: z.record(id, grantSchema),
+		/** バックアップの置き場所（決定 10）。無ければ backup は BACKUP_NOT_CONFIGURED。 */
+		backupDirectory: id.optional(),
 	})
 	.strict();
 export type HostConfig = z.infer<typeof configSchema>;
@@ -115,7 +117,11 @@ export const methodSchemas = {
 		.strict(),
 	apply: z.object({ planId: id, operationId: id, epoch: id }).strict(),
 	operation: z.object({ operationId: id, epoch: id }).strict(),
+	/** 管理用（admin の grant）。MCP には出さない（`CLI_ONLY_METHODS`）。 */
+	backup: z.object({}).strict(),
 } as const;
+/** CLI からだけ呼べる管理用の操作。MCP の道具にしない。 */
+export const CLI_ONLY_METHODS: readonly string[] = Object.freeze(["backup"]);
 export type Method = keyof typeof methodSchemas;
 export type MethodInput<M extends Method> = z.input<(typeof methodSchemas)[M]>;
 export type MethodParams<M extends Method> = z.output<

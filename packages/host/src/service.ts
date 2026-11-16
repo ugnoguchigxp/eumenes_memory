@@ -30,7 +30,14 @@ import {
 	type Method,
 	type MethodParams,
 } from "./contracts.ts";
-import { upgradeHostSchema, type AppPort } from "./storage.ts";
+import { join } from "node:path";
+import { realpathSync } from "node:fs";
+import {
+	HOST_SCHEMA_VERSION,
+	upgradeHostSchema,
+	type AppPort,
+} from "./storage.ts";
+import { backupStatus, createBackupFiles } from "./backup.ts";
 import {
 	accessFor,
 	digest,
@@ -81,6 +88,7 @@ export interface HostOptions {
 }
 export class MemoryHost {
 	readonly epoch = randomUUID();
+	readonly startedAt: number;
 	readonly snapshots: SnapshotStore;
 	readonly clock: () => number;
 	healthy = false;
@@ -96,6 +104,7 @@ export class MemoryHost {
 	>();
 	constructor(readonly options: HostOptions) {
 		this.clock = options.clock ?? Date.now;
+		this.startedAt = this.clock();
 		this.snapshots = new SnapshotStore(this.epoch, this.clock);
 	}
 	limit(name: keyof typeof HOST_LIMITS): number {
@@ -317,6 +326,11 @@ export class MemoryHost {
 					limits: HOST_LIMITS,
 					recovery: "reconciled",
 					checkpointPending: this.checkpointPending,
+					...backupStatus(
+						this.config.backupDirectory,
+						this.clock(),
+						this.startedAt,
+					),
 					...this.pendingStatus(grant),
 				};
 			if (name === "context") {
@@ -334,6 +348,7 @@ export class MemoryHost {
 				);
 			}
 			demand(grant.write, "WRITE_NOT_PERMITTED");
+			if (name === "backup") return await this.backup(grant);
 			if (name === "apply")
 				return await applyPlan(
 					this,
@@ -353,6 +368,31 @@ export class MemoryHost {
 		} catch (error) {
 			return failure(error);
 		}
+	}
+	/** §4C.2: 所有者が writer の順番で `VACUUM INTO` し、ジャーナルの写しと一緒に置く。admin の grant が要る。 */
+	async backup(grant: Grant): Promise<HostResult> {
+		this.admin(grant);
+		const directory = this.config.backupDirectory;
+		demand(directory, "BACKUP_NOT_CONFIGURED");
+		const { exclusive, databasePath } = this.options.port;
+		demand(exclusive && databasePath, "BACKUP_UNSUPPORTED");
+		const meta = await exclusive(() =>
+			createBackupFiles({
+				databasePath,
+				directory,
+				journal: this.options.port.journal.read() as unknown[],
+				atMs: this.clock(),
+				hostSchemaVersion: HOST_SCHEMA_VERSION,
+			}),
+		);
+		return {
+			status: "completed",
+			path: join(realpathSync(directory), meta.file),
+			bytes: meta.bytes,
+			sha256: meta.sha256,
+			schemaVersion: meta.schemaVersion,
+			journalHead: meta.journalHead,
+		};
 	}
 	pendingStatus(grant: Grant): { pendingOperations: number } {
 		if (!grant.read) return { pendingOperations: 0 };

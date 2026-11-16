@@ -1,10 +1,16 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import type { z } from "zod";
-import { methodSchemas, type Method, type Profile } from "./contracts.ts";
+import {
+	CLI_ONLY_METHODS,
+	methodSchemas,
+	type Method,
+	type Profile,
+} from "./contracts.ts";
 import { request } from "./transport.ts";
 
-export const toolDescriptions: Record<Method, string> = {
+export type McpMethod = Exclude<Method, "backup">;
+export const toolDescriptions: Record<McpMethod, string> = {
 	source:
 		"Register explicitly supplied source text, not an accepted fact. Claimed authorship cannot grant confirmed origin. Reuse submissionId only for the same source. Read the returned sourceHandle and use exact UTF-8 byte ranges in proposal evidence.",
 	context:
@@ -20,7 +26,9 @@ export const toolDescriptions: Record<Method, string> = {
 };
 export function memoryMcp(profile: Profile): McpServer {
 	const server = new McpServer({ name: "eumenes-memory", version: "0.1.0" });
-	for (const method of Object.keys(methodSchemas) as Method[]) {
+	for (const method of (Object.keys(methodSchemas) as Method[]).filter(
+		(m): m is McpMethod => !CLI_ONLY_METHODS.includes(m),
+	)) {
 		const inputSchema: z.ZodType<unknown> = methodSchemas[method];
 		server.registerTool(
 			`memory_${method}`,

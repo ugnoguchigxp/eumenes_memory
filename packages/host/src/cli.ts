@@ -3,15 +3,22 @@ import { join } from "node:path";
 import { readBoundedText } from "./io.ts";
 import { exitCode, failure, HOST_LIMITS, HostError } from "./contracts.ts";
 import { initialize } from "./storage.ts";
-import { readProfile, request, startStandalone } from "./transport.ts";
+import {
+	readProfile,
+	request,
+	restoreStore,
+	startStandalone,
+} from "./transport.ts";
 import { natural } from "./natural.ts";
 import { serveMemoryMcp } from "./mcp.ts";
 
 const usage = `Usage:
-  eumenes-memory init <directory> [scope ...]
+  eumenes-memory init <directory> [scope ...] [--backups <directory>]
   eumenes-memory serve <directory>
+  eumenes-memory restore <backup.db> <directory>   (server must be stopped)
   eumenes-memory --profile <profile.json> mcp
   eumenes-memory --profile <profile.json> status|source|context|read|plan|apply|operation|recall|recall-size --input <file|->
+  eumenes-memory --profile <profile.json> backup
 All operation output is JSON. plan validates only; apply performs mutations.
 `;
 export async function main(raw: string[]): Promise<void> {
@@ -35,13 +42,33 @@ export async function main(raw: string[]): Promise<void> {
 	if (command === "init") {
 		const directory = args.shift();
 		if (!directory) throw new HostError("DIRECTORY_REQUIRED");
-		initialize(directory, args.length ? args : ["personal"]);
+		let backupDirectory: string | undefined;
+		const bi = args.indexOf("--backups");
+		if (bi >= 0) {
+			backupDirectory = args[bi + 1];
+			if (!backupDirectory) throw new HostError("INVALID_ARGUMENTS");
+			args.splice(bi, 2);
+		}
+		initialize(
+			directory,
+			args.length ? args : ["personal"],
+			backupDirectory ? { backupDirectory } : {},
+		);
 		console.log(
 			JSON.stringify({
 				status: "ready",
 				profile: join(directory, "profile.json"),
 			}),
 		);
+		return;
+	}
+	if (command === "restore") {
+		const [backup, directory, ...rest] = args;
+		if (!backup || !directory || rest.length)
+			throw new HostError("INVALID_ARGUMENTS");
+		const result = await restoreStore(backup, directory);
+		console.log(JSON.stringify(result, null, 2));
+		process.exitCode = exitCode(result);
 		return;
 	}
 	if (command === "serve") {

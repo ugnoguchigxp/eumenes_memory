@@ -25,7 +25,9 @@ export interface FixtureOptions {
 export async function fixture(options: FixtureOptions = {}) {
 	const scopes = options.scopes ?? ["personal"];
 	const dir = options.dir ?? mkdtempSync(join(tmpdir(), "emh-"));
-	const profile = initialize(dir, scopes);
+	const profile = initialize(dir, scopes, {
+		backupDirectory: join(dir, "backups"),
+	});
 	const configuration = () =>
 		JSON.parse(readFileSync(join(dir, "owner.json"), "utf8")) as HostConfig;
 	const clock = { now: options.now ?? Date.now() };

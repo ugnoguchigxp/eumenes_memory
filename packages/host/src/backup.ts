@@ -1,0 +1,318 @@
+/**
+ * バックアップと復元（設計 §4C、決定 10、S3）。
+ * - 取得: 所有者が writer の順番で、読み取り専用の別接続から `VACUUM INTO` する（空きページを写さない）。
+ * - 置き場所: owner.json の `backupDirectory`（0700、ファイルは 0600）。7 世代を残し、古いものは 0 で上書きしてから消す。
+ * - 復元: サーバーを止めた状態で、ライブのジャーナルを優先し、その先頭がバックアップの `journalHead` 以上であることを確かめる。
+ */
+import { Database } from "bun:sqlite";
+import { createHash, randomBytes } from "node:crypto";
+import {
+	chmodSync,
+	closeSync,
+	copyFileSync,
+	existsSync,
+	fsyncSync,
+	lstatSync,
+	mkdirSync,
+	openSync,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+	renameSync,
+	statSync,
+	unlinkSync,
+	writeFileSync,
+	writeSync,
+} from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
+import type { ForgetJournalEntry } from "eumenes-memory";
+import { demand, HostError, type HostResult } from "./contracts.ts";
+
+/** 決定 10（2026-11-16 承認）で決めた、この環境での置き場所。どちらも `/workspace` の外。 */
+export const DEFAULT_DATA_DIRECTORY = "/home/box/eumenes-memory-data";
+export const DEFAULT_BACKUP_DIRECTORY = "/home/box/eumenes-memory-backups";
+export const BACKUP_GENERATIONS = 7;
+export const BACKUP_OVERDUE_MS = 36 * 3600000;
+/** データの置き場所に対する既定のバックアップの置き場所。決定 10 の置き場所なら決定 10 のもの、それ以外は隣の `<名前>-backups`。 */
+export function defaultBackupDirectory(root: string): string {
+	return resolve(root) === DEFAULT_DATA_DIRECTORY
+		? DEFAULT_BACKUP_DIRECTORY
+		: join(dirname(resolve(root)), `${basename(resolve(root))}-backups`);
+}
+export interface JournalHead {
+	seq: number;
+	hash: string | null;
+}
+export interface BackupMeta {
+	version: 1;
+	file: string;
+	journalFile: string;
+	bytes: number;
+	sha256: string;
+	schemaVersion: number;
+	hostSchemaVersion: number;
+	journalHead: JournalHead;
+	createdAt: number;
+	/** 洗い直し（S4）が最後に反映したジャーナルの seq。 */
+	scrubbedThrough: number;
+	scrubPending: boolean;
+}
+export function journalHead(entries: readonly unknown[]): JournalHead {
+	const last = entries.at(-1) as ForgetJournalEntry | undefined;
+	return last ? { seq: last.seq, hash: last.hash } : { seq: 0, hash: null };
+}
+export function sha256File(path: string): string {
+	return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+function fsyncPath(path: string): void {
+	const fd = openSync(path, "r");
+	try {
+		fsyncSync(fd);
+	} finally {
+		closeSync(fd);
+	}
+}
+/** 0 で上書きし、fsync してから消す。無ければ何もしない。 */
+export function shred(path: string): void {
+	const stat = lstatSync(path, { throwIfNoEntry: false });
+	if (!stat) return;
+	if (stat.isFile() && stat.size > 0) {
+		const fd = openSync(path, "r+");
+		try {
+			const zero = Buffer.alloc(Math.min(stat.size, 1 << 20));
+			for (let offset = 0; offset < stat.size; offset += zero.length)
+				writeSync(
+					fd,
+					zero,
+					0,
+					Math.min(zero.length, stat.size - offset),
+					offset,
+				);
+			fsyncSync(fd);
+		} finally {
+			closeSync(fd);
+		}
+	}
+	unlinkSync(path);
+}
+export function ensurePrivateDirectory(path: string): string {
+	mkdirSync(path, { recursive: true, mode: 0o700 });
+	chmodSync(path, 0o700);
+	return realpathSync(path);
+}
+function writePrivateFile(path: string, content: string): void {
+	const temp = `${path}.tmp`;
+	writeFileSync(temp, content, { mode: 0o600 });
+	chmodSync(temp, 0o600);
+	fsyncPath(temp);
+	renameSync(temp, path);
+}
+export function writeMeta(directory: string, meta: BackupMeta): void {
+	writePrivateFile(
+		join(directory, meta.file.replace(/\.db$/, ".json")),
+		JSON.stringify(meta, null, 2) + "\n",
+	);
+	fsyncPath(directory);
+}
+export function writeJournalCopy(
+	path: string,
+	entries: readonly unknown[],
+): void {
+	writePrivateFile(path, entries.map((e) => JSON.stringify(e) + "\n").join(""));
+}
+/** 置き場所の中のバックアップを古い順に返す。壊れた記録は無視する。 */
+export function listBackups(directory: string): BackupMeta[] {
+	if (!existsSync(directory)) return [];
+	const metas: BackupMeta[] = [];
+	for (const name of readdirSync(directory)) {
+		if (!/^memory-.*\.json$/.test(name)) continue;
+		try {
+			const meta = JSON.parse(
+				readFileSync(join(directory, name), "utf8"),
+			) as BackupMeta;
+			if (meta.version === 1 && existsSync(join(directory, meta.file)))
+				metas.push(meta);
+		} catch {
+			continue;
+		}
+	}
+	return metas.sort(
+		(a, b) => a.createdAt - b.createdAt || (a.file < b.file ? -1 : 1),
+	);
+}
+export function removeBackup(directory: string, meta: BackupMeta): void {
+	shred(join(directory, meta.file));
+	shred(join(directory, meta.journalFile));
+	shred(join(directory, meta.file.replace(/\.db$/, ".json")));
+}
+/** 新しい順に `BACKUP_GENERATIONS` 世代だけ残す。 */
+export function pruneBackups(
+	directory: string,
+	keep = BACKUP_GENERATIONS,
+): number {
+	const all = listBackups(directory);
+	const old = all.slice(0, Math.max(0, all.length - keep));
+	for (const meta of old) removeBackup(directory, meta);
+	if (old.length) fsyncPath(directory);
+	return old.length;
+}
+function stamp(atMs: number): string {
+	return new Date(atMs)
+		.toISOString()
+		.replace(/[-:]/g, "")
+		.replace(/\.\d+Z$/, "Z");
+}
+/** 読み取り専用の別接続から `VACUUM INTO` で 1 ファイルに写し、fsync してから最終の名前に rename する。 */
+export function vacuumInto(source: string, target: string): void {
+	const temp = `${target}.tmp`;
+	if (existsSync(temp)) unlinkSync(temp);
+	const reader = new Database(source, { readonly: true });
+	try {
+		reader.query("VACUUM INTO ?").run(temp);
+	} finally {
+		reader.close();
+	}
+	chmodSync(temp, 0o600);
+	fsyncPath(temp);
+	renameSync(temp, target);
+}
+export interface BackupInput {
+	databasePath: string;
+	directory: string;
+	journal: readonly unknown[];
+	atMs: number;
+	hostSchemaVersion: number;
+}
+/** バックアップを 1 つ作る。呼び出し側（所有者）が writer の順番で呼ぶ。 */
+export function createBackupFiles(input: BackupInput): BackupMeta {
+	const directory = ensurePrivateDirectory(input.directory);
+	const base = `memory-${stamp(input.atMs)}-${randomBytes(4).toString("hex")}`;
+	const file = `${base}.db`;
+	const journalFile = `${base}.forget.jsonl`;
+	vacuumInto(input.databasePath, join(directory, file));
+	writeJournalCopy(join(directory, journalFile), input.journal);
+	const check = new Database(join(directory, file), { readonly: true });
+	let schemaVersion: number;
+	try {
+		const row = check
+			.query(
+				"SELECT value FROM memory_schema_info WHERE key='db_schema_version'",
+			)
+			.get() as { value: string } | null;
+		schemaVersion = Number(row?.value ?? 0);
+	} finally {
+		check.close();
+	}
+	const head = journalHead(input.journal);
+	const meta: BackupMeta = {
+		version: 1,
+		file,
+		journalFile,
+		bytes: statSync(join(directory, file)).size,
+		sha256: sha256File(join(directory, file)),
+		schemaVersion,
+		hostSchemaVersion: input.hostSchemaVersion,
+		journalHead: head,
+		createdAt: input.atMs,
+		scrubbedThrough: head.seq,
+		scrubPending: false,
+	};
+	writeMeta(directory, meta);
+	pruneBackups(directory);
+	return meta;
+}
+export function backupStatus(
+	directory: string | undefined,
+	now: number,
+	since: number,
+): {
+	lastBackupAt: number | null;
+	backupOverdue: boolean;
+	backupScrubPending: boolean;
+	backupGenerations: number;
+} {
+	const all = directory ? listBackups(directory) : [];
+	const last = all.at(-1)?.createdAt ?? null;
+	return {
+		lastBackupAt: last,
+		backupOverdue: now - (last ?? since) > BACKUP_OVERDUE_MS,
+		backupScrubPending: all.some((m) => m.scrubPending),
+		backupGenerations: all.length,
+	};
+}
+function readJournalFile(path: string): ForgetJournalEntry[] {
+	return readFileSync(path, "utf8")
+		.split("\n")
+		.filter(Boolean)
+		.map((line) => JSON.parse(line) as ForgetJournalEntry);
+}
+/**
+ * 復元（§4C.5 の 2〜4）。サーバーが動いていれば拒否する。起動の検査（5）は呼び出し側が行う。
+ * 今の DB と WAL は `restore-<時刻>/` に退避し、消さない（確認後に利用者が 0 で上書きして消す）。
+ */
+export function restoreFiles(
+	backupPath: string,
+	directory: string,
+	atMs: number,
+): HostResult & { evacuated: string } {
+	const root = realpathSync(directory);
+	const backup = resolve(backupPath);
+	const metaPath = backup.replace(/\.db$/, ".json");
+	demand(existsSync(backup) && existsSync(metaPath), "BACKUP_NOT_FOUND");
+	const meta = JSON.parse(readFileSync(metaPath, "utf8")) as BackupMeta;
+	demand(
+		meta.version === 1 && basename(backup) === meta.file,
+		"BACKUP_METADATA_INVALID",
+	);
+	const lock = new Database(join(root, "owner.lock"));
+	try {
+		try {
+			lock.exec("PRAGMA busy_timeout=0; BEGIN EXCLUSIVE");
+		} catch {
+			throw new HostError("OWNER_ALREADY_RUNNING");
+		}
+		demand(sha256File(backup) === meta.sha256, "BACKUP_CHECKSUM_MISMATCH");
+		const live = join(root, "forget.jsonl");
+		if (!existsSync(live)) {
+			// ライブのジャーナルが失われたときだけ、写しのうち最も新しいものを使う。
+			const copies = listBackups(dirname(backup))
+				.map((m) => join(dirname(backup), m.journalFile))
+				.filter((p) => existsSync(p))
+				.map((p) => ({ p, entries: readJournalFile(p) }))
+				.sort((a, b) => a.entries.length - b.entries.length);
+			const newest = copies.at(-1);
+			demand(newest, "JOURNAL_MISSING");
+			copyFileSync(newest.p, live);
+			chmodSync(live, 0o600);
+		}
+		const entries = readJournalFile(live);
+		const head = journalHead(entries);
+		const atHead =
+			meta.journalHead.seq === 0
+				? undefined
+				: entries.find((e) => e.seq === meta.journalHead.seq);
+		demand(
+			head.seq >= meta.journalHead.seq &&
+				(meta.journalHead.seq === 0 || atHead?.hash === meta.journalHead.hash),
+			"JOURNAL_OLDER_THAN_BACKUP",
+		);
+		const evacuated = join(root, `restore-${stamp(atMs)}`);
+		mkdirSync(evacuated, { mode: 0o700 });
+		for (const name of ["memory.db", "memory.db-wal", "memory.db-shm"])
+			if (existsSync(join(root, name)))
+				renameSync(join(root, name), join(evacuated, name));
+		copyFileSync(backup, join(root, "memory.db"));
+		chmodSync(join(root, "memory.db"), 0o600);
+		fsyncPath(join(root, "memory.db"));
+		fsyncPath(root);
+		return {
+			status: "completed",
+			restored: meta.file,
+			journalHead: head,
+			backupJournalHead: meta.journalHead,
+			evacuated,
+		};
+	} finally {
+		lock.close();
+	}
+}

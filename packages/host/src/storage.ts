@@ -12,7 +12,8 @@ import {
 	writeFileSync,
 	writeSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { defaultBackupDirectory } from "./backup.ts";
 import { randomBytes } from "node:crypto";
 import {
 	assertMemorySchema,
@@ -51,6 +52,10 @@ export interface AppPort extends StorePort {
 	 * 完了すれば true、他の読み手などで最後まで写せなければ false。無いポートでは、WAL の扱いはアプリの責任。
 	 */
 	checkpoint?: () => Promise<boolean>;
+	/** DB ファイルの場所（バックアップに使う）。 */
+	databasePath?: string;
+	/** writer の順番で、transaction の外から fn を実行する（`VACUUM INTO` など）。 */
+	exclusive?: <T>(fn: () => T) => Promise<T>;
 }
 export const hostSchemaSql = `
 CREATE TABLE IF NOT EXISTS host_schema(version INTEGER NOT NULL);
@@ -124,6 +129,7 @@ export function fileJournal(path: string): JournalPort {
 export function initialize(
 	directory: string,
 	scopeKeys = ["personal"],
+	options: { backupDirectory?: string } = {},
 ): Profile {
 	demand(
 		[
@@ -152,6 +158,9 @@ export function initialize(
 		principal: "local:owner",
 		scopeKeys,
 		socketPath,
+		backupDirectory: resolve(
+			options.backupDirectory ?? defaultBackupDirectory(root),
+		),
 		credentials: {
 			[credential]: {
 				clientId: "owner",
@@ -236,6 +245,15 @@ export function openStandalone(directory: string): {
 			const task = tail.then(() => {
 				demand(!closed, "STORE_CLOSED");
 				return db.transaction(() => fn(db))();
+			});
+			tail = task.catch(() => {});
+			return task;
+		},
+		databasePath: join(root, "memory.db"),
+		exclusive: <T>(fn: () => T): Promise<T> => {
+			const task = tail.then(() => {
+				demand(!closed, "STORE_CLOSED");
+				return fn();
 			});
 			tail = task.catch(() => {});
 			return task;

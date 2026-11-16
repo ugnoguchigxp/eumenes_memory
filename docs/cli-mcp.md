@@ -46,13 +46,18 @@ applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持�
 
 公開ツールはmemory_source/context/read/plan/apply/operation/status。公式MCP SDK 2.4.0のstdioで、接続プロセスは所有者へ中継する。接続を一つ閉じても所有者と他のクライアントは動く。stdoutに診断ログを混ぜない。MCP側の追加モデルやAPIキーは不要。
 
+## バックアップと復元
+
+`eumenes-memory --profile <profile.json> backup`は、所有者がwriterの順番で読取専用の別接続から`VACUUM INTO`し、owner.jsonの`backupDirectory`（`init`の`--backups`、既定は隣の`<名前>-backups`）に置く。管理用（全scopeとforgetAllのgrant）でMCPには出さない。出力は`path`・`bytes`・`sha256`・`schemaVersion`・`journalHead`。忘却ジャーナルの写し（本文を含まない）を同じ組で置き、7世代を残して古いものは0で上書きしてから消す。`status`は`lastBackupAt`と、36時間を超えると`backupOverdue: true`を返す。日次の実行（例: JST 4:00）はホストの外の定期実行からこのCLIを呼ぶ。
+
+`eumenes-memory restore <backup.db> <directory>`はサーバーを止めて行う（動いていれば`OWNER_ALREADY_RUNNING`）。sha256を照合し、ライブの`forget.jsonl`を優先する（失われていればバックアップの写しのうち最新を使う）。ジャーナルの先頭がバックアップの`journalHead`より古ければ`JOURNAL_OLDER_THAN_BACKUP`で止める。今のDBとWALは`restore-<時刻>/`へ退避し、バックアップを`memory.db`に置いて所有者を一度起動し、schemaの検査とジャーナルの再適用を通す。退避したファイルは、`status`と`context`で確認した後に利用者が0で上書きして消す。
+
 ## 予定: 検索、利用の報告、バックアップ（実装中）
 
 State の全文検索の設計（リポジトリの `spec/state-search-design.md`、2026-11-16 承認）に沿って、次を段階的に加える。実装済みのものは、この節ではなく上の各節に移す。
 
 - `search`（MCP `memory_search`）: 許可された active な State を全文検索し、最大 20 件、既定 32 KiB までを返す読み取り専用の操作。続きの cursor は出さない。
 - `use`（MCP `memory_use`）: 回答や行動に採用した item を報告し、外部由来の item の期限（最後の利用から 90 日）を延ばす。
-- `backup` / `restore`: `VACUUM INTO` によるバックアップと、ジャーナルを再適用する復元（CLI のみ。MCP には出さない）。
 - `review` / `reactivate` / `expire`: 見直しの一覧（20 件まで）、停止した item の再有効化、外部由来の item の自動停止（CLI のみ）。
 
 ## 自然文CLIとモデル
