@@ -410,6 +410,28 @@ test("search filters by kinds and subject", async () => {
 	).toMatchObject({ code: "INVALID_INPUT" });
 });
 
+test("search rejects kinds and subjects the core would reject as invalid input, not as a failure", async () => {
+	const h = await fixture();
+	await seed(h, "抹茶ラテが好き");
+	// subject の上限は UTF-8 の 128 byte（核の LIMITS_STATE.maxSubjectBytes）。
+	const atLimit = `other:${"あ".repeat(40)}${"a".repeat(2)}`;
+	expect(Buffer.byteLength(atLimit)).toBe(128);
+	expect(
+		await search(h, { query: "抹茶ラテ", subject: atLimit }),
+	).toMatchObject({ status: "found", returned: 0 });
+	for (const params of [
+		{ kinds: ["preference", "preference"] },
+		{ subject: "other:" },
+		{ subject: `${atLimit}a` },
+		{ subject: "other:a\u0007b" },
+		{ subject: "other:\ud800" },
+	]) {
+		const result = await search(h, { query: "抹茶ラテ", ...params });
+		expect(result).toEqual({ status: "blocked", code: "INVALID_INPUT" });
+		expect(exitCode(result)).not.toBe(1);
+	}
+});
+
 test("search needs read permission and fails closed when the index is unavailable", async () => {
 	const h = await fixture();
 	await seed(h, "抹茶ラテが好き");

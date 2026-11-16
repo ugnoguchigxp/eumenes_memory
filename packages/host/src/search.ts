@@ -8,6 +8,7 @@ import { searchState, type MemoryDb } from "eumenes-memory/sqlite";
 import {
 	demand,
 	HostError,
+	LONE_SURROGATE,
 	type Grant,
 	type HostResult,
 	type MethodParams,
@@ -24,8 +25,6 @@ export const SEARCH_QUERY_LIMITS = Object.freeze({
 	/** これ以上の文字数（コードポイント）の語は FTS5 trigram で引く。未満は instr で絞る。 */
 	minIndexedChars: 3,
 });
-const LONE_SURROGATE =
-	/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
 /** 区切りのタブ（U+0009）を除く制御文字（U+0000〜U+001F、U+007F。§3.8 の 1）があるか。タブは 2 の区切り。 */
 function hasControl(text: string): boolean {
 	for (let i = 0; i < text.length; i++) {

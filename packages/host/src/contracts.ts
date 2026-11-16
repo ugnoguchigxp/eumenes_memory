@@ -59,6 +59,24 @@ export class HostError extends Error {
 export function demand(condition: unknown, code: string): asserts condition {
 	if (!condition) throw new HostError(code);
 }
+/** 核の State の subject の上限（`LIMITS_STATE.maxSubjectBytes`、UTF-8 の byte 数）。 */
+const MAX_SUBJECT_BYTES = 128;
+/** 核の識別子の規則（制御文字なし、lone surrogate なし）と subject の byte の上限を満たすか。 */
+/** 対になっていない surrogate（UTF-8 に直せない文字）。 */
+export const LONE_SURROGATE =
+	/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+function isStateSubjectText(text: string): boolean {
+	if (
+		LONE_SURROGATE.test(text) ||
+		Buffer.byteLength(text, "utf8") > MAX_SUBJECT_BYTES
+	)
+		return false;
+	for (let i = 0; i < text.length; i++) {
+		const c = text.charCodeAt(i);
+		if (c <= 0x1f || c === 0x7f) return false;
+	}
+	return true;
+}
 const id = z.string().min(1).max(256);
 const scopes = z
 	.array(id)
@@ -168,14 +186,20 @@ export const methodSchemas = {
 		.object({
 			query: z.string().min(1).max(4096),
 			scopeKeys: scopes.optional(),
-			kinds: z.array(z.enum(STATE_KINDS)).min(1).max(5).optional(),
+			// 核の検索（`parseSearchStateInput`）と同じ規則。違反を核まで通すと、入力の誤りが failed になる。
+			kinds: z
+				.array(z.enum(STATE_KINDS))
+				.min(1)
+				.max(5)
+				.refine((kinds) => new Set(kinds).size === kinds.length)
+				.optional(),
 			subject: z
 				.union([
 					z.literal("self"),
 					z
 						.string()
-						.regex(/^other:/)
-						.max(128),
+						.regex(/^other:./su)
+						.refine(isStateSubjectText),
 				])
 				.optional(),
 			limit: z.number().int().min(1).max(20).default(20),

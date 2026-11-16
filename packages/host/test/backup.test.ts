@@ -1,7 +1,13 @@
 /** S3（§4C、決定 10）: VACUUM INTO のバックアップと、ジャーナルを優先する復元。 */
 import { afterEach, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { readdirSync, statSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import {
 	BACKUP_GENERATIONS,
@@ -139,6 +145,66 @@ test("T-BAK-7 restore refuses a journal older than the backup", async () => {
 	});
 	expect(statSync(join(h.dir, "memory.db")).mtimeMs).toBe(before);
 	expect(readdirSync(h.dir).some((n) => n.startsWith("restore-"))).toBe(false);
+});
+
+test("restore twice at the same time keeps both evacuations and leaves no staged copy", async () => {
+	const h = await fixture();
+	await remember(h, "コーヒーが好きです");
+	const result = await backup(h);
+	await h.close();
+	for (let i = 0; i < 2; i++)
+		expect(
+			(await restoreStore(result.path, h.dir, () => h.clock.now)).status,
+		).toBe("completed");
+	const names = readdirSync(h.dir);
+	expect(names.filter((n) => n.startsWith("restore-"))).toHaveLength(2);
+	expect(names.some((n) => n.endsWith(".tmp"))).toBe(false);
+	await h.reopen();
+	expect(await items(h)).toHaveLength(1);
+});
+
+test("a backup run removes leftovers of interrupted backups and scrubs, and ignores malformed records", async () => {
+	const h = await fixture();
+	await remember(h, "コーヒーが好きです");
+	await backup(h);
+	const directory = join(h.dir, "backups");
+	const base = "memory-20260101T000000Z-deadbeef";
+	const leftovers = [
+		`${base}.db`,
+		`${base}.forget.jsonl`,
+		`${base}.db.tmp`,
+		"memory-20260101T000000Z-cafebabe.json.tmp",
+	];
+	for (const name of leftovers) writeFileSync(join(directory, name), SECRET);
+	mkdirSync(join(directory, ".scrub-abc123"));
+	writeFileSync(join(directory, ".scrub-abc123", "memory.db"), SECRET);
+	// 置き場所の外を指す記録は、一覧に載せず、指す先にも触れない。
+	writeFileSync(
+		join(directory, "memory-20260101T000000Z-0badf00d.json"),
+		JSON.stringify({
+			version: 1,
+			file: "../memory.db",
+			journalFile: "../forget.jsonl",
+			createdAt: 0,
+		}),
+	);
+	writeFileSync(join(directory, "notes.txt"), "利用者のメモ");
+	expect(listBackups(directory)).toHaveLength(1);
+	await backup(h);
+	const names = readdirSync(directory).sort();
+	for (const name of [...leftovers, ".scrub-abc123"])
+		expect(names).not.toContain(name);
+	expect(names).not.toContain("memory-20260101T000000Z-0badf00d.json");
+	expect(names).toContain("notes.txt");
+	expect(listBackups(directory)).toHaveLength(2);
+	expect(existsSync(join(h.dir, "memory.db"))).toBe(true);
+	expect(existsSync(join(h.dir, "forget.jsonl"))).toBe(true);
+	expect(
+		leakedTrigrams(
+			SECRET,
+			names.map((n) => join(directory, n)),
+		),
+	).toEqual([]);
 });
 
 test("T-BAK-8 restore refuses while the server is running", async () => {

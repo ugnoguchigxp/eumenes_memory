@@ -20,6 +20,7 @@ import {
 	readFileSync,
 	realpathSync,
 	renameSync,
+	rmdirSync,
 	statSync,
 	unlinkSync,
 	writeFileSync,
@@ -135,7 +136,18 @@ export function writeJournalCopy(
 ): void {
 	writePrivateFile(path, entries.map((e) => JSON.stringify(e) + "\n").join(""));
 }
-/** 置き場所の中のバックアップを古い順に返す。壊れた記録は無視する。 */
+/** バックアップの名前の基（`memory-<UTC の時刻>-<乱数>`）。記録の中のファイル名はこの形だけを信じる。 */
+const BACKUP_BASE = /^memory-\d{8}T\d{6}Z-[0-9a-f]{8}$/;
+/** 記録のファイル名が、記録自身の名前と同じ基を持つ正しい形か（`../` などで置き場所の外を指させない）。 */
+function wellFormedMeta(name: string, meta: BackupMeta): boolean {
+	const base = name.slice(0, -".json".length);
+	return (
+		BACKUP_BASE.test(base) &&
+		meta.file === `${base}.db` &&
+		meta.journalFile === `${base}.forget.jsonl`
+	);
+}
+/** 置き場所の中のバックアップを古い順に返す。壊れた記録と、形の正しくない記録は無視する。 */
 export function listBackups(directory: string): BackupMeta[] {
 	if (!existsSync(directory)) return [];
 	const metas: BackupMeta[] = [];
@@ -145,7 +157,11 @@ export function listBackups(directory: string): BackupMeta[] {
 			const meta = JSON.parse(
 				readFileSync(join(directory, name), "utf8"),
 			) as BackupMeta;
-			if (meta.version === 1 && existsSync(join(directory, meta.file)))
+			if (
+				meta.version === 1 &&
+				wellFormedMeta(name, meta) &&
+				existsSync(join(directory, meta.file))
+			)
 				metas.push(meta);
 		} catch {
 			continue;
@@ -179,8 +195,50 @@ export function pruneBackups(
 				now - meta.createdAt > BACKUP_RETENTION_MS),
 	);
 	for (const meta of old) removeBackup(directory, meta);
-	if (old.length) fsyncPath(directory);
+	const orphans = removeOrphans(directory, all);
+	if (old.length || orphans) fsyncPath(directory);
 	return old.length;
+}
+/**
+ * 途中で止まった作成や洗い直しの残り（記録の無い `.db` と写し、`.tmp`、`.scrub-*` の作業場所）を 0 で上書きして消す。
+ * どれも忘れた本文を含みうるが、一覧にも洗い直しにも載らないため。バックアップの順番（作成と洗い直しの後）だけで呼ぶ。
+ * 戻り値は消したファイルの数。
+ */
+export function removeOrphans(
+	directory: string,
+	known: readonly BackupMeta[] = listBackups(directory),
+): number {
+	if (!existsSync(directory)) return 0;
+	const kept = new Set(
+		known.flatMap((meta) => [
+			meta.file,
+			meta.journalFile,
+			meta.file.replace(/\.db$/, ".json"),
+		]),
+	);
+	let removed = 0;
+	for (const name of readdirSync(directory)) {
+		const path = join(directory, name);
+		if (name.startsWith(".scrub-")) {
+			const stat = lstatSync(path, { throwIfNoEntry: false });
+			if (!stat?.isDirectory()) continue;
+			for (const inner of readdirSync(path)) {
+				shred(join(path, inner));
+				removed++;
+			}
+			rmdirSync(path);
+			continue;
+		}
+		if (!name.startsWith("memory-") || kept.has(name)) continue;
+		if (
+			!/\.(db|forget\.jsonl|json)(\.tmp)?$/.test(name) ||
+			!lstatSync(path).isFile()
+		)
+			continue;
+		shred(path);
+		removed++;
+	}
+	return removed;
 }
 function stamp(atMs: number): string {
 	return new Date(atMs)
@@ -191,7 +249,8 @@ function stamp(atMs: number): string {
 /** 読み取り専用の別接続から `VACUUM INTO` で 1 ファイルに写し、fsync してから最終の名前に rename する。 */
 export function vacuumInto(source: string, target: string): void {
 	const temp = `${target}.tmp`;
-	if (existsSync(temp)) unlinkSync(temp);
+	// 前回の途中の写しは本文を含みうるので、0 で上書きしてから消す。
+	shred(temp);
 	const reader = new Database(source, { readonly: true });
 	try {
 		reader.query("VACUUM INTO ?").run(temp);
@@ -322,14 +381,23 @@ export function restoreFiles(
 				(meta.journalHead.seq === 0 || atHead?.hash === meta.journalHead.hash),
 			"JOURNAL_OLDER_THAN_BACKUP",
 		);
-		const evacuated = join(root, `restore-${stamp(atMs)}`);
+		// 先に完全な写しを作ってから入れ替える（途中で止まっても memory.db が欠けた写しにならない）。
+		const staged = join(root, "memory.db.restore.tmp");
+		shred(staged);
+		copyFileSync(backup, staged);
+		chmodSync(staged, 0o600);
+		fsyncPath(staged);
+		demand(sha256File(staged) === meta.sha256, "BACKUP_CHECKSUM_MISMATCH");
+		const evacuated = join(
+			root,
+			`restore-${stamp(atMs)}-${randomBytes(4).toString("hex")}`,
+		);
 		mkdirSync(evacuated, { mode: 0o700 });
 		for (const name of ["memory.db", "memory.db-wal", "memory.db-shm"])
 			if (existsSync(join(root, name)))
 				renameSync(join(root, name), join(evacuated, name));
-		copyFileSync(backup, join(root, "memory.db"));
-		chmodSync(join(root, "memory.db"), 0o600);
-		fsyncPath(join(root, "memory.db"));
+		fsyncPath(evacuated);
+		renameSync(staged, join(root, "memory.db"));
 		fsyncPath(root);
 		return {
 			status: "completed",
