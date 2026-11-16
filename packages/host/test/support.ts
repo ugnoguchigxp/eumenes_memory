@@ -1,5 +1,7 @@
 /** 段階 S1 以降の試験で共有する組み立て。既存の service.test.ts の fixture と同じ形。 */
 import { expect } from "bun:test";
+import { createHash } from "node:crypto";
+import { assertUserState } from "eumenes-memory/sqlite";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -257,4 +259,99 @@ export function writeMarkers(h: Fixture) {
 			]),
 		),
 	}));
+}
+/**
+ * 核の `assertUserState` で item を n 件、1 回の書き込みでまとめて入れる（plan と apply を通さない）。
+ * ホストの出典に結び付かないので、origin が agent_inferred なら trust は external になる。返り値は itemId の配列（入れた順）。
+ */
+let bulkBatches = 0;
+export async function bulkSeed(
+	h: Fixture,
+	n: number,
+	options: {
+		origin?: "user_confirmed" | "agent_inferred";
+		text?: (i: number) => string;
+		scopeKey?: string;
+	} = {},
+): Promise<string[]> {
+	const scopeKey = options.scopeKey ?? "personal";
+	const batch = ++bulkBatches;
+	const access = h.host.access(
+		h.configuration().credentials[h.profile.credential]!,
+	);
+	return await h.owner.port.write((db) => {
+		const ids: string[] = [];
+		for (let i = 0; i < n; i++) {
+			const text = options.text?.(i) ?? `まとめて入れた記憶 ${i}`;
+			const ref = {
+				namespace: "test-app",
+				kind: "message",
+				id: `bulk-${batch}-${i}`,
+				revision: "r1",
+				representation: "text",
+				digest: createHash("sha256").update(text).digest("hex"),
+			};
+			const result = assertUserState(db, {
+				contractVersion: 1,
+				access,
+				scopeKey,
+				clock: { atMs: h.host.clock() },
+				subject: "self",
+				kind: "preference",
+				semanticKey: `bulk-${batch}-${i}`,
+				value: { text, polarity: "affirmed" },
+				origin: options.origin ?? "user_confirmed",
+				evidence: [
+					{
+						source: {
+							...ref,
+							range: { startByte: 0, endByte: Buffer.byteLength(text) },
+						},
+						quote: text,
+					},
+				],
+				sources: [
+					{
+						...ref,
+						principal: h.configuration().principal,
+						scopeKey,
+						status: "available",
+						content: text,
+						ordinal: i + 1,
+					},
+				],
+			});
+			if (result.status !== "applied") throw new Error(JSON.stringify(result));
+			ids.push(result.item.itemId);
+		}
+		return ids;
+	});
+}
+/** 所有者のポートの読み取りの中で発行された SQL の数を数える（fn の間だけ）。 */
+export async function countReadQueries<T>(
+	h: Fixture,
+	fn: () => Promise<T>,
+): Promise<{ result: T; queries: number }> {
+	const port = h.owner.port;
+	const original = port.read;
+	let queries = 0;
+	port.read = ((op: (db: never) => unknown) =>
+		original((db) => {
+			const target = db as unknown as { query: (...a: unknown[]) => unknown };
+			const query = target.query;
+			target.query = (...args: unknown[]) => {
+				queries++;
+				return query.apply(target, args);
+			};
+			try {
+				return op(db as never);
+			} finally {
+				target.query = query;
+			}
+		})) as typeof port.read;
+	try {
+		return { result: await fn(), queries };
+	} finally {
+		port.read = original;
+	}
 }

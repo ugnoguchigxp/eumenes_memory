@@ -2,7 +2,17 @@
 import { afterEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { assertUserState } from "eumenes-memory/sqlite";
+import type { StateItem } from "eumenes-memory";
 import {
+	createdAtMs,
+	expiredItems,
+	expiresAtMs,
+	expiresOnText,
+} from "../src/expiry.ts";
+import { listItems } from "../src/state.ts";
+import {
+	bulkSeed,
+	countReadQueries,
 	disposeFixtures,
 	DAY_MS,
 	fixture,
@@ -165,4 +175,168 @@ test("review checks scope and read permission and is not an MCP tool", async () 
 	});
 	const { CLI_ONLY_METHODS } = await import("../src/contracts.ts");
 	expect(CLI_ONLY_METHODS).toContain("review");
+});
+
+/** 修正の前の見直しの一覧（scope の全件を水和して JS で選ぶ）。新しい実装と同じ結果になることを確かめる参照。 */
+function referenceReview(h: Fixture) {
+	const grant = h.configuration().credentials[h.profile.credential]!;
+	return h.owner.port.read((db) => {
+		const now = h.host.clock();
+		const due: { item: StateItem; reason: string; at: number }[] = [];
+		for (const item of listItems(
+			db,
+			h.host.access(grant),
+			grant.scopeKeys,
+			Infinity,
+			true,
+		)) {
+			const external = h.host.trust(db, item) === "external";
+			if (external && item.status === "inactive") {
+				due.push({ item, reason: "external_stopped", at: 0 });
+				continue;
+			}
+			if (item.status !== "active") continue;
+			if (external) {
+				const at = expiresAtMs(db, item.itemId);
+				if (at - now <= 14 * DAY_MS) {
+					due.push({ item, reason: "external_expiring", at });
+					continue;
+				}
+			}
+			if (item.validUntilMs !== null && item.validUntilMs <= now) {
+				due.push({ item, reason: "validity_ended", at: item.validUntilMs });
+				continue;
+			}
+			if (item.origin === "agent_inferred" && item.revision === 1) {
+				const at = createdAtMs(db, item.itemId) + 180 * DAY_MS;
+				if (at < now) due.push({ item, reason: "inferred_unconfirmed", at });
+			}
+		}
+		due.sort(
+			(a, b) =>
+				a.at - b.at ||
+				(a.item.itemId < b.item.itemId
+					? -1
+					: a.item.itemId > b.item.itemId
+						? 1
+						: 0),
+		);
+		return {
+			items: due.slice(0, 20).map(({ item, reason }) => ({
+				itemId: item.itemId,
+				reason,
+				...(reason === "external_expiring"
+					? { expiresOn: expiresOnText(expiresAtMs(db, item.itemId)) }
+					: {}),
+			})),
+			moreAvailable: due.length > 20,
+		};
+	});
+}
+/** 修正の前の自動停止の対象（同じく参照）。 */
+function referenceExpired(h: Fixture): string[] {
+	return h.owner.port.read((db) => {
+		const now = h.host.clock();
+		const access = h.host.access(
+			h.configuration().credentials[h.profile.credential]!,
+		);
+		return listItems(db, access, h.configuration().scopeKeys)
+			.filter((item) => h.host.trust(db, item) === "external")
+			.map((item) => ({ item, at: expiresAtMs(db, item.itemId) }))
+			.filter((x) => x.at <= now)
+			.sort((a, b) => a.at - b.at || (a.item.itemId < b.item.itemId ? -1 : 1))
+			.map((x) => x.item.itemId);
+	});
+}
+
+test("review and expire choose the same items as the full scan, at every point in time", async () => {
+	const h = await fixture({ now: T0 });
+	// 外部由来（ウェブ）、内部の推論、本人の発言、直接入れた推論（出典に結び付かないので外部由来）と本人確認済み。
+	for (let i = 0; i < 12; i++) {
+		await external(h, `web${i}`);
+		h.advance(300001);
+	}
+	for (let i = 0; i < 6; i++) {
+		await remember(h, `推論した好み${i}`, undefined, {
+			provenance: i % 2 ? "agent_reasoning" : "user_message",
+			semanticKey: `guess${i}`,
+		});
+		h.advance(300001);
+	}
+	const used = (await items(h)).find((x) => x["semanticKey"] === "web3")!;
+	const shown = await h.call("context");
+	expect(
+		(
+			await h.call("use", {
+				snapshotId: shown["snapshotId"],
+				items: [{ itemId: used.itemId, revision: used["revision"] }],
+			})
+		).status,
+	).toBe("completed");
+	const compare = async () => {
+		const actual = await review(h);
+		const expected = referenceReview(h);
+		expect(
+			actual.items.map((x) => ({
+				itemId: x.itemId,
+				reason: x.reason,
+				...("expiresOn" in x
+					? { expiresOn: (x as { expiresOn: string }).expiresOn }
+					: {}),
+			})),
+		).toEqual(expected.items);
+		expect(actual["moreAvailable"]).toBe(expected.moreAvailable);
+		expect(
+			h.owner.port.read((db) =>
+				expiredItems(h.host, db, Infinity).map((x) => x.itemId),
+			),
+		).toEqual(referenceExpired(h));
+		return actual.items.length;
+	};
+	const seen: number[] = [];
+	for (const step of [0, 40, 36, 1, 13, 1, 30, 60, 1, 90]) {
+		h.advance(step * DAY_MS);
+		// 40 日目に、出典に結び付かない推論（外部由来）と本人確認済みをまとめて入れる（期限の違う集団を作る）。
+		if (step === 40) {
+			await bulkSeed(h, 15, { origin: "agent_inferred" });
+			await bulkSeed(h, 10, { origin: "user_confirmed" });
+		}
+		seen.push(await compare());
+		if (step === 13) await h.call("expire");
+	}
+	// 容量の信頼の数え方（SQL）も MemoryHost.trust と同じ。
+	const grant = h.configuration().credentials[h.profile.credential]!;
+	const counts = { confirmed: 0, inferred: 0, external: 0 };
+	h.owner.port.read((db) => {
+		for (const item of listItems(db, h.host.access(grant), grant.scopeKeys))
+			counts[h.host.trust(db, item)]++;
+	});
+	expect(counts.external).toBeGreaterThan(0);
+	expect(counts.inferred).toBeGreaterThan(0);
+	expect(counts.confirmed).toBeGreaterThan(0);
+	expect((await h.call("status"))["capacity"]).toMatchObject({ trust: counts });
+	// 途中で一覧が空でなく、20 件の上限にも届いたこと（比べた意味があること）。
+	expect(Math.max(...seen)).toBe(20);
+	expect(seen.some((n) => n > 0 && n < 20)).toBe(true);
+});
+
+test("review and expire read only candidates, not every item in scope", async () => {
+	const h = await fixture({ now: T0 });
+	await external(h, "web");
+	h.advance(80 * DAY_MS);
+	// 候補にならない item を多く入れる（新しい推論は外部由来だが期限が遠い。本人確認済みは対象外）。
+	await bulkSeed(h, 300, { origin: "agent_inferred" });
+	await bulkSeed(h, 300, {
+		origin: "user_confirmed",
+		scopeKey: "personal",
+		text: (i) => `確認済み ${i}`,
+	});
+	const listed = await countReadQueries(h, () => review(h));
+	expect(listed.result.items.map((x) => x.reason)).toEqual([
+		"external_expiring",
+	]);
+	expect(listed.queries).toBeLessThan(30);
+	const expired = await countReadQueries(h, () => h.call("expire"));
+	expect(expired.result["expired"]).toBe(0);
+	expect(expired.queries).toBeLessThan(30);
 });

@@ -13,6 +13,7 @@ import { assertUserState } from "../src/sqlite.ts";
 import { initialize, openStandalone } from "../packages/host/src/storage.ts";
 import { MemoryHost } from "../packages/host/src/service.ts";
 import type { HostConfig } from "../packages/host/src/contracts.ts";
+import { expiredItems } from "../packages/host/src/expiry.ts";
 import {
 	makeSource,
 	makeSpan,
@@ -127,7 +128,27 @@ for (const n of SIZES) {
 				responseBytes: Buffer.byteLength(JSON.stringify(last)),
 			};
 		}
-		results.push({ items: n, search: timings });
+		// 見直しの一覧（CLI の review）と、起動時の expire の対象探し。どちらも候補が 0 件の最悪の形（全件が本人確認済み）。
+		const measureOther = async (fn: () => unknown) => {
+			for (let i = 0; i < 2; i++) await fn();
+			const samples: number[] = [];
+			for (let i = 0; i < 10; i++) {
+				const t = performance.now();
+				await fn();
+				samples.push(performance.now() - t);
+			}
+			return {
+				p50: Number(percentile(samples, 50).toFixed(3)),
+				p95: Number(percentile(samples, 95).toFixed(3)),
+			};
+		};
+		const review = await measureOther(() =>
+			host.dispatch(profile.credential, "review", { scopeKeys: SCOPES }),
+		);
+		const expire = await measureOther(() =>
+			owner.port.read((db) => expiredItems(host, db)),
+		);
+		results.push({ items: n, search: timings, review, expire });
 		console.error(`done ${n}`);
 		await owner.close();
 	} finally {

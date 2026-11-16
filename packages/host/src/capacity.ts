@@ -5,7 +5,8 @@
 import { statSync } from "node:fs";
 import { LIMITS_LIFECYCLE } from "eumenes-memory";
 import type { MemoryDb } from "eumenes-memory/sqlite";
-import { HOST_LIMITS, INTERNAL_PROVENANCES } from "./contracts.ts";
+import { HOST_LIMITS } from "./contracts.ts";
+import { trustSql } from "./expiry.ts";
 
 /** item 1 件の JSON の、本文以外の部分の見積もり（id、revision、根拠の参照など）［推定］。 */
 export const ITEM_OVERHEAD_BYTES = 700;
@@ -99,24 +100,14 @@ export function capacityReport(input: {
 			rows[row.status] = row.n;
 	}
 	const trust = { confirmed: 0, inferred: 0, external: 0 };
-	// `MemoryHost.trust` と同じ分け方（内部の由来は INTERNAL_PROVENANCES から作り、二重に書かない）。
-	const internal = placeholders(INTERNAL_PROVENANCES.length);
+	// `MemoryHost.trust` と同じ分け方（見直しと自動停止と同じ式 `trustSql` を使い、二重に書かない）。
 	if (scopeKeys.length)
 		for (const row of db
 			.query(
-				`SELECT CASE WHEN i.origin IN ('user_confirmed','user_edited') THEN 'confirmed'
- WHEN (SELECT count(*) FROM host_state_source l JOIN host_source s ON s.id=l.source_id WHERE l.item_id=i.item_id AND s.provenance IN (${internal})) > 0
-  AND (SELECT count(*) FROM host_state_source l JOIN host_source s ON s.id=l.source_id WHERE l.item_id=i.item_id AND s.provenance NOT IN (${internal})) = 0
-  AND (SELECT count(*) FROM host_state_source l WHERE l.item_id=i.item_id) >= (SELECT count(*) FROM memory_state_evidence e WHERE e.item_id=i.item_id)
- THEN 'inferred' ELSE 'external' END AS t, count(*) AS n
+				`SELECT ${trustSql("i")} AS t, count(*) AS n
  FROM memory_state_item i WHERE i.status='active' AND i.principal=? AND i.scope_key IN (${placeholders(scopeKeys.length)}) GROUP BY t`,
 			)
-			.all(
-				...INTERNAL_PROVENANCES,
-				...INTERNAL_PROVENANCES,
-				principal,
-				...scopeKeys,
-			) as { t: keyof typeof trust; n: number }[])
+			.all(principal, ...scopeKeys) as { t: keyof typeof trust; n: number }[])
 			trust[row.t] = row.n;
 	const total = activeUsage(db, principal, scopeKeys);
 	const sources = (

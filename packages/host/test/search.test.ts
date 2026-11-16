@@ -6,6 +6,7 @@ import { exitCode, type HostResult } from "../src/contracts.ts";
 import { sanitizeQuery } from "../src/search.ts";
 import { restoreStore } from "../src/transport.ts";
 import {
+	bulkSeed,
 	disposeFixtures,
 	fixture,
 	items,
@@ -470,3 +471,47 @@ test("T-BAK-10 search index survives restore", async () => {
 	);
 	expect(itemsOf(await search(h, { query: "犬が好" }))).toEqual([]);
 });
+
+test("search and context inspect each evidence once per request", async () => {
+	const h = await fixture();
+	await bulkSeed(h, 5, { text: (i) => `抹茶ラテが好き ${i}` });
+	const original = h.host.inspectEvidence.bind(h.host);
+	let calls = 0;
+	h.host.inspectEvidence = (...args) => {
+		calls++;
+		return original(...args);
+	};
+	const found = await search(h, { query: "抹茶ラテ" });
+	expect(found["returned"]).toBe(5);
+	expect(calls).toBe(5);
+	// snapshot の指紋は同じ結果を使う（item ごとの再読み取りで一致する）。
+	const first = itemsOf(found)[0]!;
+	expect(
+		(
+			await h.call("read", {
+				snapshotId: found["snapshotId"],
+				itemId: first.itemId,
+			})
+		).status,
+	).toBe("found");
+	calls = 0;
+	const context = await h.call("context");
+	expect(context.status).toBe("context");
+	expect(calls).toBe(5);
+});
+
+test("read finds a search result older than the first snapshotItems items of the scope", async () => {
+	const h = await fixture();
+	// 最も古い item だけが「珍味トリュフ」を含む。その後に 10,001 件（HOST_LIMITS.snapshotItems より多く）を入れる。
+	await bulkSeed(h, 1, { text: () => "珍味トリュフが好き" });
+	await bulkSeed(h, 10001);
+	const found = await search(h, { query: "珍味トリュフ" });
+	expect(found["returned"]).toBe(1);
+	const target = itemsOf(found)[0]!;
+	expect(
+		await h.call("read", {
+			snapshotId: found["snapshotId"],
+			itemId: target.itemId,
+		}),
+	).toMatchObject({ status: "found", item: { itemId: target.itemId } });
+}, 60000);

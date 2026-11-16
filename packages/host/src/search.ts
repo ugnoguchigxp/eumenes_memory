@@ -112,8 +112,10 @@ export function runSearch(
 		const items: HostItem[] = [];
 		let bytes = 0;
 		let truncatedBy: "count" | "bytes" | null = result.more ? "count" : null;
+		// 根拠は 1 回だけ調べ、表示（evidenceStatus）と snapshot の指紋（全体と item ごと）で使い回す。
+		const inspect = host.evidenceInspector(db);
 		for (const item of result.items) {
-			const shown = host.withEvidenceStatus(db, item);
+			const shown = host.withEvidenceStatus(db, item, inspect);
 			const size = Buffer.byteLength(JSON.stringify(shown), "utf8");
 			if (bytes + size > p.maxBytes) {
 				truncatedBy = "bytes";
@@ -127,7 +129,7 @@ export function runSearch(
 			scopes,
 			grant,
 			host.policy,
-			(list) => host.fingerprint(db, list),
+			(list) => host.fingerprint(db, list, inspect),
 			"search",
 		);
 		return {

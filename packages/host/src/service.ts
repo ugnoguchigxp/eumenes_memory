@@ -115,6 +115,11 @@ export interface HostOptions {
 		ref: SourceRef,
 	) => import("eumenes-memory").HostSourceState | undefined;
 }
+/** 根拠の版と状態を調べる関数（`MemoryHost.inspectEvidence` と同じ結果）。 */
+export type EvidenceInspector = (
+	item: StateItem,
+	ref: SourceRef,
+) => ReturnType<MemoryHost["inspectEvidence"]>;
 export class MemoryHost {
 	readonly epoch = randomUUID();
 	readonly startedAt: number;
@@ -260,19 +265,21 @@ export class MemoryHost {
 	}
 	authorizeForget(db: MemoryDb, grant: Grant): void {
 		this.admin(grant);
-		if (!grant.confirmedWrites)
-			demand(
-				!listItems(
-					db,
-					this.access(grant),
-					this.config.scopeKeys,
-					Infinity,
-					true,
-				).some(
-					(x) => x.origin === "user_confirmed" || x.origin === "user_edited",
-				),
-				"CONFIRMED_FORGET_REQUIRES_PERMISSION",
-			);
+		if (grant.confirmedWrites) return;
+		// 本人確認済みの item が 1 つでもあるか（全件を水和せずに SQL で探す。listItems と同じ条件で、
+		// 全 scope の読み取りの許可が要ることも同じ）。
+		demand(
+			this.config.scopeKeys.every((s) => grant.scopeKeys.includes(s)),
+			"SCOPE_NOT_PERMITTED",
+		);
+		demand(
+			!db
+				.query(
+					`SELECT 1 AS x FROM memory_state_item i WHERE i.principal=? AND i.scope_key IN (${this.config.scopeKeys.map(() => "?").join(",")}) AND i.status<>'forgotten' AND i.origin IN ('user_confirmed','user_edited') AND NOT EXISTS (SELECT 1 FROM memory_tombstone t WHERE t.target_type='state_item' AND t.target_id=i.item_id) LIMIT 1`,
+				)
+				.get(this.access(grant).principal, ...this.config.scopeKeys),
+			"CONFIRMED_FORGET_REQUIRES_PERMISSION",
+		);
 	}
 
 	async start(): Promise<void> {
@@ -870,10 +877,28 @@ export class MemoryHost {
 			version: [source.status, source.revision, source.digest],
 		};
 	}
-	withEvidenceStatus(db: MemoryDb, item: StateItem): HostItem {
-		const statuses = item.evidence.map(
-			(ref) => this.inspectEvidence(db, item, ref).status,
-		);
+	/**
+	 * 1 つの読み取りの中で、同じ根拠を何度も調べ直さないための `inspectEvidence`（scope と参照の全体で覚える）。
+	 * `withEvidenceStatus` と snapshot の指紋（全体と item ごと）が同じ根拠を調べるため。読み取りの外へ持ち出さない。
+	 */
+	evidenceInspector(db: MemoryDb): EvidenceInspector {
+		const seen = new Map<string, ReturnType<MemoryHost["inspectEvidence"]>>();
+		return (item, ref) => {
+			const key = JSON.stringify([item.scopeKey, ref]);
+			let result = seen.get(key);
+			if (!result) {
+				result = this.inspectEvidence(db, item, ref);
+				seen.set(key, result);
+			}
+			return result;
+		};
+	}
+	withEvidenceStatus(
+		db: MemoryDb,
+		item: StateItem,
+		inspect: EvidenceInspector = (x, ref) => this.inspectEvidence(db, x, ref),
+	): HostItem {
+		const statuses = item.evidence.map((ref) => inspect(item, ref).status);
 		const evidenceStatus: EvidenceStatus = statuses.includes("stale")
 			? "stale"
 			: statuses.includes("missing")
@@ -911,14 +936,18 @@ export class MemoryHost {
 			? "inferred"
 			: "external";
 	}
-	fingerprint(db: MemoryDb, items: readonly StateItem[]): string {
+	fingerprint(
+		db: MemoryDb,
+		items: readonly StateItem[],
+		inspect: EvidenceInspector = (x, ref) => this.inspectEvidence(db, x, ref),
+	): string {
 		const versions = [...items]
 			.sort((a, b) => a.itemId.localeCompare(b.itemId))
 			.flatMap((item) =>
 				item.evidence.map((ref) => [
 					item.itemId,
 					referenceKey(ref),
-					this.inspectEvidence(db, item, ref).version,
+					inspect(item, ref).version,
 				]),
 			);
 		return digest([stateFingerprint(items), versions]);
@@ -947,17 +976,18 @@ export class MemoryHost {
 			const scopes = p.scopeKeys ?? grant.scopeKeys;
 			this.allowed(grant, scopes);
 			snapshot = this.options.port.read((db) => {
+				const inspect = this.evidenceInspector(db);
 				const value = this.snapshots.create(
 					listItems(
 						db,
 						this.access(grant),
 						scopes,
 						HOST_LIMITS.snapshotItems,
-					).map((item) => this.withEvidenceStatus(db, item)),
+					).map((item) => this.withEvidenceStatus(db, item, inspect)),
 					scopes,
 					grant,
 					this.policy,
-					(items) => this.fingerprint(db, items),
+					(items) => this.fingerprint(db, items, inspect),
 				);
 				return value;
 			});
@@ -1029,12 +1059,15 @@ export class MemoryHost {
 					current: true,
 				};
 			}
+			// 指定の item だけを読む（前は scope の先頭の snapshotItems 件だけを見ていたので、古い item が見つからなかった）。
 			const item = listItems(
 				db,
 				this.access(grant),
 				snapshot.scopes,
-				HOST_LIMITS.snapshotItems,
-			).find((x) => x.itemId === p.itemId);
+				Infinity,
+				false,
+				[p.itemId],
+			)[0];
 			demand(
 				snapshot.items.some((x) => x.itemId === p.itemId) && item,
 				"ITEM_NOT_AVAILABLE",
@@ -1051,9 +1084,9 @@ export class MemoryHost {
 				const row = (
 					db
 						.query(
-							"SELECT * FROM host_source WHERE scope_key=? AND forgotten=0",
+							"SELECT * FROM host_source WHERE scope_key=? AND forgotten=0 AND json_extract(ref,'$.namespace')=? AND json_extract(ref,'$.kind')=? AND json_extract(ref,'$.id')=?",
 						)
-						.all(item.scopeKey) as SourceRow[]
+						.all(item.scopeKey, ref.namespace, ref.kind, ref.id) as SourceRow[]
 				).find(
 					(r) => r.ref && referenceKey(JSON.parse(r.ref)) === referenceKey(ref),
 				);
