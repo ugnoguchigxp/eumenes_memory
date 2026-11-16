@@ -48,7 +48,7 @@ applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持�
 
 ## 予定: 検索、利用の報告、バックアップ（実装中）
 
-[State の全文検索の設計](../spec/state-search-design.md)（2026-11-16 承認）に沿って、次を段階的に加える。実装済みのものは、この節ではなく上の各節に移す。
+State の全文検索の設計（リポジトリの `spec/state-search-design.md`、2026-11-16 承認）に沿って、次を段階的に加える。実装済みのものは、この節ではなく上の各節に移す。
 
 - `search`（MCP `memory_search`）: 許可された active な State を全文検索し、最大 20 件、既定 32 KiB までを返す読み取り専用の操作。続きの cursor は出さない。
 - `use`（MCP `memory_use`）: 回答や行動に採用した item を報告し、外部由来の item の期限（最後の利用から 90 日）を延ばす。

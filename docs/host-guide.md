@@ -73,7 +73,7 @@ World、Consolidation、他エージェント、索引・キャッシュ等がMe
 
 ## 予定: 検索、バックアップ、容量（実装中）
 
-[State の全文検索の設計](../spec/state-search-design.md)（2026-11-16 承認）に沿って、ホストに次を加える。忘却の後の `wal_checkpoint(TRUNCATE)`、操作の受領記録の 30 日保持（今の epoch も対象）、`VACUUM INTO` のバックアップと洗い直し、出典の由来（`provenance`）と item の信頼度（`trust`）、容量の監視、外部由来の item の自動停止と再利用による延長、State の全文検索（核の migration 0009）。各項目は実装した段階で本書の該当節に移す。
+State の全文検索の設計（リポジトリの `spec/state-search-design.md`、2026-11-16 承認）に沿って、ホストに次を加える。忘却の後の `wal_checkpoint(TRUNCATE)`、操作の受領記録の 30 日保持（今の epoch も対象）、`VACUUM INTO` のバックアップと洗い直し、出典の由来（`provenance`）と item の信頼度（`trust`）、容量の監視、外部由来の item の自動停止と再利用による延長、State の全文検索（核の migration 0009）。各項目は実装した段階で本書の該当節に移す。
 
 ## 再生成資料と容量
 
