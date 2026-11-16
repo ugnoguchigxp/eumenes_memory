@@ -14,6 +14,8 @@ import {
 	getForgetReceipt,
 	planForget,
 	reconcileForgetJournal,
+	rebuildStateSearchIndex,
+	verifyStateSearchIndex,
 	registerExternalDependents,
 	unregisterExternalDependents,
 	type MemoryDb,
@@ -121,6 +123,8 @@ export class MemoryHost {
 	activeOperation: string | undefined;
 	/** 忘却の後の checkpoint が終わっていない（決定 9）。status に出し、次の書き込みの後に再試行する。 */
 	checkpointPending = false;
+	/** 起動時の検査で索引を作り直せなかった（§3.4）。search だけを止め、ほかの操作には影響させない。 */
+	searchIndexUnavailable = false;
 	private forgetCommitted = false;
 	readonly inFlight = new Map<string, Promise<HostResult>>();
 	private readonly handles = new Map<
@@ -306,6 +310,16 @@ export class MemoryHost {
 			}, true);
 			// ジャーナルの再適用や回復で消した本文を WAL に残さない（決定 9）。
 			await this.checkpointAfterForget(true);
+			// §3.4: 索引を検査し、一致しなければ writer の transaction の中で作り直す。失敗は search だけを止める。
+			await this.write((db) => {
+				if (verifyStateSearchIndex(db).consistent) return;
+				this.searchIndexUnavailable = !rebuildStateSearchIndex(db).consistent;
+			}, true).then(
+				() => {},
+				() => {
+					this.searchIndexUnavailable = true;
+				},
+			);
 			// 決定 11: 起動時に、期限を過ぎた外部由来の item を停止する。失敗しても起動は止めない（次回に再試行）。
 			if (!this.options.replayJournalOnly)
 				await runExpire(this, { recovery: true }).catch(() => {});

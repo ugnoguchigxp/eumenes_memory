@@ -27,7 +27,8 @@ SQL本文は所有ドメインの `migrations/` に置く。0001と複数ドメ�
 | 0006 | `src/domains/records/migrations/0006-retention-forget.ts` | Records | 忘却した資料のretention metadataを除去する |
 | 0007 | `src/domains/state/migrations/0007-state-agent-origin.ts` | State | `memory_state_item` の origin の CHECK に `agent_inferred` を加える。SQLite は CHECK を変更できないため、`memory_state_item` と子表3つ（attribute / evidence / event）を作り直す（行・列・値は不変） |
 | 0008 | `0008-remove-extraction-and-recall.ts` | Memory | 取り除いた機能（Extraction と Recall）の表と、どこからも読まれない `memory_scope_state` を削除する。抽出の6表（run / input / shown / candidate / candidate_evidence / source_progress）と `memory_record_fts`、取り除いた node 種別（`candidate` / `extraction_run`、role `input`）の依存辺と墓標。既存の CHECK 制約は作り直さない |
-| 0009〜 | 未割当 | — | 新しい変更の所有ドメインで追加する |
+| 0009 | `src/domains/state/migrations/0009-state-search.ts` | State | active な item の全文検索の索引（対応表 `memory_state_search_row`、view `memory_state_search_doc`、FTS5 trigram の `memory_state_fts` に `secure-delete=1`、削除の trigger 4 本、初回の全件投入）。追加は書き込み関数の `syncStateSearch`。設計は `spec/state-search-design.md` §3.3 |
+| 0010〜 | 未割当 | — | 新しい変更の所有ドメインで追加する |
 
 world / consolidation 用の migration は作らない（別ドメイン・別 repo）。
 

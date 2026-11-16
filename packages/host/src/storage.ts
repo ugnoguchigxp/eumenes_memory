@@ -17,6 +17,7 @@ import { defaultBackupDirectory } from "./backup.ts";
 import { randomBytes } from "node:crypto";
 import {
 	assertMemorySchema,
+	MEMORY_DB_SCHEMA_VERSION,
 	migrations,
 	type MemoryDb,
 } from "eumenes-memory/sqlite";
@@ -24,6 +25,7 @@ import type { HostForgetIntent } from "eumenes-memory";
 import {
 	configSchema,
 	demand,
+	HostError,
 	type HostConfig,
 	type Profile,
 } from "./contracts.ts";
@@ -130,6 +132,70 @@ export function fileJournal(path: string): JournalPort {
 		append: (entry) => durableAppend(path, entry),
 	};
 }
+/** SQLite の機能（試験だけが差し替える）。 */
+export interface SqliteFeatures {
+	fts5: boolean;
+	version: string;
+}
+/** 全文検索の索引（核の migration 0009）が要る最低の SQLite の版（集計関数の中の ORDER BY と secure-delete）。 */
+export const MIN_SQLITE_VERSION = "3.44.0";
+export function sqliteFeatures(db: Database): SqliteFeatures {
+	const fts5 = db
+		.query(
+			"SELECT 1 AS x FROM pragma_compile_options WHERE compile_options='ENABLE_FTS5'",
+		)
+		.get();
+	const row = db.query("SELECT sqlite_version() AS v").get() as { v: string };
+	return { fts5: Boolean(fts5), version: row.v };
+}
+function versionAtLeast(version: string, minimum: string): boolean {
+	const a = version.split(".").map(Number);
+	const b = minimum.split(".").map(Number);
+	for (let i = 0; i < 3; i++) {
+		const x = a[i] ?? 0;
+		const y = b[i] ?? 0;
+		if (x !== y) return x > y;
+	}
+	return true;
+}
+/** §5: FTS5 と SQLite の版を確かめる。満たさなければ `SQLITE_FEATURE_MISSING` で起動を止める。 */
+export function assertSqliteFeatures(features: SqliteFeatures): void {
+	if (!features.fts5 || !versionAtLeast(features.version, MIN_SQLITE_VERSION))
+		throw new HostError("SQLITE_FEATURE_MISSING", "failed");
+}
+/** DB の核の版（`memory_schema_info` が無ければ 0）。 */
+function memorySchemaVersion(db: Database): number {
+	const table = db
+		.query(
+			"SELECT 1 AS x FROM sqlite_master WHERE type='table' AND name='memory_schema_info'",
+		)
+		.get();
+	if (!table) return 0;
+	const row = db
+		.query("SELECT value FROM memory_schema_info WHERE key='db_schema_version'")
+		.get() as { value: string } | null;
+	return row && /^[1-9][0-9]{0,8}$/.test(row.value) ? Number(row.value) : 0;
+}
+/**
+ * 既存の DB に、まだ適用していない核の migration を 1 つの transaction で適用する（例: 版 8 → 9 の索引の初回投入）。
+ * 版が本体より新しいときや中身が違うときは、適用せずに `assertMemorySchema` に任せる。
+ */
+export function applyPendingMigrations(db: Database): number {
+	const version = memorySchemaVersion(db);
+	if (version === 0 || version >= MEMORY_DB_SCHEMA_VERSION) return 0;
+	// 既に適用済みの migration の中身が本体と同じこと（記録された hash が本体の migration の記録文と一致すること）。
+	for (let n = 1; n <= version; n++) {
+		const row = db
+			.query("SELECT value FROM memory_schema_info WHERE key=?")
+			.get(`migration_${n}_sha256`) as { value: string } | null;
+		if (!row || !migrations[n - 1]!.includes(`'${row.value}'`)) return 0;
+	}
+	const pending = migrations.slice(version);
+	db.transaction(() => {
+		for (const sql of pending) db.exec(sql);
+	})();
+	return pending.length;
+}
 export function initialize(
 	directory: string,
 	scopeKeys = ["personal"],
@@ -192,6 +258,7 @@ export function initialize(
 		db.exec(
 			"PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA secure_delete=ON",
 		);
+		assertSqliteFeatures(sqliteFeatures(db));
 		db.transaction(() => {
 			for (const sql of migrations) db.exec(sql);
 			upgradeHostSchema(db as unknown as MemoryDb);
@@ -209,7 +276,10 @@ export function initialize(
 	closeSync(dirFd);
 	return profile;
 }
-export function openStandalone(directory: string): {
+export function openStandalone(
+	directory: string,
+	options: { features?: (db: Database) => SqliteFeatures } = {},
+): {
 	port: AppPort;
 	close(): Promise<void>;
 } {
@@ -231,6 +301,8 @@ export function openStandalone(directory: string): {
 		db.exec(
 			"PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA secure_delete=ON",
 		);
+		assertSqliteFeatures((options.features ?? sqliteFeatures)(db));
+		applyPendingMigrations(db);
 		assertMemorySchema(db);
 	} catch (error) {
 		db.close();

@@ -13,6 +13,8 @@ import {
 	MEMORY_DB_SCHEMA_VERSION,
 	MemoryStoreError,
 	migrations,
+	rebuildStateSearchIndex,
+	verifyStateSearchIndex,
 } from "eumenes-memory/sqlite";
 import type { MemoryDb } from "eumenes-memory/sqlite";
 import { openTestStore } from "../support/store.ts";
@@ -32,6 +34,20 @@ const ACCESS: AccessContext = {
 };
 
 describe("eumenes-memory/sqlite", () => {
+	test("the State search index can be verified and rebuilt inside the host's write transaction", () => {
+		store = openTestStore();
+		const report = store.write((db) => verifyStateSearchIndex(db));
+		expect(report).toMatchObject({
+			status: "ok",
+			consistent: true,
+			activeItems: 0,
+		});
+		const rebuilt = store.write((db) => rebuildStateSearchIndex(db));
+		expect(rebuilt.consistent).toBe(true);
+		// transaction の外では作り直さない。
+		expect(() => rebuildStateSearchIndex(store!.writer)).toThrow();
+	});
+
 	test("migrations are plain SQL strings the host appends one by one after its own", () => {
 		expect(migrations.length).toBe(MEMORY_DB_SCHEMA_VERSION);
 		for (const migration of migrations) expect(typeof migration).toBe("string");

@@ -14,7 +14,8 @@
 4. `assertMemorySchema(db)`を呼ぶ。SCHEMA_MISSING／OUTDATED／TOO_NEW／MISMATCHなら読み書きを開始しない。新しいDBへの旧バイナリの差戻しは安全なrollbackではない。
 5. DBと別に保管する最新の忘却journalを確認する。既存DBのjournalが無い場合は勝手に空ファイルを作らない。
 6. Worker起動前に、write transaction内で`reconcileForgetJournal(db,{contractVersion:2,entries,clock:{atMs}})`を呼ぶ。`inconsistent`ならMemory全利用を停止し、正しいjournal・DBの組を回復する。`feedResyncRequired`なら外部購読カーソルを捨て全再同期する。`hostIntentsToReapply`があれば、同じtransactionの中で各`hostIntent`に対するホスト自身の消去を冪等に再実行する。
-7. 以後はwriteをtransaction内の同期関数として呼ぶ。async関数をtransactionへ渡さない。読み出しの複数SQL・ページ列挙の一貫性はホストのread transactionで守る。
+7. 全文検索の索引（migration 0009）はSQLite 3.44以上とFTS5が要る。`pragma_compile_options`の`ENABLE_FTS5`と`sqlite_version()`を確かめ、満たさなければ起動しない。版8のDBへ0009を適用すると、既存のactiveなitemを同じtransactionで索引に入れる。起動時にwrite transactionの中で`verifyStateSearchIndex(db)`を呼び、`consistent: false`なら`rebuildStateSearchIndex(db)`で作り直す。索引は削除をtriggerで、追加を本体の書き込み関数で行う派生物で、本文の正本ではない。
+8. 以後はwriteをtransaction内の同期関数として呼ぶ。async関数をtransactionへ渡さない。読み出しの複数SQL・ページ列挙の一貫性はホストのread transactionで守る。
 
 Bunで新規の使い捨てDBを準備する最小例。実運用では上記migration管理とjournal存在確認を先に実装する。
 
@@ -76,6 +77,8 @@ World、Consolidation、他エージェント、索引・キャッシュ等がMe
 - memory recordを出典に引用するときは`representation:"text"`を必ず付ける（省略は契約エラー）。
 
 ## 予定: 検索、バックアップ、容量（実装中）
+
+同梱のホストは起動時に、SQLiteの機能（`SQLITE_FEATURE_MISSING`）を確かめ、未適用の核のmigrationを適用し、索引を検査する（作り直せなければ`search`だけを止める）。版8の本体へ戻すときは、サーバーを止めてからリポジトリの`packages/host/scripts/rollback-0009.ts <directory>`で索引を消し、版を8に戻す（その後VACUUMする）。
 
 State の全文検索の設計（リポジトリの `spec/state-search-design.md`、2026-11-16 承認）に沿って、ホストに次を加える。忘却の後の `wal_checkpoint(TRUNCATE)`、操作の受領記録の 30 日保持（今の epoch も対象）、`VACUUM INTO` のバックアップと洗い直し、出典の由来（`provenance`）と item の信頼度（`trust`）、容量の監視（実装済み。同梱ホストの `status` の `capacity` と `capacityWarnings`、90% での新しい key の保存の制限）、外部由来の item の自動停止と再利用による延長（実装済み。`host_item_use`、host schema 4、`use`・`expire`・`reactivate`）、State の全文検索（核の migration 0009）。各項目は実装した段階で本書の該当節に移す。
 

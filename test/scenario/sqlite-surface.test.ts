@@ -19,6 +19,8 @@ const PERSISTENCE_OPERATIONS = [
 	"retractState",
 	"listState",
 	"readStateFact",
+	"rebuildStateSearchIndex",
+	"verifyStateSearchIndex",
 	"latestMemoryChangeSeq",
 	"planForget",
 	"applyForget",

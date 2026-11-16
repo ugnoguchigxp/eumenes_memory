@@ -15,6 +15,7 @@ import { sql as stateAgentOrigin } from "../../../domains/state/migrations/0007-
 import { sql as retentionForget } from "../../../domains/records/migrations/0006-retention-forget.ts";
 import { sql as recordRetention } from "../../../domains/records/migrations/0005-record-retention.ts";
 import { sql as removeExtractionAndRecall } from "./0008-remove-extraction-and-recall.ts";
+import { sql as stateSearch } from "../../../domains/state/migrations/0009-state-search.ts";
 
 /** 登録済み migration の body。添字 + 1 が migration 番号（DB の版）。順序は変えない・途中に挿入しない。 */
 export const MIGRATION_BODIES: readonly string[] = Object.freeze([
@@ -26,6 +27,7 @@ export const MIGRATION_BODIES: readonly string[] = Object.freeze([
 	retentionForget,
 	stateAgentOrigin,
 	removeExtractionAndRecall,
+	stateSearch,
 ]);
 
 /** body の SHA-256 hex（`memory_schema_info.migration_<n>_sha256` に保存される値）。 */

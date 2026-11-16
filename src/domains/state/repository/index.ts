@@ -86,6 +86,7 @@ import {
 	enterWrite,
 } from "../../../infrastructure/sqlite/session.ts";
 import { isTombstoned } from "../../../infrastructure/sqlite/tombstone.ts";
+import { syncStateSearch } from "./search-index.ts";
 
 // ---- 行の読み取り ----
 
@@ -687,6 +688,11 @@ function persist(
 		);
 	}
 	for (const draft of result.events) writeEvent(db, ctx, draft);
+	// 全文検索の索引へ、変更した item を正本から登録し直す（削除は migration 0009 の trigger が行う）。
+	syncStateSearch(
+		db,
+		result.items.map((view) => view.itemId),
+	);
 	for (const view of result.items) {
 		appendMemoryChange(db, {
 			principal: ctx.principal,

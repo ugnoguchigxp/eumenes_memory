@@ -827,3 +827,9 @@ search: z.object({
 | S6b | 起動時の `expire` は失敗しても起動を止めない（次回に再試行）。バックアップの洗い直しの再適用（`replayJournalOnly`）では走らせない | ［事実］ | ― |
 | S6b | MCP の道具は `memory_use` を足して 8 個になった（`process.test.ts` の一覧を意図して更新）。S9 で `memory_search` を足すと 9 個になり、T-MCP-1 の「8 個目」とずれる | ［事実］ | 決定 11 で `memory_use` が加わったため |
 | S6b | T-EXP-1 の「search に出ない」と「見直しの一覧に出る」は、S9 と S10 で同じ試験に足す | ［事実］ | 段階の順のため |
+| S7 | 戻しのスクリプトは `scripts/rollback-0009.ts` ではなく `packages/host/scripts/rollback-0009.ts` に置いた | ［事実］ | ルートの `scripts/` から `bun:sqlite` を import することを `test/src-hygiene.test.ts` が禁じている（`test/support/store.ts` だけ）。検査を弱めずに済む場所にした |
+| S7 | `verifyStateSearchIndex` は、active の数＝対応表の数（§3.4）に加えて、索引の行の数と、索引の行を持たない対応表の行（再登録の漏れ）も数える。integrity-check は `INSERT` の形の命令なので、書き込みのできる接続（ホストの write transaction）で呼ぶ（読み取り専用の接続では `integrity: false`） | ［事実］ | T-IDX-4 の「再登録の漏れ」は対応表が残るので、件数の比較だけでは見つからない |
+| S7 | `syncStateSearch` は State の書き込みがすべて通る `persist` の最後に 1 回呼ぶ（assert、supersede、状態遷移、edit） | ［事実］ | ― |
+| S7 | ホストは `openStandalone` で、適用済みの migration の hash が本体と一致するときだけ、未適用の核の migration を 1 つの transaction で適用する（その後 `assertMemorySchema`）。SQLite の下限は 3.44.0 とした | ［事実］ | §5 の「実際の下限は 3.44」 |
+| S7 | 0009 の追加に合わせて、既存の試験を直した: 0008 の試験は 0008 の後に残りの migration を適用してから核の関数を呼ぶ。全表を書き出す補助（3 か所）は、列が 1 つの `memory_state_fts` に rowid を足して並べる | ［事実］ | 検査の内容は変えていない |
+| S7 | T-MIG-1 は、版 8 の DB に核の書き込み関数が使えないため、行を直接入れて作った。T-IDX-4 の「再登録の漏れ」は、置き換えの後に新しい item の対応表と索引の行を消して作った。T-LEAK-5 は検索の関数が要るので S8 で足す | ［事実］ | ― |
