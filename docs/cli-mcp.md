@@ -71,7 +71,7 @@ applyはplanId/operationId/epochを受ける。操作IDは呼出し前に保持�
 
 ## 検索
 
-`eumenes-memory --profile <profile.json> search --input <file|->`（MCP `memory_search`）は、許可されたactiveなStateを全文検索する読み取り専用の操作（読取のgrantで呼べる。Stateの変更のseqも操作の記録も変えない）。入力は`{"query": "...", "scopeKeys"?: [...], "kinds"?: [...], "subject"?: "self"|"other:...", "limit"?: 1〜20, "maxBytes"?: 16384〜65536}`。
+`eumenes-memory --profile <profile.json> search --input <file|->`（MCP `memory_search`）は、許可されたactiveなStateを全文検索する読み取り専用の操作（読取のgrantで呼べる。Stateの変更のseqも操作の記録も変えない）。入力は`{"query": "...", "scopeKeys"?: [...], "kinds"?: [...], "subject"?: "self"|"other:...", "limit"?: 1〜20, "maxBytes"?: 16384〜65536}`。`kinds`は重複なし、`subject`の`other:`の後ろは1文字以上で、全体はUTF-8で128 byteまで（制御文字とlone surrogateは不可）。違反は`INVALID_INPUT`。
 
 - 件数は20件まで（既定20、設定でも緩められない）。返すitemのJSONの合計は`maxBytes`（既定32768）まで。`moreAvailable: true`は「語を足すか`kinds`/`subject`/`scopeKeys`で絞る」の合図で、続きのcursorは出さない。`truncatedBy`は`count`、`bytes`、`null`のどれか。
 - queryは256文字かつ1024 Bまで。空白（U+0020、U+3000、タブ）で語に分け、重複を除き8語まで、1語64文字まで。語はすべてANDで、FTSの構文（`OR`、`NOT`、`"`、`*`、`col:`など）はただの文字として扱う。違反は`QUERY_INVALID`、空は`QUERY_EMPTY`。

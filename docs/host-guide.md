@@ -80,10 +80,10 @@ World、Consolidation、他エージェント、索引・キャッシュ等がMe
 
 State の全文検索の設計（リポジトリの `spec/state-search-design.md`、2026-11-16 承認）に沿って、同梱のホスト（`eumenes-memory-host`）は次を行う。使い方は [CLIとメモリーMCP](cli-mcp.md)。
 
-- 起動時に、SQLiteの機能（`SQLITE_FEATURE_MISSING`）を確かめ、未適用の核のmigrationを適用し、索引を検査する（作り直せなければ`search`だけを止める）。版8の本体へ戻すときは、サーバーを止めてからリポジトリの`packages/host/scripts/rollback-0009.ts <directory>`で索引を消し、版を8に戻す（その後VACUUMする）。
+- 起動時に、SQLiteの機能（`SQLITE_FEATURE_MISSING`）を確かめ、未適用の核のmigrationを適用し、索引を検査する（件数と対応表、索引の文書が正本と同じこと、FTS5の`integrity-check`。一致しなければ作り直し、その後のcheckpointで古い索引のページをDBファイルに残さない。作り直せなければ`search`だけを止める）。版8の本体へ戻すときは、サーバーを止めてからリポジトリの`packages/host/scripts/rollback-0009.ts <directory>`で索引を消し、版を8に戻す（その後VACUUMする）。
 - 全文検索（`search`、MCP `memory_search`）: 核の`searchState`を、無害化した語、件数20件、返すitemのJSONの合計`maxBytes`（既定32768）の上限で呼ぶ。返すitemは`context`と同じ水和と`evidenceStatus`・`trust`を通す。続きのcursorは出さない。
 - 忘却の後の`wal_checkpoint(TRUNCATE)`（失敗したら`status`の`checkpointPending`）、操作の受領記録の30日保持（今のepochも対象）。
-- `VACUUM INTO`のバックアップ（`backup`、管理用）と、忘却の後の洗い直し、`restore`。
+- `VACUUM INTO`のバックアップ（`backup`、管理用）と、忘却の後の洗い直し、`restore`（完全な写しを作ってchecksumを確かめてから入れ替える）。途中で止まった作成や洗い直しの残り（記録の無いファイル、`.tmp`、`.scrub-*`）は、次のバックアップか洗い直しの後に0で上書きして消す。
 - 出典の由来（`provenance`）とitemの信頼度（`trust`）。
 - 容量の監視（`status`の`capacity`と`capacityWarnings`、90%での新しいkeyの保存の制限）。
 - 外部由来のitemの自動停止と再利用による延長（`host_item_use`、host schema 4、`use`・`expire`・`reactivate`）と、見直しの一覧（`review`、CLIのみ）。
