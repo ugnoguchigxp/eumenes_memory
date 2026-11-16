@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite";
 import { afterEach, expect, test, spyOn } from "bun:test";
 import { createHash } from "node:crypto";
 import {
@@ -248,6 +249,10 @@ function assertion(
 	};
 }
 
+function walContains(h: Harness, text: string): boolean {
+	return readFileSync(join(h.dir, "memory.db-wal")).includes(Buffer.from(text));
+}
+
 test("F1 commit failure after durable forget closes reads and replays the intent before ready", async () => {
 	const h = await setup();
 	const { item } = await remember(h);
@@ -268,9 +273,14 @@ test("F1 commit failure after durable forget closes reads and replays the intent
 	expect(
 		readFileSync(join(h.dir, "forget.jsonl"), "utf8").trim().length,
 	).toBeGreaterThan(0);
+	expect(walContains(h, item.value.text)).toBe(true);
 	await h.restart();
-	expect((await h.call("status")).status).toBe("ready");
+	expect(await h.call("status")).toMatchObject({
+		status: "ready",
+		checkpointPending: false,
+	});
 	expect((await h.call("context"))["items"]).toEqual([]);
+	expect(walContains(h, item.value.text)).toBe(false);
 });
 test("F1 queued writes recheck readiness after a journal rollback", async () => {
 	const h = await setup();
@@ -698,10 +708,46 @@ test.each([
 	},
 );
 
+test("forget leaves the host ready and retries a busy WAL checkpoint after the reader exits", async () => {
+	const h = await setup();
+	const { item } = await remember(h);
+	const plan = await planForget(h, item.itemId);
+	const reader = new Database(join(h.dir, "memory.db"), { readonly: true });
+	try {
+		reader.exec("BEGIN");
+		reader.query("SELECT count(*) FROM host_operation").get();
+		expect(walContains(h, item.value.text)).toBe(true);
+		expect(
+			await h.call("apply", {
+				planId: plan["planId"],
+				epoch: plan["epoch"],
+				operationId: "busy-checkpoint",
+			}),
+		).toMatchObject({ status: "completed" });
+		expect(await h.call("status")).toMatchObject({
+			status: "ready",
+			checkpointPending: true,
+		});
+		expect(walContains(h, item.value.text)).toBe(true);
+	} finally {
+		reader.close();
+	}
+	expect(
+		await h.call("source", {
+			scopeKey: "personal",
+			submissionId: "retry-checkpoint",
+			content: "別の記憶です",
+		}),
+	).toMatchObject({ status: "registered" });
+	expect(await h.call("status")).toMatchObject({ checkpointPending: false });
+	expect(walContains(h, item.value.text)).toBe(false);
+});
+
 test("G1 forgetting an applied assertion erases the producing plan's proposed text", async () => {
 	const h = await setup();
 	const value = await remember(h);
 	const plan = await planForget(h, value.item.itemId);
+	expect(walContains(h, value.item.value.text)).toBe(true);
 	expect(
 		(
 			await h.call("apply", {
@@ -718,6 +764,7 @@ test("G1 forgetting an applied assertion erases the producing plan's proposed te
 				.get(value.params.planId as string) as { payload: string | null },
 	);
 	expect(original.payload).toBeNull();
+	expect(walContains(h, value.item.value.text)).toBe(false);
 });
 
 test("G2 source dependencies outlive plan expiry while an admitted operation still holds execution text", async () => {

@@ -103,11 +103,13 @@ export class MemoryHost {
 		return accessFor(this.config.principal, grant.scopeKeys, this.policy);
 	}
 	private journalAttempt: { attempted: boolean } | undefined;
+	private checkpointPending = false;
 	/** Wrap the owner's whole transaction, including its commit, without opening another transaction. */
 	async write<T>(fn: (db: MemoryDb) => T, recovery = false): Promise<T> {
 		const attempt = { attempted: false };
+		let value: T;
 		try {
-			return await this.options.port.write((db) => {
+			value = await this.options.port.write((db) => {
 				demand(
 					recovery || (this.healthy && (this.options.port.isReady?.() ?? true)),
 					"HOST_NOT_READY",
@@ -122,6 +124,18 @@ export class MemoryHost {
 		} catch (error) {
 			if (attempt.attempted) this.failClosed();
 			throw error;
+		}
+		if (!recovery && (attempt.attempted || this.checkpointPending))
+			await this.checkpointAfterForget();
+		return value;
+	}
+	private async checkpointAfterForget(): Promise<void> {
+		const port = this.options.port;
+		if (!port.checkpoint) return;
+		try {
+			this.checkpointPending = !(await port.checkpoint());
+		} catch {
+			this.checkpointPending = true;
 		}
 	}
 	appendForgetEntry(entry: unknown): void {
@@ -214,6 +228,7 @@ export class MemoryHost {
 				recoverIntents(this, db);
 				this.cleanup(db);
 			}, true);
+			await this.checkpointAfterForget();
 			this.healthy = true;
 		} catch (error) {
 			this.failClosed();
@@ -287,6 +302,9 @@ export class MemoryHost {
 					},
 					limits: HOST_LIMITS,
 					recovery: "reconciled",
+					...(this.options.port.checkpoint
+						? { checkpointPending: this.checkpointPending }
+						: {}),
 					...this.pendingStatus(grant),
 				};
 			if (name === "context") {

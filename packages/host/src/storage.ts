@@ -46,6 +46,8 @@ export interface AppPort extends StorePort {
 		intent: HostForgetIntent,
 		forgetId?: string,
 	) => void;
+	/** Queue a WAL truncate checkpoint outside the write transaction. Return false if it is busy. */
+	checkpoint?: () => Promise<boolean>;
 }
 export const hostSchemaSql = `
 CREATE TABLE IF NOT EXISTS host_schema(version INTEGER NOT NULL);
@@ -200,6 +202,17 @@ export function openStandalone(directory: string): {
 			const task = tail.then(() => {
 				demand(!closed, "STORE_CLOSED");
 				return db.transaction(() => fn(db))();
+			});
+			tail = task.catch(() => {});
+			return task;
+		},
+		checkpoint: () => {
+			const task = tail.then(() => {
+				demand(!closed, "STORE_CLOSED");
+				const row = db
+					.query<{ busy: number }, []>("PRAGMA wal_checkpoint(TRUNCATE)")
+					.get();
+				return row?.busy === 0;
 			});
 			tail = task.catch(() => {});
 			return task;

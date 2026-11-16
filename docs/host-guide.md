@@ -51,6 +51,8 @@ Stateは`assertUserState`へsubject、kind、semanticKey、値、出典の本文
 
 journalのhashの鎖は鍵なしで、検出できるのは偶発的な破損・切り詰め・食い違いだけ。悪意のある書き換えの防止は、journalを保護された媒体に置くホストの責任。復元前のDBと短縮journalを同時に戻した状況は本体だけでは検出できない。journalを別の保護された媒体で保持する。deactivateは可逆の停止であり、忘却ではない。忘却は論理消去で、SQLite空き領域・WAL・OS snapshot・ログの物理消去を保証しない。ホストはsecure_delete、checkpoint、VACUUM、バックアップ保持を運用要件に合わせて管理する。
 
+同梱ホストは、忘却を含む書き込みのコミット後と起動時の復元処理後に、Writerの順番で `PRAGMA wal_checkpoint(TRUNCATE)` を実行する。他の読み取りなどで完了できない場合も、コミット済みの忘却結果は維持し、`status` に `checkpointPending: true` を返す。次に書き込みが成功した後に再試行する。独自の `AppPort` で `checkpoint` を実装しない場合、WALの管理は接続を所有するアプリが担う。
+
 <a id="external-connector-acceptance"></a>
 ### 外部接続の必須受入契約
 
