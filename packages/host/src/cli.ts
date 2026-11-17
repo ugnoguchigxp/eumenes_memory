@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import { readBoundedText } from "./io.ts";
 import { exitCode, failure, HOST_LIMITS, HostError } from "./contracts.ts";
-import { initialize } from "./storage.ts";
+import { initialize, protectJournal } from "./storage.ts";
 import {
 	readProfile,
 	request,
@@ -15,6 +15,7 @@ import { serveMemoryMcp } from "./mcp.ts";
 const usage = `Usage:
   eumenes-memory init <directory> [scope ...] [--backups <directory>]
   eumenes-memory serve <directory>
+  eumenes-memory protect-journal <directory> <protected-directory>   (server must be stopped)
   eumenes-memory restore <backup.db> <directory>   (server must be stopped)
   eumenes-memory --profile <profile.json> mcp
   eumenes-memory --profile <profile.json> status|source|context|search|read|plan|apply|operation|use|recall|recall-size --input <file|->
@@ -62,6 +63,14 @@ export async function main(raw: string[]): Promise<void> {
 				profile: join(directory, "profile.json"),
 			}),
 		);
+		return;
+	}
+	if (command === "protect-journal") {
+		const [directory, protectedDirectory, ...rest] = args;
+		if (!directory || !protectedDirectory || rest.length)
+			throw new HostError("INVALID_ARGUMENTS");
+		protectJournal(directory, protectedDirectory);
+		console.log(JSON.stringify({ status: "completed" }));
 		return;
 	}
 	if (command === "restore") {

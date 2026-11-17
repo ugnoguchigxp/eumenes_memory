@@ -32,7 +32,6 @@ when a single targeted search is unsuitable, for example when asked to enumerate
 
 export interface RecallView {
 	id: unknown;
-	epoch?: unknown;
 	items: ModelItem[];
 	complete: boolean;
 }
@@ -85,7 +84,6 @@ export async function naturalRecall(
 		);
 		view = {
 			id: result["snapshotId"],
-			epoch: result["epoch"],
 			items,
 			complete: false,
 		};
@@ -99,22 +97,17 @@ export async function naturalRecall(
 			view.complete,
 		);
 		const snapshotId = view.id;
-		// A complete snapshot has one freshness check. For partial search results the
-		// existing read contract verifies each contributing item's revision and evidence.
-		const checks = view.complete
-			? [await request(profile, "read", { snapshotId })]
-			: await Promise.all(
-					view.items.map(({ itemId }) =>
-						request(profile, "read", { snapshotId, itemId }),
-					),
-				);
-		const invalid = checks.find((check) => check.status !== "found");
-		if (invalid) return invalid;
-		const epoch = view.complete ? checks[0]?.["epoch"] : view.epoch;
+		const checked = await request(profile, "read", {
+			snapshotId,
+			...(!view.complete
+				? { itemIds: view.items.map(({ itemId }) => itemId) }
+				: {}),
+		});
+		if (checked.status !== "found") return checked;
 		return {
 			status: "found",
 			snapshotId,
-			epoch,
+			epoch: checked["epoch"],
 			...answer,
 			items: view.items.filter((item) =>
 				answer.parts.some((part) => part.evidenceIds.includes(item.itemId)),

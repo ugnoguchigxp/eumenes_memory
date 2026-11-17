@@ -24,6 +24,7 @@ import {
 	DEPENDENT_NODE_TYPES,
 	DEPENDENCY_NODE_TYPES,
 	EXTERNAL_DELETION_STATES,
+	GENESIS_JOURNAL_HASH,
 	JOURNAL_FORMAT,
 	JOURNAL_FORMAT_HOST_INTENT,
 } from "../contracts/index.ts";
@@ -118,10 +119,36 @@ function readJournalHead(db: MemoryDb): JournalHead {
 	if (row === null || row === undefined) {
 		throw new MemoryStoreError("CORRUPT_ROW");
 	}
-	return {
-		seq: readInteger(row, "applied_head_seq"),
-		hash: readText(row, "applied_head_hash"),
-	};
+	const seq = readInteger(row, "applied_head_seq");
+	const hash = readText(row, "applied_head_hash");
+	if (
+		seq < 0 ||
+		!/^[0-9a-f]{64}$/.test(hash) ||
+		(seq === 0) !== (hash === GENESIS_JOURNAL_HASH)
+	)
+		throw new MemoryStoreError("CORRUPT_ROW");
+	return { seq, hash };
+}
+
+/** Verify the applied position against the latest receipt before using it for offline recovery. */
+export function readForgetJournalHead(db: MemoryDb): JournalHead {
+	const head = readJournalHead(db);
+	const latest = guarded(() =>
+		db
+			.query(
+				"SELECT journal_seq, entry_hash FROM memory_forget ORDER BY journal_seq DESC LIMIT 1",
+			)
+			.get(),
+	);
+	if (latest === null || latest === undefined) {
+		if (head.seq !== 0) throw new MemoryStoreError("CORRUPT_ROW");
+	} else if (
+		readInteger(latest, "journal_seq") !== head.seq ||
+		readText(latest, "entry_hash") !== head.hash
+	) {
+		throw new MemoryStoreError("CORRUPT_ROW");
+	}
+	return head;
 }
 
 // ---- 閉包の収集 ----

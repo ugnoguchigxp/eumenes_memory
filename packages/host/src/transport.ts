@@ -161,25 +161,31 @@ export async function restoreStore(
 	clock: () => number = Date.now,
 ): Promise<HostResult> {
 	try {
-		return await restoreFiles(backup, directory, clock(), async (staging) => {
-			const { backupDirectory: _backupDirectory, ...config } =
-				configSchema.parse(
-					JSON.parse(readFileSync(join(directory, "owner.json"), "utf8")),
-				);
-			const owner = openStandalone(staging);
-			try {
-				const host = new MemoryHost({
-					port: owner.port,
-					configuration: () => config,
-					clock,
-					restorePreflight: true,
-				});
-				await host.start();
-				return host.epoch;
-			} finally {
-				await owner.close();
-			}
-		});
+		return await restoreFiles(
+			backup,
+			directory,
+			clock(),
+			async (staging, ownerConfig) => {
+				const {
+					backupDirectory: _backupDirectory,
+					recovery: _recovery,
+					...config
+				} = ownerConfig;
+				const owner = openStandalone(staging);
+				try {
+					const host = new MemoryHost({
+						port: owner.port,
+						configuration: () => config,
+						clock,
+						restorePreflight: true,
+					});
+					await host.start();
+					return host.epoch;
+				} finally {
+					await owner.close();
+				}
+			},
+		);
 	} catch (error) {
 		return failure(error);
 	}

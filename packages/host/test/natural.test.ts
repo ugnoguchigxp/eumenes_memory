@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { initialize } from "../src/storage.ts";
 import { request, serveHost, startStandalone } from "../src/transport.ts";
 import { natural } from "../src/natural.ts";
+import { naturalRecall } from "../src/natural-recall.ts";
 import { commandComplete } from "../src/model.ts";
 import type { StateItem } from "eumenes-memory";
 import { assertUserState } from "eumenes-memory/sqlite";
@@ -225,6 +226,156 @@ test("recall cannot return model output from a snapshot forgotten during model l
 });
 
 afterEach(disposeFixtures);
+
+test("complete recall rejects output if the credential is revoked during final validation", async () => {
+	let finishRead: (() => void) | undefined;
+	const h = await fixture({
+		wrapPort: (port) => ({
+			...port,
+			read: (fn) => {
+				const result = port.read(fn);
+				finishRead?.();
+				return result;
+			},
+		}),
+	});
+	await remember(h, "朝は紅茶を飲みます");
+	const target = (await currentItems(h))[0]!;
+	const server = await serveHost(h.host, h.profile.socketPath);
+	try {
+		const result = await natural(
+			h.profile,
+			"recall",
+			{ scopeKey: "personal", message: "何を飲みますか？" },
+			async () => {
+				finishRead = () => {
+					finishRead = undefined;
+					const config = h.configuration();
+					delete config.credentials[h.profile.credential];
+					writeFileSync(join(h.dir, "owner.json"), JSON.stringify(config));
+				};
+				return {
+					raw: JSON.stringify({
+						parts: [
+							{
+								request: "飲み物",
+								status: "supported",
+								evidenceIds: [target.itemId],
+							},
+						],
+					}),
+					threadId: null,
+					usage: null,
+				};
+			},
+		);
+		expect(result).toEqual({ status: "stale", code: "ACCESS_CHANGED" });
+	} finally {
+		await server.close();
+	}
+});
+
+test.each(["correction", "forget", "scope", "revocation"] as const)(
+	"partial recall suppresses the whole answer after a concurrent %s",
+	async (change) => {
+		const h = await fixture({ scopes: ["personal", "work"] });
+		await remember(h, "コーヒーは夕方に飲む", undefined, {
+			semanticKey: "evening-coffee",
+		});
+		const target = (await currentItems(h))[0]!;
+		await remember(h, "コーヒー豆は深煎り", undefined, {
+			semanticKey: "roast",
+		});
+		const ownerPath = join(h.dir, "owner.json");
+		const config = h.configuration();
+		config.credentials["recall-reader"] = {
+			clientId: "recall-reader",
+			scopeKeys: ["personal", "work"],
+			read: true,
+			write: false,
+			forgetAll: false,
+			confirmedWrites: false,
+		};
+		config.credentials["work-reader"] = {
+			...config.credentials["recall-reader"],
+			clientId: "work-reader",
+			scopeKeys: ["work"],
+		};
+		writeFileSync(ownerPath, JSON.stringify(config));
+		const reader = { ...h.profile, credential: "recall-reader" };
+		const server = await serveHost(h.host, h.profile.socketPath);
+		try {
+			const candidate = await request(reader, "search", {
+				query: "コーヒー",
+				scopeKeys: ["personal"],
+			});
+			expect(candidate["returned"]).toBe(2);
+			const check = {
+				snapshotId: candidate["snapshotId"],
+				itemIds: (candidate["items"] as StateItem[]).map((item) => item.itemId),
+			};
+			expect(await request(reader, "read", check)).toEqual({
+				status: "found",
+				snapshotId: check.snapshotId,
+				epoch: h.host.epoch,
+				current: true,
+			});
+			expect(
+				await request({ ...reader, credential: "work-reader" }, "read", check),
+			).toMatchObject({ status: "stale", code: "ACCESS_CHANGED" });
+			const result = await naturalRecall(
+				reader,
+				{ scopeKey: "personal", message: "コーヒーの習慣は？" },
+				async (prompt) => {
+					const candidates = JSON.parse(prompt).items as
+						| StateItem[]
+						| undefined;
+					if (!candidates)
+						return {
+							raw: JSON.stringify({ query: "コーヒー" }),
+							threadId: null,
+							usage: null,
+						};
+					expect(candidates).toHaveLength(2);
+					if (change === "correction")
+						expect(
+							(
+								await remember(h, "コーヒーは朝に飲む", target, {
+									semanticKey: "evening-coffee",
+								})
+							).result.status,
+						).toBe("completed");
+					if (change === "forget")
+						expect((await forget(h, target.itemId)).status).toBe("completed");
+					if (change === "scope" || change === "revocation") {
+						if (change === "scope")
+							config.credentials["recall-reader"]!.scopeKeys = ["work"];
+						else delete config.credentials["recall-reader"];
+						writeFileSync(ownerPath, JSON.stringify(config));
+					}
+					return {
+						raw: JSON.stringify({
+							parts: [
+								{
+									request: "習慣",
+									status: "supported",
+									evidenceIds: candidates.map((x) => x.itemId),
+								},
+							],
+						}),
+						threadId: null,
+						usage: null,
+					};
+				},
+			);
+			expect(result.status).not.toBe("found");
+			expect(result["parts"]).toBeUndefined();
+			expect(result["items"]).toBeUndefined();
+		} finally {
+			await server.close();
+		}
+	},
+);
 
 test("recall retrieves bounded evidence from 1,001 authorized items and discloses partial coverage", async () => {
 	const h = await fixture({ scopes: ["personal", "work"] });

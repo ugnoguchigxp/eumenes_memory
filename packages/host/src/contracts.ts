@@ -113,6 +113,13 @@ export const configSchema = z
 		credentials: z.record(id, grantSchema),
 		/** バックアップの置き場所（決定 10）。無ければ backup は BACKUP_NOT_CONFIGURED。 */
 		backupDirectory: id.optional(),
+		recovery: z
+			.object({
+				directory: id,
+				storeId: z.string().regex(/^[0-9a-f]{32}$/),
+			})
+			.strict()
+			.optional(),
 	})
 	.strict();
 export type HostConfig = z.infer<typeof configSchema>;
@@ -147,6 +154,7 @@ export const methodSchemas = {
 		.object({
 			snapshotId: id.optional(),
 			itemId: id.optional(),
+			itemIds: z.array(id).min(1).max(HOST_LIMITS.searchResults).optional(),
 			sourceHandle: id.optional(),
 		})
 		.strict(),

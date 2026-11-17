@@ -365,8 +365,10 @@ export class MemoryHost {
 		for (const forgetId of input.forgetIds) cleanExternal(this, db, forgetId);
 	}
 
-	grant(credential: string): Grant {
-		const grant = this.config.credentials[credential];
+	grant(credential: string, config = this.config): Grant {
+		const grant = Object.hasOwn(config.credentials, credential)
+			? config.credentials[credential]
+			: undefined;
 		demand(grant, "AUTH_REQUIRED");
 		return grant;
 	}
@@ -395,7 +397,8 @@ export class MemoryHost {
 				this.healthy && (this.options.port.isReady?.() ?? true),
 				"HOST_NOT_READY",
 			);
-			const grant = this.grant(credential);
+			const config = this.config;
+			const grant = this.grant(credential, config);
 			demand(Object.hasOwn(methodSchemas, method), "UNKNOWN_METHOD");
 			const name = method as Method;
 			const params = methodSchemas[name].parse(input);
@@ -419,6 +422,7 @@ export class MemoryHost {
 						this.config.backupDirectory,
 						this.clock(),
 						this.startedAt,
+						this.journalCount,
 					),
 					...this.pendingStatus(grant),
 					...this.capacityStatus(grant),
@@ -437,7 +441,11 @@ export class MemoryHost {
 			}
 			if (name === "read") {
 				demand(grant.read, "READ_NOT_PERMITTED");
-				return this.read(grant, params as MethodParams<"read">);
+				const read = params as MethodParams<"read">;
+				if (read.itemIds) return this.validatePartialSnapshot(credential, read);
+				const result = this.read(grant, read);
+				demand(this.policy === digest(config), "ACCESS_CHANGED");
+				return result;
 			}
 			if (name === "operation") {
 				demand(grant.read, "READ_NOT_PERMITTED");
@@ -537,7 +545,7 @@ export class MemoryHost {
 		this.admin(grant);
 		const directory = this.config.backupDirectory;
 		demand(directory, "BACKUP_NOT_CONFIGURED");
-		const { exclusive, databasePath } = this.options.port;
+		const { exclusive, databasePath, journal } = this.options.port;
 		demand(exclusive && databasePath, "BACKUP_UNSUPPORTED");
 		const meta = await this.withBackupLock(() =>
 			exclusive(() =>
@@ -547,6 +555,9 @@ export class MemoryHost {
 					journal: this.options.port.journal.read() as unknown[],
 					atMs: this.clock(),
 					hostSchemaVersion: HOST_SCHEMA_VERSION,
+					...(journal.recoveryStoreId
+						? { recoveryStoreId: journal.recoveryStoreId }
+						: {}),
 				}),
 			),
 		);
@@ -1033,6 +1044,48 @@ export class MemoryHost {
 				"SNAPSHOT_STALE",
 			),
 		);
+	}
+
+	private validatePartialSnapshot(
+		credential: string,
+		p: MethodParams<"read">,
+	): HostResult {
+		const { itemIds, snapshotId } = p;
+		demand(
+			itemIds && snapshotId && !p.itemId && !p.sourceHandle,
+			"INVALID_INPUT",
+		);
+		return this.options.port.read((db) => {
+			const config = this.config;
+			const grant = this.grant(credential, config);
+			demand(grant.read, "READ_NOT_PERMITTED");
+			const policy = digest(config);
+			const snapshot = this.snapshots.get(snapshotId, grant, policy);
+			demand(!snapshot.complete && snapshot.pool === "search", "INVALID_INPUT");
+			demand(
+				itemIds.every((id) => snapshot.itemFingerprints.has(id)),
+				"ITEM_NOT_AVAILABLE",
+			);
+			const current = listItems(
+				db,
+				accessFor(config.principal, grant.scopeKeys, policy),
+				snapshot.scopes,
+				Infinity,
+				false,
+				itemIds,
+			);
+			demand(current.length === new Set(itemIds).size, "ITEM_NOT_AVAILABLE");
+			demand(
+				current.every(
+					(item) =>
+						this.fingerprint(db, [item]) ===
+						snapshot.itemFingerprints.get(item.itemId),
+				),
+				"SNAPSHOT_STALE",
+			);
+			demand(this.policy === policy, "ACCESS_CHANGED");
+			return { status: "found", snapshotId, epoch: this.epoch, current: true };
+		});
 	}
 
 	read(grant: Grant, p: MethodParams<"read">): HostResult {

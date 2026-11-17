@@ -16,10 +16,12 @@ import type { MemoryDb } from "eumenes-memory/sqlite";
 import {
 	journalHead,
 	listBackups,
+	needsBackupScrub,
 	pruneBackups,
 	replaceAndShred,
 	sha256File,
 	shred,
+	shredRetired,
 	vacuumInto,
 	writeJournalCopy,
 	writeMeta,
@@ -102,6 +104,7 @@ async function scrubOne(
 			scrubPending: false,
 		});
 	} finally {
+		shredRetired(join(work, "retired.db"));
 		for (const name of [
 			"memory.db",
 			"memory.db-wal",
@@ -123,15 +126,15 @@ export async function scrubBackups(
 	const head = journalHead(entries);
 	let failed = 0;
 	for (const meta of listBackups(directory)) {
-		if (meta.scrubbedThrough >= head.seq && !meta.scrubPending) continue;
+		if (!needsBackupScrub(meta, head.seq)) continue;
 		try {
+			writeMeta(directory, { ...meta, scrubPending: true });
 			host.options.beforeBackupScrub?.(meta.file);
 			await scrubOne(host, directory, meta, entries);
 		} catch {
 			failed++;
-			writeMeta(directory, { ...meta, scrubPending: true });
 		}
 	}
-	pruneBackups(directory, undefined, host.clock());
+	pruneBackups(directory, host.clock(), head.seq);
 	return failed;
 }

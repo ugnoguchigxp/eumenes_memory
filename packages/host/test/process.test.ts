@@ -424,11 +424,15 @@ const texts = (result: HostResult) =>
 
 test("T-INT Grok Bot style usage: save, search from another process, correct, forget, restart, backup and restore", async () => {
 	const dir = mkdtempSync(join(tmpdir(), "emi-"));
+	const recoveryDirectory = mkdtempSync(join(tmpdir(), "emi-guard-"));
 	let owner: ReturnType<typeof Bun.spawn> | undefined;
 	const clients: Client[] = [];
 	try {
 		expect(
 			(await command(["init", dir, "--backups", join(dir, "backups")])).code,
+		).toBe(0);
+		expect(
+			(await command(["protect-journal", dir, recoveryDirectory])).code,
 		).toBe(0);
 		owner = await serve(dir);
 		const profile = join(dir, "profile.json");
@@ -566,6 +570,19 @@ test("T-INT Grok Bot style usage: save, search from another process, correct, fo
 				query: "会",
 			}),
 		).toMatchObject({ code: 0, result: { status: "found", items: [] } });
+		owner.kill("SIGTERM");
+		await owner.exited;
+		owner = undefined;
+		rmSync(join(dir, "memory.db"));
+		expect(await command(["restore", backupPath, dir])).toMatchObject({
+			code: 0,
+			result: { status: "completed" },
+		});
+		owner = await serve(dir);
+		expect(texts(await tool(bot, "search", { query: "朝は" }))).toEqual([]);
+		expect((await tool(bot, "search", { query: "抹茶ラテ" }))["returned"]).toBe(
+			2,
+		);
 	} finally {
 		for (const client of clients) await client.close();
 		if (owner) {

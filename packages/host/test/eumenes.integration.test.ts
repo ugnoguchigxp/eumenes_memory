@@ -272,12 +272,27 @@ test.skipIf(!application)(
 			} finally {
 				backupReader.close();
 			}
+			const partial = await request(profile, "search", {
+				query: "折り紙",
+				scopeKeys: [PROFILE_SCOPE],
+			});
+			const recallCheck = {
+				snapshotId: partial["snapshotId"],
+				itemIds: [appItem.id],
+			};
+			expect(await request(profile, "read", recallCheck)).toMatchObject({
+				status: "found",
+				current: true,
+			});
 			const forgotten = await h.memory.forget({
 				conversationId: "c1",
 				itemIds: [appItem.id],
 				messageIds: [messageId],
 			});
 			expect(forgotten.completed).toBe(true);
+			const staleRecall = await request(profile, "read", recallCheck);
+			expect(staleRecall.status).not.toBe("found");
+			expect(staleRecall).not.toHaveProperty("items");
 			expect(h.memory.blockedMessageIds([messageId]).has(messageId)).toBe(true);
 			const after = (
 				await client.callTool({ name: "memory_context", arguments: {} })

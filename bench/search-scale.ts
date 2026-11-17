@@ -4,7 +4,7 @@
  * 本物の `assertUserState` で合成の item を入れ、核の `searchState`、書き込み、忘却（`scrubStateItem`）、
  * 初回の索引の構築（migration 0009 の再適用）、DB と WAL と索引の大きさ、`EXPLAIN QUERY PLAN` を測る。
  *
- * 使い方: bun bench/search-scale.ts [--sizes 1000,10000,100000] [--dir /tmp/x] [--json out.json]
+ * 使い方: bun bench/search-scale.ts [--sizes 1000,10000,100000] [--host-mmap] [--dir /tmp/x] [--json out.json]
  * 合成のデータだけを使い、実行の後に一時ファイルを消す。
  */
 import { Database } from "bun:sqlite";
@@ -22,6 +22,7 @@ import {
 import { scrubStateItem } from "../src/domains/state/repository/index.ts";
 import { syncStateSearch } from "../src/domains/state/repository/search-index.ts";
 import { ROLLBACK_0009_SQL } from "../packages/host/scripts/rollback-0009.ts";
+import { SQLITE_MMAP_BYTES } from "../packages/host/src/storage.ts";
 import {
 	makeSource,
 	makeSpan,
@@ -34,6 +35,7 @@ const arg = (name: string) => {
 	return i >= 0 ? args[i + 1] : undefined;
 };
 const SIZES = (arg("--sizes") ?? "1000,10000,100000").split(",").map(Number);
+const mmapBytes = args.includes("--host-mmap") ? SQLITE_MMAP_BYTES : 0;
 const ROOT = arg("--dir") ?? mkdtempSync(join(tmpdir(), "search-bench-"));
 mkdirSync(ROOT, { recursive: true });
 
@@ -145,7 +147,8 @@ function measure(fn: () => unknown, runs = 30, warmup = 3) {
 }
 function open(path: string): Database & MemoryDb {
 	const db = new Database(path, { create: true }) as Database & MemoryDb;
-	if (path !== ":memory:") db.exec("PRAGMA journal_mode=WAL");
+	if (path !== ":memory:")
+		db.exec(`PRAGMA journal_mode=WAL; PRAGMA mmap_size=${mmapBytes}`);
 	db.exec("PRAGMA foreign_keys=ON; PRAGMA secure_delete=ON");
 	for (const m of migrations) db.exec(m);
 	return db;
@@ -154,6 +157,7 @@ function reopen(db: Database & MemoryDb, path: string): Database & MemoryDb {
 	if (path !== ":memory:") {
 		db.close();
 		const next = new Database(path) as Database & MemoryDb;
+		next.exec(`PRAGMA mmap_size=${mmapBytes}`);
 		next.exec("PRAGMA foreign_keys=ON; PRAGMA secure_delete=ON");
 		return next;
 	}
@@ -428,6 +432,7 @@ else
 const output = {
 	sqliteVersion,
 	bun: Bun.version,
+	mmapBytes,
 	scopes: SCOPES.length,
 	allowed: ALLOWED.length,
 	results,

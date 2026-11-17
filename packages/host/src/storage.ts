@@ -3,6 +3,7 @@ import { Database } from "bun:sqlite";
 import {
 	chmodSync,
 	closeSync,
+	constants,
 	existsSync,
 	fsyncSync,
 	mkdirSync,
@@ -13,16 +14,29 @@ import {
 	writeFileSync,
 	writeSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
-import { defaultBackupDirectory } from "./backup.ts";
+import { dirname, join, resolve } from "node:path";
+import {
+	defaultBackupDirectory,
+	discardInterruptedRestores,
+	readJournalFile,
+	writeJournalCopy,
+} from "./backup.ts";
 import { randomBytes } from "node:crypto";
 import {
 	assertMemorySchema,
 	MEMORY_DB_SCHEMA_VERSION,
 	migrations,
+	readForgetJournalHead,
 	type MemoryDb,
 } from "eumenes-memory/sqlite";
-import type { HostForgetIntent } from "eumenes-memory";
+import {
+	journalWithRecoveryHead,
+	readRecoveryHead,
+	writePrivateFile,
+	writeRecoveryHead,
+	type RecoveryConfig,
+} from "./recovery.ts";
+import type { ForgetJournalEntry, HostForgetIntent } from "eumenes-memory";
 import {
 	configSchema,
 	demand,
@@ -37,6 +51,7 @@ export interface StorePort {
 	write<T>(fn: (db: MemoryDb) => T): Promise<T>;
 }
 export interface JournalPort {
+	readonly recoveryStoreId?: string;
 	read(): unknown;
 	append(entry: unknown): void;
 }
@@ -119,18 +134,59 @@ export function upgradeHostSchema(db: MemoryDb): number {
 	}
 	return HOST_SCHEMA_VERSION;
 }
-export function durableAppend(path: string, entry: unknown): void {
-	const fd = openSync(path, "a", 0o600);
+function durableAppend(
+	path: string,
+	entry: unknown,
+	beforeAppend?: () => void,
+): void {
+	const fd = openSync(
+		path,
+		constants.O_WRONLY | constants.O_APPEND | constants.O_NOFOLLOW,
+	);
 	try {
 		const data = Buffer.from(JSON.stringify(entry) + "\n");
+		beforeAppend?.();
 		let offset = 0;
-		while (offset < data.length) offset += writeSync(fd, data, offset);
+		while (offset < data.length) {
+			const written = writeSync(fd, data, offset);
+			demand(written > 0, "JOURNAL_APPEND_FAILED");
+			offset += written;
+		}
 		fsyncSync(fd);
 	} finally {
 		closeSync(fd);
 	}
 }
-export function fileJournal(path: string): JournalPort {
+export function fileJournal(
+	path: string,
+	recovery?: RecoveryConfig,
+): JournalPort {
+	const root = dirname(path);
+	if (recovery) {
+		return {
+			recoveryStoreId: recovery.storeId,
+			read: () => {
+				const { entries, pending } = journalWithRecoveryHead(
+					readFileSync(path, "utf8"),
+					readRecoveryHead(root, recovery),
+				);
+				if (pending) writeJournalCopy(path, entries);
+				return entries;
+			},
+			append: (value) => {
+				const entry = value as ForgetJournalEntry;
+				const previous = readRecoveryHead(root, recovery);
+				demand(
+					entry.seq === (previous?.seq ?? 0) + 1 &&
+						(!previous || entry.prevHash === previous.hash),
+					"JOURNAL_HEAD_UNVERIFIED",
+				);
+				durableAppend(path, entry, () =>
+					writeRecoveryHead(root, recovery, entry),
+				);
+			},
+		};
+	}
 	return {
 		read: () =>
 			readFileSync(path, "utf8")
@@ -147,6 +203,8 @@ export interface SqliteFeatures {
 }
 /** 全文検索の索引（核の migration 0009）が要る最低の SQLite の版（集計関数の中の ORDER BY と secure-delete）。 */
 export const MIN_SQLITE_VERSION = "3.44.0";
+/** Bound file mappings for the FTS postings and random State lookups. */
+export const SQLITE_MMAP_BYTES = 256 * 1024 * 1024;
 export function sqliteFeatures(db: Database): SqliteFeatures {
 	const fts5 = db
 		.query(
@@ -284,6 +342,47 @@ export function initialize(
 	closeSync(dirFd);
 	return profile;
 }
+/** Enroll an existing stopped store, using its current DB to authenticate the local prefix. */
+export function protectJournal(
+	directory: string,
+	protectedDirectory: string,
+): void {
+	const root = realpathSync(directory);
+	const lock = acquireOwnerLock(root);
+	try {
+		const path = join(root, "owner.json");
+		const config = configSchema.parse(JSON.parse(readFileSync(path, "utf8")));
+		demand(!config.recovery, "JOURNAL_ALREADY_PROTECTED");
+		const entries = readJournalFile(join(root, "forget.jsonl"));
+		const db = new Database(join(root, "memory.db"), { readonly: true });
+		try {
+			const head = readForgetJournalHead(db);
+			demand(
+				head.seq >= 0 &&
+					head.seq <= entries.length &&
+					(head.seq === 0 || head.hash === entries[head.seq - 1]?.hash),
+				"JOURNAL_HEAD_UNVERIFIED",
+			);
+			const recovery = {
+				directory: realpathSync(protectedDirectory),
+				storeId: randomBytes(16).toString("hex"),
+			};
+			// Legacy JSONL may have a valid last line without a trailing newline.
+			writeJournalCopy(join(root, "forget.jsonl"), entries);
+			writeRecoveryHead(root, recovery, entries.at(-1) ?? null);
+			writePrivateFile(
+				root,
+				path,
+				JSON.stringify({ ...config, recovery }, null, 2) + "\n",
+			);
+		} finally {
+			db.close();
+		}
+	} finally {
+		lock.close();
+	}
+}
+
 export function openStandalone(
 	directory: string,
 	options: { features?: (db: Database) => SqliteFeatures } = {},
@@ -299,7 +398,14 @@ export function openStandalone(
 	);
 	const lock = acquireOwnerLock(root);
 	let db: Database;
+	let recovery: RecoveryConfig | undefined;
 	try {
+		discardInterruptedRestores(root);
+		const ownerPath = join(root, "owner.json");
+		if (existsSync(ownerPath))
+			recovery = configSchema.parse(
+				JSON.parse(readFileSync(ownerPath, "utf8")),
+			).recovery;
 		db = new Database(join(root, "memory.db"), { readwrite: true });
 	} catch (error) {
 		lock.close();
@@ -309,6 +415,7 @@ export function openStandalone(
 		db.exec(
 			"PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA secure_delete=ON",
 		);
+		db.exec(`PRAGMA mmap_size=${SQLITE_MMAP_BYTES}`);
 		assertSqliteFeatures((options.features ?? sqliteFeatures)(db));
 		applyPendingMigrations(db);
 		assertMemorySchema(db);
@@ -320,7 +427,7 @@ export function openStandalone(
 	let tail: Promise<unknown> = Promise.resolve();
 	let closed = false;
 	const port: AppPort = {
-		journal: fileJournal(join(root, "forget.jsonl")),
+		journal: fileJournal(join(root, "forget.jsonl"), recovery),
 		read: (fn) => {
 			demand(!closed, "STORE_CLOSED");
 			return db.transaction(() => fn(db))();

@@ -4,14 +4,17 @@ import { Database } from "bun:sqlite";
 import {
 	existsSync,
 	mkdirSync,
+	mkdtempSync,
 	readdirSync,
 	realpathSync,
 	readFileSync,
 	renameSync,
+	rmSync,
 	statSync,
 	writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import {
 	BACKUP_GENERATIONS,
 	DEFAULT_BACKUP_DIRECTORY,
@@ -21,12 +24,14 @@ import {
 	sha256File,
 } from "../src/backup.ts";
 import { restoreStore } from "../src/transport.ts";
+import { protectJournal } from "../src/storage.ts";
 import {
 	disposeFixtures,
 	fixture,
 	forget,
 	items,
 	leakedTrigrams,
+	onDispose,
 	remember,
 	type Fixture,
 } from "./support.ts";
@@ -81,6 +86,56 @@ test("T-BAK-1 vacuum into is consistent with committed rows still in the WAL", a
 	});
 });
 
+test.each(["journal-write", "db-sync"] as const)(
+	"backup does not publish a generation when %s fails, and retry publishes one",
+	async (fault) => {
+		const h = await fixture();
+		await remember(h, "バックアップの書き込みを確認する記憶");
+		await h.close();
+		const script = join(h.dir, "interrupt-backup.test.ts");
+		writeFileSync(
+			script,
+			`
+			import { test, expect, spyOn } from "bun:test";
+			import * as fs from "node:fs";
+			const open = fs.openSync, sync = fs.fsyncSync, write = fs.writeFileSync;
+			let faultFd;
+			spyOn(fs, "openSync").mockImplementation((path, ...args) => {
+				const fd = open(path, ...args);
+				if (String(path).endsWith(".db.tmp") && ${fault === "db-sync"}) faultFd = fd;
+				return fd;
+			});
+			spyOn(fs, "fsyncSync").mockImplementation((fd) => {
+				if (fd === faultFd) throw Error("injected file sync failure");
+				sync(fd);
+			});
+			spyOn(fs, "writeFileSync").mockImplementation((path, ...args) => {
+				if (String(path).includes(".forget.jsonl.") && ${fault === "journal-write"})
+					throw Error("injected journal write failure");
+				write(path, ...args);
+			});
+			const { startStandalone, readProfile, request } = await import(${JSON.stringify(new URL("../src/transport.ts", import.meta.url).href)});
+			test("backup failure", async () => {
+				const owner = await startStandalone(${JSON.stringify(h.dir)});
+				try {
+					const profile = readProfile(${JSON.stringify(join(h.dir, "profile.json"))});
+					expect(await request(profile, "backup", {})).toMatchObject({ status: "failed" });
+					expect(await request(profile, "status", {})).toMatchObject({ backupGenerations: 0 });
+				} finally {
+					await owner.close();
+				}
+			});
+		`,
+		);
+		const child = Bun.spawnSync([process.execPath, "test", script]);
+		if (child.exitCode !== 0) throw Error(child.stderr.toString());
+		await h.reopen();
+		const saved = await backup(h);
+		expect(listBackups(join(h.dir, "backups"))).toHaveLength(1);
+		expect(sha256File(saved.path)).toBe(saved.sha256);
+	},
+);
+
 test("T-BAK-2 a backup taken right after a forget (before checkpoint) excludes the forgotten text", async () => {
 	const h = await fixture({
 		wrapPort: (port) => ({ ...port, checkpoint: async () => false }),
@@ -95,6 +150,34 @@ test("T-BAK-2 a backup taken right after a forget (before checkpoint) excludes t
 	).toBeGreaterThan(0);
 	const result = await backup(h);
 	expect(leakedTrigrams(SECRET, [result.path])).toEqual([]);
+});
+
+test("a queued backup cannot mark an uncommitted forget as applied", async () => {
+	const h = await fixture({
+		host: {
+			afterJournalAppend: () => {
+				throw Error("commit interrupted");
+			},
+		},
+	});
+	const saved = await remember(h, SECRET);
+	const target = (await items(h))[0]!;
+	const gate = Promise.withResolvers<void>();
+	const queued = h.host.withBackupLock(() => gate.promise);
+	const pending = h.call("backup");
+	try {
+		expect(
+			(await forget(h, target.itemId, [saved.source["sourceHandle"]])).status,
+		).toBe("failed");
+	} finally {
+		gate.resolve();
+	}
+	await queued;
+	expect(await pending).toMatchObject({
+		status: "blocked",
+		code: "BACKUP_JOURNAL_NOT_APPLIED",
+	});
+	expect(listBackups(join(h.dir, "backups"))).toEqual([]);
 });
 
 test("T-BAK-3 restore round trip returns the State of the backup time", async () => {
@@ -134,6 +217,131 @@ test("T-BAK-4 restore reapplies forgets made after the backup", async () => {
 	).toEqual([]);
 });
 
+async function protect(h: Fixture) {
+	const directory = mkdtempSync(join(tmpdir(), "em-protected-"));
+	onDispose(async () => rmSync(directory, { recursive: true, force: true }));
+	await h.close();
+	protectJournal(h.dir, directory);
+	await h.reopen();
+	return join(directory, readdirSync(directory)[0]!);
+}
+
+test("a protected backup cannot restore into a different readable store", async () => {
+	const from = await fixture();
+	const into = await fixture();
+	await protect(from);
+	const saved = await backup(from);
+	await into.close();
+	expect(await restoreStore(saved.path, into.dir)).toMatchObject({
+		status: "blocked",
+		code: "BACKUP_STORE_MISMATCH",
+	});
+});
+
+test("a missing journal is not silently recreated by the owner", async () => {
+	const h = await fixture();
+	const receipt = await protect(h);
+	const original = readFileSync(receipt);
+	const saved = await remember(h, SECRET);
+	const target = (await items(h))[0]!;
+	const journal = join(h.dir, "forget.jsonl");
+	renameSync(journal, join(h.dir, "moved-journal"));
+	expect(
+		(await forget(h, target.itemId, [saved.source["sourceHandle"]])).status,
+	).toBe("failed");
+	expect(existsSync(journal)).toBe(false);
+	expect(readFileSync(receipt)).toEqual(original);
+});
+
+test.each(["missing", "corrupt", "torn-append"] as const)(
+	"protected restore replays a newer forget with a %s DB or journal",
+	async (fault) => {
+		const h = await fixture({
+			host: {
+				beforeBackupScrub: () => {
+					throw Error("offline backup");
+				},
+			},
+		});
+		await protect(h);
+		const saved = await remember(h, SECRET);
+		const target = (await items(h))[0]!;
+		await remember(h, "保持する記憶", undefined, { semanticKey: "retained" });
+		const copied = await backup(h);
+		expect(
+			(await forget(h, target.itemId, [saved.source["sourceHandle"]])).status,
+		).toBe("completed");
+		await h.host.backupIdle();
+		await h.close();
+		const db = join(h.dir, "memory.db");
+		if (fault === "corrupt") writeFileSync(db, "corrupt sqlite");
+		else rmSync(db);
+		if (fault === "torn-append") {
+			const path = join(h.dir, "forget.jsonl");
+			const current = readFileSync(path, "utf8");
+			writeFileSync(path, current.slice(0, -8));
+		}
+		expect(await restoreStore(copied.path, h.dir)).toMatchObject({
+			status: "completed",
+		});
+		await h.reopen();
+		expect((await items(h)).map((item) => item["semanticKey"])).toEqual([
+			"retained",
+		]);
+		expect(leakedTrigrams(SECRET, [db])).toEqual([]);
+	},
+);
+
+test.each([
+	"absent",
+	"stale",
+	"foreign",
+	"modified",
+	"unbound backup",
+] as const)(
+	"restore with no DB rejects %s recovery evidence before publication",
+	async (fault) => {
+		const h = await fixture({
+			host: {
+				beforeBackupScrub: () => {
+					throw Error("offline backup");
+				},
+			},
+		});
+		const unbound = fault === "unbound backup" ? await backup(h) : undefined;
+		const receipt = await protect(h);
+		const saved = await remember(h, SECRET);
+		const stale = readFileSync(receipt, "utf8");
+		const copied = unbound ?? (await backup(h));
+		expect(
+			(
+				await forget(h, (await items(h))[0]!.itemId, [
+					saved.source["sourceHandle"],
+				])
+			).status,
+		).toBe("completed");
+		await h.host.backupIdle();
+		await h.close();
+		rmSync(join(h.dir, "memory.db"));
+		if (fault === "absent") rmSync(receipt);
+		if (fault === "stale") writeFileSync(receipt, stale);
+		if (fault === "foreign" || fault === "modified") {
+			const proof = JSON.parse(readFileSync(receipt, "utf8"));
+			if (fault === "foreign") proof.storeId = "c".repeat(32);
+			else proof.entry.hash = "f".repeat(64);
+			writeFileSync(receipt, JSON.stringify(proof));
+		}
+		expect(await restoreStore(copied.path, h.dir)).toMatchObject({
+			status: "blocked",
+			code: "JOURNAL_HEAD_UNVERIFIED",
+		});
+		expect(existsSync(join(h.dir, "memory.db"))).toBe(false);
+		expect(
+			readdirSync(h.dir).some((name) => name.startsWith(".restore-")),
+		).toBe(false);
+	},
+);
+
 test("T-BAK-7 restore refuses a journal older than the backup", async () => {
 	const h = await fixture();
 	const saved = await remember(h, SECRET);
@@ -149,6 +357,37 @@ test("T-BAK-7 restore refuses a journal older than the backup", async () => {
 	});
 	expect(statSync(join(h.dir, "memory.db")).mtimeMs).toBe(before);
 	expect(readdirSync(h.dir).some((n) => n.startsWith("restore-"))).toBe(false);
+});
+
+test("an invalid zero head cannot authorize a restore with a truncated journal", async () => {
+	const h = await fixture({
+		host: {
+			beforeBackupScrub: () => {
+				throw Error("offline backup");
+			},
+		},
+	});
+	const saved = await remember(h, SECRET);
+	const copied = await backup(h);
+	await forget(h, (await items(h))[0]!.itemId, [saved.source["sourceHandle"]]);
+	await h.host.backupIdle();
+	await h.close();
+	const live = join(h.dir, "memory.db");
+	const db = new Database(live);
+	try {
+		db.query(
+			"UPDATE memory_journal_state SET applied_head_seq=0, applied_head_hash=? WHERE id=1",
+		).run("0".repeat(64));
+	} finally {
+		db.close();
+	}
+	writeFileSync(join(h.dir, "forget.jsonl"), "");
+	const original = readFileSync(live);
+	expect(await restoreStore(copied.path, h.dir)).toMatchObject({
+		status: "blocked",
+		code: "JOURNAL_HEAD_UNVERIFIED",
+	});
+	expect(readFileSync(live)).toEqual(original);
 });
 
 test.each(["missing", "truncated", "corrupt"] as const)(
@@ -279,6 +518,9 @@ test.each(["before", "after"] as const)(
 		if (child.signalCode !== "SIGKILL") throw Error(out + diagnostics);
 		expect(readFileSync(join(h.dir, "forget.jsonl"))).toEqual(journal);
 		await h.reopen();
+		expect(
+			readdirSync(h.dir).some((name) => name.startsWith(".restore-")),
+		).toBe(false);
 		const surviving = await items(h);
 		expect(surviving.some((item) => item.itemId === original.itemId)).toBe(
 			false,

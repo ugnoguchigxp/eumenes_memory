@@ -84,6 +84,8 @@ State の全文検索の設計（リポジトリの `spec/state-search-design.md
 - 全文検索（`search`、MCP `memory_search`）: 核の`searchState`を、無害化した語、件数20件、返すitemのJSONの合計`maxBytes`（既定32768）の上限で呼ぶ。返すitemは`context`と同じ水和と`evidenceStatus`・`trust`を通す。続きのcursorは出さない。
 - 忘却の後の`wal_checkpoint(TRUNCATE)`（失敗したら`status`の`checkpointPending`）、操作の受領記録の30日保持（今のepochも対象）。
 - `VACUUM INTO`のバックアップ（`backup`、管理用）と、忘却の後の洗い直し、`restore`（完全な写しを作ってchecksumを確かめてから入れ替える）。途中で止まった作成や洗い直しの残り（記録の無いファイル、`.tmp`、`.scrub-*`）は、次のバックアップか洗い直しの後に0で上書きして消す。
+- 稼働DBの消失や破損から復元する場合は、事前にサーバーを停止し、`eumenes-memory protect-journal <データディレクトリ> <保護ディレクトリ>` を一度実行する。保護ディレクトリはデータディレクトリの外に作り、本人のみアクセスできるよう権限を `0700` にする。ディスク障害に備える場合は別の記憶装置を使う。その後サーバーを起動して新しいバックアップを作ると、同じストアの印が付く。
+- この復元には、ストアの印が付いたバックアップ、元の `owner.json` と `forget.jsonl`、保護先の最新記録が要る。保護先には忘却対象の識別子とハッシュを含む最新の記録を保管する。保護を設定したストアの起動と忘却には、保護先へのアクセスも要る。バックアップ世代の操作で保護先を巻き戻さない。ローカルと保護先がともに古い状態へ戻った場合は、その新旧を判定できない。
 - 出典の由来（`provenance`）とitemの信頼度（`trust`）。
 - 容量の監視（`status`の`capacity`と`capacityWarnings`、90%での新しいkeyの保存の制限）。
 - 外部由来のitemの自動停止と再利用による延長（`host_item_use`、host schema 4、`use`・`expire`・`reactivate`）と、見直しの一覧（`review`、CLIのみ）。

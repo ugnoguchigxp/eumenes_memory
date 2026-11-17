@@ -28,6 +28,7 @@ const PERSISTENCE_OPERATIONS = [
 	"reconcileForgetJournal",
 	"recordExternalDeletion",
 	"getForgetReceipt",
+	"readForgetJournalHead",
 	"registerExternalDependents",
 	"unregisterExternalDependents",
 	"retainRecord",

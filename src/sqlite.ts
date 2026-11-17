@@ -44,6 +44,7 @@ export {
 	applyForget,
 	getForgetReceipt,
 	planForget,
+	readForgetJournalHead,
 	reconcileForgetJournal,
 	recordExternalDeletion,
 	registerExternalDependents,

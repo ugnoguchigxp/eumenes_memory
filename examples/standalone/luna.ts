@@ -97,9 +97,9 @@ export async function withLuna<T>(
 			const value = process.env[key];
 			if (value !== undefined) env[key] = value;
 		}
-		return await operation(async (prompt, schema, task) => {
+		return await operation(async (prompt, schema, task, instruction) => {
 			const client = new Codex(
-				codexOptions(env, apiKey, task, instructions[task]),
+				codexOptions(env, apiKey, task, instructions[task] ?? instruction),
 			);
 			const thread = client.startThread(threadOptions(work));
 			const controller = new AbortController();
