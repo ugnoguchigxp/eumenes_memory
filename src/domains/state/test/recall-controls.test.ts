@@ -1,10 +1,9 @@
 /**
- * 記憶の作り直しの部品（State 側）: sourceRunId と変更の種類、時間軸の照会、抑制、強度、根拠必須の検査。
+ * 記憶の作り直しの部品（State 側）: sourceRunId と変更の種類、時間軸の照会、抑制、強度の読み取り、根拠必須の検査。
  * 使い捨ての実 SQLite。
  */
 import { afterEach, describe, expect, test } from "bun:test";
 import { listMemoryChanges } from "../../../infrastructure/sqlite/changes.ts";
-import { hasMemoryChangesExcludingRun } from "../../../infrastructure/sqlite/changes.ts";
 import { openTestStore } from "../../../../test/support/store.ts";
 import type { TestStore } from "../../../../test/support/store.ts";
 import type { StateItem, StateWriteResult } from "../contracts/index.ts";
@@ -15,10 +14,8 @@ import {
 	searchState,
 } from "../repository/index.ts";
 import {
-	decayStateStrength,
 	listStateByTime,
 	listSuppressions,
-	reinforceStateStrength,
 	releaseStateSuppression,
 	suppressState,
 } from "../repository/marks.ts";
@@ -216,70 +213,6 @@ describe("sourceRunId and the kind of change", () => {
 			),
 		);
 		expect(correction.status).toBe("applied");
-	});
-
-	test("hasMemoryChangesExcludingRun ignores the run's own changes and counts everything else", () => {
-		const s = open();
-		const ask = (afterSeq: number, sourceRunId: string) =>
-			s.read((db) =>
-				hasMemoryChangesExcludingRun(db, {
-					contractVersion: 1,
-					access: ACCESS,
-					scopeKeys: [SCOPE],
-					afterSeq,
-					sourceRunId,
-				}),
-			);
-		expect(ask(0, "r1")).toEqual({
-			status: "ok",
-			changed: false,
-			firstSeq: null,
-			latestSeq: 0,
-		});
-		const own = write(s, { sourceRunId: "r1" });
-		const afterOwn = ask(0, "r1");
-		expect(afterOwn).toMatchObject({ status: "ok", changed: false });
-		const cursor = afterOwn.status === "ok" ? afterOwn.latestSeq : 0;
-		expect(cursor).toBeGreaterThan(0);
-		// run を渡さなかった変更は、他の変更として数える。
-		const other = write(s, {
-			clock: { atMs: 2000 },
-			semanticKey: "tea",
-			value: value("紅茶が好き"),
-			evidence: [makeSpan(TEA, "紅茶が好き")],
-			sources: [TEA],
-		});
-		const foreign = ask(cursor, "r1");
-		expect(foreign).toMatchObject({ status: "ok", changed: true });
-		expect(foreign.status === "ok" ? foreign.firstSeq : 0).toBeGreaterThan(
-			cursor,
-		);
-		expect(ask(0, "r2")).toMatchObject({ changed: true });
-		expect(own.itemId).not.toBe(other.itemId);
-		// 他の run の変更だけの場合。
-		const next = ask(0, "r1");
-		const latest = next.status === "ok" ? next.latestSeq : 0;
-		write(s, {
-			clock: { atMs: 3000 },
-			semanticKey: "tea2",
-			value: value("紅茶がもっと好き"),
-			evidence: [makeSpan(TEA, "紅茶が好き")],
-			sources: [TEA],
-			sourceRunId: "r2",
-		});
-		expect(ask(latest, "r2")).toMatchObject({ changed: false });
-		expect(ask(latest, "r1")).toMatchObject({ changed: true });
-		expect(
-			s.read((db) =>
-				hasMemoryChangesExcludingRun(db, {
-					contractVersion: 1,
-					access: { ...ACCESS, scopeKeys: [] },
-					scopeKeys: [SCOPE],
-					afterSeq: 0,
-					sourceRunId: "r1",
-				}),
-			),
-		).toEqual({ status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" });
 	});
 });
 
@@ -510,67 +443,19 @@ describe("strength", () => {
 		});
 		return { a, b };
 	}
-	const decay = (s: TestStore, factor: number, floor?: number) =>
+	/** 強度を書き換える API は無い。既存の行の読み取り（`minStrength`・順位）を、行の強度を直に置いて確かめる。 */
+	const setStrength = (s: TestStore, itemId: string, strength: number) =>
 		s.write((db) =>
-			decayStateStrength(db, {
-				contractVersion: 1,
-				access: ACCESS,
-				scopeKey: SCOPE,
-				clock: { atMs: 9000 },
-				factor,
-				...(floor === undefined ? {} : { floor }),
-			}),
+			db
+				.query("UPDATE memory_state_item SET strength = ? WHERE item_id = ?")
+				.run(strength, itemId),
 		);
-	const reinforce = (s: TestStore, itemIds: string[], amount: number) =>
-		s.write((db) =>
-			reinforceStateStrength(db, {
-				contractVersion: 1,
-				access: ACCESS,
-				scopeKey: SCOPE,
-				clock: { atMs: 9500 },
-				itemIds,
-				amount,
-			}),
-		);
-
-	test("decay lowers every active item a little and never below the floor; items and the feed are unchanged", () => {
-		const s = open();
-		const { a, b } = twoCoffee(s, "agent_inferred");
-		const feedBefore = changes(s).length;
-		expect(decay(s, 0.5)).toEqual({ status: "ok", updated: 2 });
-		const strengths = Object.fromEntries(
-			list(s).map((item) => [item.itemId, item.strength]),
-		);
-		expect(strengths[a.itemId]).toBe(0.5);
-		expect(strengths[b.itemId]).toBe(0.5);
-		for (let n = 0; n < 12; n += 1) decay(s, 0.5, 0.1);
-		expect(list(s).map((item) => item.strength)).toEqual([0.1, 0.1]);
-		expect(decay(s, 0.5, 0.1)).toEqual({ status: "ok", updated: 0 });
-		expect(changes(s)).toHaveLength(feedBefore);
-		expect(list(s)[0]).toMatchObject({ revision: 1, status: "active" });
-		expect(() => decay(s, 1)).toThrow();
-		expect(() => decay(s, 0)).toThrow();
-	});
-
-	test("reinforce raises used items up to 1 and ignores unknown ids", () => {
-		const s = open();
-		const { a, b } = twoCoffee(s, "agent_inferred");
-		decay(s, 0.5);
-		expect(reinforce(s, [a.itemId, "state:unknown"], 0.25)).toEqual({
-			status: "ok",
-			updated: 1,
-		});
-		const byId = () =>
-			Object.fromEntries(list(s).map((item) => [item.itemId, item.strength]));
-		expect(byId()[a.itemId]).toBe(0.75);
-		reinforce(s, [a.itemId, b.itemId], 1);
-		expect(list(s).every((item) => item.strength === undefined)).toBe(true);
-	});
 
 	test("minStrength drops weak inferred items but never user-confirmed ones; direct search is not narrowed unless asked", () => {
 		const s = open();
 		const { a, b } = twoCoffee(s, "user_confirmed");
-		decay(s, 0.1);
+		setStrength(s, a.itemId, 0.1);
+		setStrength(s, b.itemId, 0.1);
 		const ids = (items: readonly StateItem[]) =>
 			items.map((item) => item.itemId);
 		expect(ids(list(s, { minStrength: 0.2 }))).toEqual([a.itemId]);
@@ -583,18 +468,17 @@ describe("strength", () => {
 		expect(ids(list(s)).sort()).toEqual([a.itemId, b.itemId].sort());
 	});
 
-	test("search ranks by strength: a reinforced item comes before a weakened one", () => {
+	test("search ranks by strength: a stronger item comes before a weakened one", () => {
 		const s = open();
 		const { a, b } = twoCoffee(s, "agent_inferred");
-		decay(s, 0.5);
-		reinforce(s, [b.itemId], 0.5);
+		setStrength(s, a.itemId, 0.25);
+		setStrength(s, b.itemId, 0.75);
 		expect(search(s, "コーヒー").map((item) => item.itemId)).toEqual([
 			b.itemId,
 			a.itemId,
 		]);
-		reinforce(s, [a.itemId], 0.5);
-		decay(s, 0.5);
-		reinforce(s, [a.itemId], 0.25);
+		setStrength(s, a.itemId, 1);
+		setStrength(s, b.itemId, 0.5);
 		expect(search(s, "コーヒー")[0]?.itemId).toBe(a.itemId);
 	});
 });

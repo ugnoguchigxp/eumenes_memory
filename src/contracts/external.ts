@@ -127,7 +127,7 @@ export type MemoryChangeStatus = (typeof MEMORY_CHANGE_STATUSES)[number];
  * - `consolidation`: 意味の変わらない版の更新（統合など。旧版が superseded。`successorId` が新版。参照は新版へ付け替えてよい）。
  * - `excluded` / `exclusion_released`: 即時の除外（忘却の依頼の直後）の付与・解除。item の status は変わらない。
  * - `suppressed` / `suppression_released`: 抑制（話題に出さない）の付与・解除。item の status は変わらない。
- * - `promoted`: 記憶の候補（L1）から昇格して作られた item。
+ * - `promoted`: 記憶の候補（L1）から昇格して作られた item。既存の行に残る種類で、本体は新しくは付けない。
  */
 export const MEMORY_CHANGE_KINDS = Object.freeze([
 	"correction",
@@ -175,34 +175,6 @@ export interface LatestMemoryChangeSeqInput {
 /** `seq` = 指定 scope で可視な変更の最大 seq（変更がなければ 0）。`listMemoryChanges` の `afterSeq` にそのまま渡せる。 */
 export type LatestMemoryChangeSeqResult =
 	| { readonly status: "ok"; readonly seq: number }
-	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
-
-/**
- * 「`sourceRunId` の run 自身の変更を除いて、`afterSeq` より新しい変更があったか」の照会入力。
- * 返事を作っている run が自分の書き込みで自分の返事を失効させないために使う。`sourceRunId` を持たない変更
- * （他の run、本体が行った復旧の再適用、`sourceRunId` を渡さなかった書き込み）は、すべて「他の変更」として数える。
- */
-export interface HasMemoryChangesExcludingRunInput {
-	readonly contractVersion: ContractVersion;
-	readonly access: AccessContext;
-	/** `access.scopeKeys` の部分集合でなければ `blocked`。 */
-	readonly scopeKeys: readonly string[];
-	readonly afterSeq: number;
-	/** 除く run の ID。 */
-	readonly sourceRunId: string;
-}
-
-/**
- * `changed`: 他の変更があったか。`firstSeq`: その最初の seq（無ければ null）。
- * `latestSeq`: 指定 scope で可視な変更の最大 seq（自分の変更を含む。次回の `afterSeq` にそのまま使える）。
- */
-export type HasMemoryChangesExcludingRunResult =
-	| {
-			readonly status: "ok";
-			readonly changed: boolean;
-			readonly firstSeq: number | null;
-			readonly latestSeq: number;
-	  }
 	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
 
 export interface ListMemoryChangesInput {

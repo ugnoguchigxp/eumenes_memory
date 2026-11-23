@@ -4,8 +4,6 @@ import {
 	MEMORY_CHANGE_TARGET_TYPES,
 } from "../../contracts/external.ts";
 import type {
-	HasMemoryChangesExcludingRunInput,
-	HasMemoryChangesExcludingRunResult,
 	LatestMemoryChangeSeqInput,
 	LatestMemoryChangeSeqResult,
 	ListMemoryChangesInput,
@@ -14,7 +12,6 @@ import type {
 	MemoryChangeDraft,
 } from "../../contracts/external.ts";
 import {
-	parseHasMemoryChangesExcludingRunInput,
 	parseLatestMemoryChangeSeqInput,
 	parseListMemoryChangesInput,
 } from "../../contracts/parse-store.ts";
@@ -22,7 +19,6 @@ import {
 	guarded,
 	issueSeq,
 	readInteger,
-	readNullableInteger,
 	readNullableText,
 	readText,
 } from "./db.ts";
@@ -168,44 +164,4 @@ export function latestMemoryChangeSeq(
 			.get(parsed.access.principal, ...parsed.scopeKeys),
 	);
 	return { status: "ok", seq: readInteger(row, "seq") };
-}
-
-/**
- * 「`sourceRunId` の run 自身の変更を除いて、`afterSeq` より新しい変更があったか」。`sourceRunId` が NULL の変更
- * （run を渡さなかった書き込み、復旧の再適用）は他の変更として数える。読み取り専用接続で呼べる。
- */
-export function hasMemoryChangesExcludingRun(
-	db: MemoryDb,
-	input: HasMemoryChangesExcludingRunInput,
-): HasMemoryChangesExcludingRunResult {
-	const parsed = parseHasMemoryChangesExcludingRunInput(input);
-	enterRead(db);
-	const permitted = new Set(parsed.access.scopeKeys);
-	if (!parsed.scopeKeys.every((scopeKey) => permitted.has(scopeKey))) {
-		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
-	}
-	const placeholders = parsed.scopeKeys.map(() => "?").join(", ");
-	const row = guarded(() =>
-		db
-			.query(
-				`SELECT
-					MIN(CASE WHEN seq > ? AND (source_run_id IS NULL OR source_run_id <> ?) THEN seq END) AS first_seq,
-					COALESCE(MAX(seq), 0) AS latest_seq
-				FROM memory_change
-				WHERE principal = ? AND scope_key IN (${placeholders})`,
-			)
-			.get(
-				parsed.afterSeq,
-				parsed.sourceRunId,
-				parsed.access.principal,
-				...parsed.scopeKeys,
-			),
-	);
-	const firstSeq = readNullableInteger(row, "first_seq");
-	return {
-		status: "ok",
-		changed: firstSeq !== null,
-		firstSeq,
-		latestSeq: readInteger(row, "latest_seq"),
-	};
 }

@@ -22,7 +22,6 @@ import {
 import type { ContractVersion, HostClock } from "./common.ts";
 import { LIMITS_EXTERNAL } from "./external.ts";
 import type {
-	HasMemoryChangesExcludingRunInput,
 	LatestMemoryChangeSeqInput,
 	ListMemoryChangesInput,
 } from "./external.ts";
@@ -154,48 +153,4 @@ export function parseLatestMemoryChangeSeqInput(
 /** 変更を起こした run の ID（識別子規則、`LIMITS_EXTERNAL.maxSourceRunIdBytes` 以下）。 */
 export function readSourceRunId(value: unknown, path: string): string {
 	return readIdentifier(value, path, LIMITS_EXTERNAL.maxSourceRunIdBytes);
-}
-
-export function parseHasMemoryChangesExcludingRunInput(
-	value: unknown,
-): HasMemoryChangesExcludingRunInput {
-	const path = "$";
-	const record = readRecord(value, path);
-	checkKeys(record, path, [
-		"contractVersion",
-		"access",
-		"scopeKeys",
-		"afterSeq",
-		"sourceRunId",
-	]);
-	const contractVersion = readContractVersion(
-		record,
-		path,
-		CONTRACT_VERSIONS.external,
-	);
-	const access = readAccessContext(
-		requiredField(record, path, "access"),
-		keyPath(path, "access"),
-	);
-	const scopeKeys = readScopeKeys(
-		requiredField(record, path, "scopeKeys"),
-		keyPath(path, "scopeKeys"),
-	);
-	const afterSeq = readSafeInteger(
-		requiredField(record, path, "afterSeq"),
-		keyPath(path, "afterSeq"),
-		0,
-		Number.MAX_SAFE_INTEGER,
-	);
-	const sourceRunId = readSourceRunId(
-		requiredField(record, path, "sourceRunId"),
-		keyPath(path, "sourceRunId"),
-	);
-	return deepFreeze({
-		contractVersion,
-		access,
-		scopeKeys,
-		afterSeq,
-		sourceRunId,
-	});
 }

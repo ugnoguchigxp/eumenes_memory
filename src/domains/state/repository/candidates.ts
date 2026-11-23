@@ -1,19 +1,15 @@
 /**
- * 記憶の候補（L1）の永続 API と、候補から長期記憶（State）への昇格。契約は `src/domains/state/contracts/index.ts`。
+ * 記憶の候補（L1）の永続 API。契約は `src/domains/state/contracts/index.ts`。
  * 書き込みはホストの write transaction の中で 1 回呼ぶ（入口は `enterWrite`）。拒否・冪等では何も書かない。
  *
  * - 候補は `memory_inferred_candidate`（origin は `agent_inferred` だけ）と、根拠の行 `_evidence`（引用の本文は持たない）。
  *   観測の回数・観測した会話は根拠の行から導く。
- * - 依存辺: candidate → 根拠の出典（先頭が primary、残りは support）。昇格した state_item → candidate（derived_from）。
- *   出典を忘れると候補が、候補を忘れると昇格した item が閉包に入る。
+ * - 依存辺: candidate → 根拠の出典（先頭が primary、残りは support）。既に昇格済みの state_item → candidate（derived_from）。
+ *   出典を忘れると候補が、候補を忘れると昇格済みの item が閉包に入る。
  * - 忘却の閉包の適用は `scrubCandidate`（値と根拠の行を消し status を forgotten にする）を呼ぶ。墓標は呼び出し側が書く。
  * - 除外（`memory_exclusion` の candidate）された候補は、どの照会にも現れない。
  */
 import type { EvidenceSpan } from "../../../contracts/common.ts";
-import {
-	MEMORY_RECORD_SOURCE_KIND,
-	MEMORY_SOURCE_NAMESPACE,
-} from "../../../contracts/common.ts";
 import { ownValue } from "../../../contracts/own.ts";
 import { sourceKey } from "../../../contracts/source-key.ts";
 import type { SourceRef } from "../../../contracts/types.ts";
@@ -35,52 +31,32 @@ import {
 	CANDIDATE_STATUSES,
 	LIMITS_CANDIDATE,
 	STATE_KINDS,
-	USER_STATE_ORIGINS,
 } from "../contracts/index.ts";
 import type {
-	CandidateStatus,
-	DismissCandidateInput,
-	DismissCandidateResult,
 	InferredCandidate,
 	ListCandidatesInput,
 	ListCandidatesResult,
-	PromoteCandidateInput,
-	PromoteCandidateResult,
 	ReadCandidateInput,
 	ReadCandidateResult,
 	RecordCandidateInput,
 	RecordCandidateResult,
 	StateKind,
 } from "../contracts/index.ts";
-import { checkGroundedClaim } from "../service/grounded.ts";
-import { inferredCandidateId, stateItemId } from "../service/ids.ts";
+import { inferredCandidateId } from "../service/ids.ts";
 import {
-	parseDismissCandidateInput,
 	parseListCandidatesInput,
-	parsePromoteCandidateInput,
 	parseReadCandidateInput,
 	parseRecordCandidateInput,
 } from "../service/parse-recall.ts";
+import { isSubjectKindConsistent } from "../service/reducer.ts";
 import {
-	applyStateTransition,
-	isSubjectKindConsistent,
-} from "../service/reducer.ts";
-import type { StateTransitionRequest } from "../service/reducer.ts";
-import { stateValueEquals } from "../service/value.ts";
-import {
-	appendEvidence,
 	checkUserEvidence,
 	isPermitted,
-	loadActiveForKey,
-	loadItem,
-	persist,
 	placeholders,
-	readFullItem,
 	run,
 	selectAll,
 	selectFirst,
 } from "./index.ts";
-import type { WriteContext } from "./index.ts";
 
 const NO_CANDIDATE_TOMBSTONE = `NOT EXISTS (SELECT 1 FROM memory_tombstone t
 	WHERE t.target_type = 'candidate' AND t.target_id = c.candidate_id)`;
@@ -230,17 +206,6 @@ function loadCandidate(
 	);
 	if (excluded !== null) return { status: "missing" };
 	return { status: "found", row };
-}
-
-function hasTombstonedRef(db: MemoryDb, refs: readonly SourceRef[]): boolean {
-	return refs.some((ref) => {
-		if (isTombstoned(db, "source", sourceKey(ref))) return true;
-		return (
-			ref.namespace === MEMORY_SOURCE_NAMESPACE &&
-			ref.kind === MEMORY_RECORD_SOURCE_KIND &&
-			isTombstoned(db, "record", ref.id)
-		);
-	});
 }
 
 function insertCandidateEvidence(
@@ -529,201 +494,6 @@ export function readCandidate(
 	const [candidate] = hydrateCandidates(db, input.scopeKey, [loaded.row]);
 	if (candidate === undefined) throw new MemoryStoreError("CORRUPT_ROW");
 	return { status: "ok", candidate };
-}
-
-/** open → dismissed（重複の統合・不採用）。根拠の行は残る（閉包の対象のまま）。 */
-export function dismissCandidate(
-	db: MemoryDb,
-	rawInput: DismissCandidateInput,
-): DismissCandidateResult {
-	const input = parseDismissCandidateInput(rawInput);
-	const seq = enterWrite(db);
-	if (!isPermitted(input.access, input.scopeKey)) {
-		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
-	}
-	const principal = input.access.principal;
-	const loaded = loadCandidate(
-		db,
-		principal,
-		input.scopeKey,
-		input.candidateId,
-	);
-	if (loaded.status !== "found") return { status: loaded.status };
-	const status = readText(loaded.row, "status") as CandidateStatus;
-	if (status === "promoted") {
-		return { status: "rejected", reasonCode: "CANDIDATE_NOT_OPEN" };
-	}
-	if (status === "open") {
-		run(
-			db,
-			`UPDATE memory_inferred_candidate SET status = 'dismissed', updated_seq = ? WHERE candidate_id = ?`,
-			[seq, input.candidateId],
-		);
-	}
-	return {
-		status: status === "open" ? "applied" : "unchanged",
-		candidate: readCandidateById(
-			db,
-			principal,
-			input.scopeKey,
-			input.candidateId,
-		),
-	};
-}
-
-function isUserOrigin(origin: string): boolean {
-	return (USER_STATE_ORIGINS as readonly string[]).includes(origin);
-}
-
-/** 昇格の入口。契約は `PromoteCandidateInput`。 */
-export function promoteCandidate(
-	db: MemoryDb,
-	rawInput: PromoteCandidateInput,
-): PromoteCandidateResult {
-	const input = parsePromoteCandidateInput(rawInput);
-	let seq = enterWrite(db);
-	if (!isPermitted(input.access, input.scopeKey)) {
-		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
-	}
-	const principal = input.access.principal;
-	const scopeKey = input.scopeKey;
-	const loaded = loadCandidate(db, principal, scopeKey, input.candidateId);
-	if (loaded.status !== "found") return { status: loaded.status };
-	if (readText(loaded.row, "status") !== "open") {
-		return { status: "rejected", reasonCode: "CANDIDATE_NOT_OPEN" };
-	}
-	const [candidate] = hydrateCandidates(db, scopeKey, [loaded.row]);
-	if (candidate === undefined) throw new MemoryStoreError("CORRUPT_ROW");
-	const grounded = checkGroundedClaim(
-		{
-			promotion: {
-				candidateId: candidate.candidateId,
-				evidenceCount: candidate.evidence.length,
-				conversationIds: candidate.conversationIds,
-			},
-			sourceRunId: input.sourceRunId,
-		},
-		{
-			requireRunId: true,
-			minConversations: ownValue(input, "minConversations") ?? 2,
-		},
-		{ principal, scopeKey },
-	);
-	if (!grounded.ok) {
-		return { status: "rejected", reasonCode: grounded.reasonCode };
-	}
-	if (hasTombstonedRef(db, candidate.evidence)) {
-		return { status: "rejected", reasonCode: "SOURCE_TOMBSTONED" };
-	}
-	const value = candidate.value;
-	const replaces = ownValue(input, "replaces");
-	let target = null;
-	if (replaces !== undefined) {
-		const found = loadItem(db, principal, scopeKey, replaces.itemId);
-		if (found.status !== "found") return { status: found.status };
-		target = found.row;
-		if (
-			isUserOrigin(target.view.origin) &&
-			!stateValueEquals(target.view.value, value)
-		) {
-			return { status: "rejected", reasonCode: "USER_TEXT_PROTECTED" };
-		}
-	}
-	const active = loadActiveForKey(
-		db,
-		principal,
-		scopeKey,
-		candidate.subject,
-		candidate.kind,
-		candidate.semanticKey,
-	);
-	while (
-		isTombstoned(db, "state_item", stateItemId(principal, scopeKey, seq))
-	) {
-		seq = issueSeq(db);
-	}
-	const identity = {
-		itemId: stateItemId(principal, scopeKey, seq),
-		subject: candidate.subject,
-		kind: candidate.kind,
-		semanticKey: candidate.semanticKey,
-	};
-	const transition: StateTransitionRequest = {
-		action: target === null ? "assert" : "supersede",
-		expectedRevision: replaces?.revision ?? null,
-		identity,
-		value,
-		origin: "agent_inferred",
-		evidenceOrdinal: readInteger(loaded.row, "evidence_ordinal"),
-		cause: { type: "user", id: principal },
-	};
-	const atMs = input.clock.atMs;
-	const result = applyStateTransition(target?.view ?? null, transition, {
-		atMs,
-		activeForKey: active?.view ?? null,
-	});
-	if (!result.ok) {
-		return { status: "rejected", reasonCode: result.reasonCode };
-	}
-	const spans = candidate.evidence.map((source) => ({ source }));
-	const change = ownValue(input, "change");
-	const ctx: WriteContext = {
-		principal,
-		scopeKey,
-		seq,
-		atMs,
-		sourceRunId: input.sourceRunId,
-		promoted: true,
-		...(change === undefined ? {} : { change }),
-	};
-	let itemId: string;
-	let status: "promoted" | "unchanged";
-	if (result.items.length === 0) {
-		// 同じ値の active が既にある: item は変えず、候補の根拠を足して候補を昇格済みにする。
-		const existingId = target?.view.itemId ?? active?.view.itemId;
-		if (existingId === undefined) throw new MemoryStoreError("CORRUPT_ROW");
-		itemId = existingId;
-		appendEvidence(db, ctx, itemId, spans);
-		status = "unchanged";
-	} else {
-		const view = result.items[result.items.length - 1];
-		if (view === undefined) throw new MemoryStoreError("CORRUPT_ROW");
-		itemId = view.itemId;
-		persist(
-			db,
-			ctx,
-			result,
-			{ evidence: spans, validFromMs: null, validUntilMs: null },
-			null,
-		);
-		status = "promoted";
-	}
-	addDependency(db, {
-		principal,
-		scopeKey,
-		dependentType: "state_item",
-		dependentId: itemId,
-		dependencyType: "candidate",
-		dependencyId: candidate.candidateId,
-		role: "derived_from",
-	});
-	run(
-		db,
-		`UPDATE memory_inferred_candidate
-		SET status = 'promoted', promoted_item_id = ?, promoted_run_id = ?, updated_seq = ?
-		WHERE candidate_id = ?`,
-		[itemId, input.sourceRunId, seq, candidate.candidateId],
-	);
-	return {
-		status,
-		item: readFullItem(db, principal, scopeKey, itemId),
-		candidate: readCandidateById(
-			db,
-			principal,
-			scopeKey,
-			candidate.candidateId,
-		),
-	};
 }
 
 // ---- 忘却（lifecycle の閉包適用が呼ぶ。reducer を通さない）----

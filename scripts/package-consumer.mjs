@@ -22,8 +22,6 @@ import {
 	applyExclusion,
 	listStateByTime,
 	recordCandidate,
-	promoteCandidate,
-	hasMemoryChangesExcludingRun,
 	planForget,
 	applyForget,
 	reconcileForgetJournal,
@@ -301,7 +299,7 @@ try {
 	];
 	assert.equal(verifyForgetJournal(tamperedJournal).status, "inconsistent");
 	checks.push("host intent journal format 2 and restore");
-	// 記憶の作り直しの部品（版 0.0.5）: 即時の除外、時間軸、記憶の候補と昇格、run を除く変更の照会。
+	// 記憶の作り直しの部品（版 0.0.6）: 即時の除外、時間軸、記憶の候補。
 	const fresh = (id, content) => {
 		const digest = createHash("sha256").update(content).digest("hex");
 		const src = {
@@ -336,13 +334,6 @@ try {
 	};
 	const walk1 = fresh("walk-1", "夜は散歩する");
 	const walk2 = fresh("walk-2", "今夜も散歩した");
-	const cursor = hasMemoryChangesExcludingRun(db, {
-		contractVersion: 1,
-		access,
-		scopeKeys: ["scope"],
-		afterSeq: 0,
-		sourceRunId: "run-a",
-	}).latestSeq;
 	const kept = write(() =>
 		assertUserState(db, {
 			...state,
@@ -355,14 +346,6 @@ try {
 		}),
 	);
 	assert.equal(kept.status, "applied");
-	const after = hasMemoryChangesExcludingRun(db, {
-		contractVersion: 1,
-		access,
-		scopeKeys: ["scope"],
-		afterSeq: cursor,
-		sourceRunId: "run-a",
-	});
-	assert.equal(after.changed, false);
 	const exclusionPlan = planExclusion(db, {
 		contractVersion: 2,
 		access,
@@ -411,16 +394,6 @@ try {
 	const candidate = observe(walk2, "c2");
 	assert.equal(candidate.candidate.observationCount, 2);
 	assert.equal(
-		write(() =>
-			promoteCandidate(db, {
-				...common,
-				candidateId: candidate.candidate.candidateId,
-				sourceRunId: "deep-1",
-			}),
-		).status,
-		"promoted",
-	);
-	assert.equal(
 		checkGroundedClaim(
 			{},
 			{},
@@ -428,7 +401,7 @@ try {
 		).reasonCode,
 		"NO_GROUNDING",
 	);
-	checks.push("exclusion journal format 3, time query, candidate promotion");
+	checks.push("exclusion journal format 3, time query, candidate record");
 	// inTransaction を持たない接続への書き込みは、検査を省かずに拒否する。
 	const bare = { exec: db.exec, query: db.query };
 	assert.throws(

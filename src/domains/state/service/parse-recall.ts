@@ -1,5 +1,5 @@
 /**
- * 記憶の作り直しの部品（時間軸の照会・抑制・強度・記憶の候補・昇格）の入力 parse（純粋）。
+ * 記憶の作り直しの部品（時間軸の照会・抑制・記憶の候補）の入力 parse（純粋）。
  * 違反は MemoryContractError（code と path のみ）。検査済みのコピーを deep-freeze して返す。
  */
 import { deepFreeze } from "../../../canonical/freeze.ts";
@@ -22,31 +22,23 @@ import {
 	CANDIDATE_STATUSES,
 	LIMITS_CANDIDATE,
 	LIMITS_STATE,
-	STATE_CHANGE_KINDS,
 	STATE_KINDS,
 } from "../contracts/index.ts";
 import type {
-	DecayStateStrengthInput,
-	DismissCandidateInput,
 	ListCandidatesInput,
 	ListStateByTimeInput,
 	ListSuppressionsInput,
-	PromoteCandidateInput,
 	ReadCandidateInput,
 	RecordCandidateInput,
-	ReinforceStateStrengthInput,
 	StateMarkTarget,
 	SuppressStateInput,
 } from "../contracts/index.ts";
-import { DEFAULT_STRENGTH_FLOOR } from "../contracts/index.ts";
 import {
 	readEvidence,
 	readHostSources,
-	readRevision,
 	readScopedHeader,
 	readStateSubject,
 	readStateValue,
-	readStrengthValue,
 	readWriteHeader,
 } from "./parse.ts";
 import { isSubjectKindConsistent } from "./reducer.ts";
@@ -212,54 +204,6 @@ export function parseListSuppressionsInput(
 	return deepFreeze({ ...readScopedHeader(record, PATH) });
 }
 
-function readOpenFraction(value: unknown, path: string): number {
-	const number = readStrengthValue(value, path);
-	if (number <= 0) return fail("INVALID_VALUE", path);
-	return number;
-}
-
-export function parseDecayStateStrengthInput(
-	value: unknown,
-): DecayStateStrengthInput {
-	const record = readRecord(value, PATH);
-	checkKeys(record, PATH, [...SCOPED_WRITE_KEYS, "factor", "floor"]);
-	const factor = readOpenFraction(
-		requiredField(record, PATH, "factor"),
-		keyPath(PATH, "factor"),
-	);
-	if (factor >= 1) return fail("INVALID_VALUE", keyPath(PATH, "factor"));
-	const floor = Object.hasOwn(record, "floor")
-		? readStrengthValue(record["floor"], keyPath(PATH, "floor"))
-		: DEFAULT_STRENGTH_FLOOR;
-	return deepFreeze({ ...readWriteHeader(record, PATH), factor, floor });
-}
-
-export function parseReinforceStateStrengthInput(
-	value: unknown,
-): ReinforceStateStrengthInput {
-	const record = readRecord(value, PATH);
-	checkKeys(record, PATH, [...SCOPED_WRITE_KEYS, "itemIds", "amount"]);
-	const idsPath = keyPath(PATH, "itemIds");
-	const itemIds = readArray(
-		requiredField(record, PATH, "itemIds"),
-		idsPath,
-		LIMITS_STATE.maxListItems,
-	).map((element, index) =>
-		readIdentifier(element, indexPath(idsPath, index), LIMITS.maxItemIdBytes),
-	);
-	if (itemIds.length === 0 || new Set(itemIds).size !== itemIds.length) {
-		return fail("INVALID_VALUE", idsPath);
-	}
-	return deepFreeze({
-		...readWriteHeader(record, PATH),
-		itemIds,
-		amount: readOpenFraction(
-			requiredField(record, PATH, "amount"),
-			keyPath(PATH, "amount"),
-		),
-	});
-}
-
 export function parseRecordCandidateInput(
 	value: unknown,
 ): RecordCandidateInput {
@@ -392,82 +336,5 @@ export function parseReadCandidateInput(value: unknown): ReadCandidateInput {
 			keyPath(PATH, "candidateId"),
 			LIMITS.maxItemIdBytes,
 		),
-	});
-}
-
-export function parseDismissCandidateInput(
-	value: unknown,
-): DismissCandidateInput {
-	const record = readRecord(value, PATH);
-	checkKeys(record, PATH, [...SCOPED_WRITE_KEYS, "candidateId", "sourceRunId"]);
-	const sourceRunId = readOptionalRunId(record, PATH);
-	return deepFreeze({
-		...readWriteHeader(record, PATH),
-		candidateId: readIdentifier(
-			requiredField(record, PATH, "candidateId"),
-			keyPath(PATH, "candidateId"),
-			LIMITS.maxItemIdBytes,
-		),
-		...(sourceRunId === undefined ? {} : { sourceRunId }),
-	});
-}
-
-export function parsePromoteCandidateInput(
-	value: unknown,
-): PromoteCandidateInput {
-	const record = readRecord(value, PATH);
-	checkKeys(record, PATH, [
-		...SCOPED_WRITE_KEYS,
-		"candidateId",
-		"sourceRunId",
-		"minConversations",
-		"replaces",
-		"change",
-	]);
-	const minConversations = Object.hasOwn(record, "minConversations")
-		? readSafeInteger(
-				record["minConversations"],
-				keyPath(PATH, "minConversations"),
-				1,
-				LIMITS_CANDIDATE.maxEvidencePerCandidate,
-			)
-		: undefined;
-	let replaces: PromoteCandidateInput["replaces"];
-	if (Object.hasOwn(record, "replaces")) {
-		const replacesPath = keyPath(PATH, "replaces");
-		const raw = readRecord(record["replaces"], replacesPath);
-		checkKeys(raw, replacesPath, ["itemId", "revision"]);
-		replaces = {
-			itemId: readIdentifier(
-				requiredField(raw, replacesPath, "itemId"),
-				keyPath(replacesPath, "itemId"),
-				LIMITS.maxItemIdBytes,
-			),
-			revision: readRevision(
-				requiredField(raw, replacesPath, "revision"),
-				keyPath(replacesPath, "revision"),
-			),
-		};
-	}
-	const change = Object.hasOwn(record, "change")
-		? readEnum(record["change"], keyPath(PATH, "change"), STATE_CHANGE_KINDS)
-		: undefined;
-	if (change !== undefined && replaces === undefined) {
-		return fail("INVALID_VALUE", keyPath(PATH, "change"));
-	}
-	return deepFreeze({
-		...readWriteHeader(record, PATH),
-		candidateId: readIdentifier(
-			requiredField(record, PATH, "candidateId"),
-			keyPath(PATH, "candidateId"),
-			LIMITS.maxItemIdBytes,
-		),
-		sourceRunId: readSourceRunId(
-			requiredField(record, PATH, "sourceRunId"),
-			keyPath(PATH, "sourceRunId"),
-		),
-		...(minConversations === undefined ? {} : { minConversations }),
-		...(replaces === undefined ? {} : { replaces }),
-		...(change === undefined ? {} : { change }),
 	});
 }

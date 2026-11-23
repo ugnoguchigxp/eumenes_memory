@@ -443,8 +443,6 @@ export interface WriteContext {
 	readonly sourceRunId?: string;
 	/** `supersede` の旧版の行に付ける種類（既定 `correction`）。 */
 	readonly change?: StateChangeKind;
-	/** 候補（L1）からの昇格で作った item の行に `promoted` を付ける。 */
-	readonly promoted?: boolean;
 }
 
 export interface NewItemExtras {
@@ -776,11 +774,7 @@ export function persist(
 		const replaced = result.events.some(
 			(event) => event.itemId === view.itemId && event.action === "supersede",
 		);
-		const changeKind = replaced
-			? (ctx.change ?? "correction")
-			: ctx.promoted === true && created?.itemId === view.itemId
-				? ("promoted" as const)
-				: undefined;
+		const changeKind = replaced ? (ctx.change ?? "correction") : undefined;
 		appendMemoryChange(db, {
 			principal: ctx.principal,
 			scopeKey: ctx.scopeKey,

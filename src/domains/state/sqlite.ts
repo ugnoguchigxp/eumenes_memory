@@ -7,10 +7,8 @@ export {
 export type { StateSearchIndexReport } from "./repository/search-index.ts";
 export {
 	candidateScope,
-	dismissCandidate,
 	listCandidateIdsInScope,
 	listCandidates,
-	promoteCandidate,
 	readCandidate,
 	recordCandidate,
 	scrubCandidate,
@@ -18,10 +16,8 @@ export {
 export type { ScrubbedCandidate } from "./repository/candidates.ts";
 export {
 	clearStateMarks,
-	decayStateStrength,
 	listStateByTime,
 	listSuppressions,
-	reinforceStateStrength,
 	releaseStateSuppression,
 	suppressState,
 } from "./repository/marks.ts";

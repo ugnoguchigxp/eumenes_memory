@@ -15,7 +15,6 @@ import {
 	listExclusions,
 	listState,
 	planExclusion,
-	promoteCandidate,
 	recordCandidate,
 	recordExternalDeletion,
 	registerExternalDependents,
@@ -760,19 +759,45 @@ function observeCandidate(
 	return result.candidate;
 }
 
-function promoted(store: TestStore, candidateId: string): string {
+/**
+ * 昇格済みの候補（昇格の API を廃止する前に作られたデータ）を作る。agent_inferred の item を候補の根拠で書き、
+ * item → candidate の `derived_from` の辺と、候補の昇格済みの印を直に置く。
+ */
+function promoted(
+	store: TestStore,
+	candidateId: string,
+	messages: readonly Message[],
+): string {
 	const result = store.write((db) =>
-		promoteCandidate(db, {
+		assertUserState(db, {
 			contractVersion: 1,
 			access: ACCESS,
 			scopeKey: SCOPE,
 			clock: { atMs: 30 },
-			candidateId,
-			sourceRunId: "deep-1",
+			kind: "habit",
+			subject: "self",
+			semanticKey: "evening.walk",
+			value: { text: "夜に散歩する", polarity: "affirmed" },
+			evidence: messages.map(wholeSpan),
+			sources: messages.map(sourceOf),
+			origin: "agent_inferred",
 		}),
 	);
-	if (result.status !== "promoted") throw new Error(JSON.stringify(result));
-	return result.item.itemId;
+	if (result.status !== "applied") throw new Error(JSON.stringify(result));
+	const itemId = result.item.itemId;
+	store.write((db) => {
+		db.query(
+			`INSERT INTO memory_dependency
+				(principal, scope_key, dependent_type, dependent_id, dependency_type, dependency_id, role)
+			VALUES (?, ?, 'state_item', ?, 'candidate', ?, 'derived_from')`,
+		).run(ACCESS.principal, SCOPE, itemId, candidateId);
+		db.query(
+			`UPDATE memory_inferred_candidate
+			SET status = 'promoted', promoted_item_id = ?, promoted_run_id = 'deep-1'
+			WHERE candidate_id = ?`,
+		).run(itemId, candidateId);
+	});
+	return itemId;
 }
 
 /** plan → （ジャーナルへ追記した体で）apply。entry を返す。 */
@@ -890,7 +915,7 @@ describe("exclusion, candidates and suppression through the closure and recovery
 		const first = observeCandidate(store, M1, "c1");
 		const second = observeCandidate(store, M2, "c2");
 		expect(second.candidateId).toBe(first.candidateId);
-		const promotedItem = promoted(store, first.candidateId);
+		const promotedItem = promoted(store, first.candidateId, [M1, M2]);
 		expect(tablesContain(store, "夜に散歩する")).toBe(true);
 		const { plan } = forgetRecord(store, {
 			type: "host_source",
@@ -929,7 +954,7 @@ describe("exclusion, candidates and suppression through the closure and recovery
 		const { store, itemId } = scene();
 		const candidate = observeCandidate(store, M1, "c1");
 		observeCandidate(store, M2, "c2");
-		const promotedItem = promoted(store, candidate.candidateId);
+		const promotedItem = promoted(store, candidate.candidateId, [M1, M2]);
 		excludeTargets(store, "exclude", [
 			{
 				type: "candidate",

@@ -264,8 +264,7 @@ export interface AssertUserStateInput extends ScopedWrite {
 	/** 既存 active を置き換える場合は必須。無いのに active が存在すれば `ACTIVE_EXISTS`。 */
 	readonly replaces?: { readonly itemId: string; readonly revision: number };
 	/**
-	 * この変更を起こした run の ID。変更フィードの行に残り、`hasMemoryChangesExcludingRun` が「自分の run の変更を除いて
-	 * 変更があったか」を答える。省略した変更は run 不明（他の run の変更として数える）。挙動は省略時と変わらない。
+	 * この変更を起こした run の ID。変更フィードの行に残る。省略した変更は run 不明。挙動は省略時と変わらない。
 	 */
 	readonly sourceRunId?: string;
 	/**
@@ -485,30 +484,6 @@ export type ListSuppressionsResult =
 
 /** 推定由来の記録を既定の検索・文脈から外す強度の目安（`minStrength` に渡す。本体は自動では適用しない）。 */
 export const DEFAULT_WEAK_STRENGTH = 0.2;
-/** `decayStateStrength` の下限の既定（これ以下には下げない）。 */
-export const DEFAULT_STRENGTH_FLOOR = 0.05;
-
-/**
- * 減衰: scope の active な item の強度に `factor`（0 より大きく 1 未満）を掛ける（`floor` を下回らない）。順位の重みだけを
- * 変える。item の値・status・revision・変更フィードは変えない。本人由来の記録も重みは下がるが、検索・一覧から外れない。
- */
-export interface DecayStateStrengthInput extends ScopedWrite {
-	readonly factor: number;
-	readonly floor?: number;
-}
-
-/**
- * 強化: 回答・行動に使われた item の強度を `amount`（0 より大きく 1 以下）だけ上げる（上限 1）。
- * 存在しない・他 scope・忘却済みの ID は黙って数えない。
- */
-export interface ReinforceStateStrengthInput extends ScopedWrite {
-	readonly itemIds: readonly string[];
-	readonly amount: number;
-}
-
-export type StateStrengthResult =
-	| { readonly status: "ok"; readonly updated: number }
-	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
 
 // ---- 根拠必須の検査（純粋）----
 
@@ -555,7 +530,7 @@ export type GroundedCheckResult =
 /**
  * 推定・観測の候補（設計 §4.5）。`origin` は `agent_inferred` だけ。根拠（出典の範囲。発言、または外部のメモの参照）は
  * 1 件以上必須で、観測の回数は distinct な根拠の件数、観測した会話は根拠に付いた会話 ID の distinct な一覧。
- * 候補は `context`・`searchState`・`listState` に現れない（睡眠の層の入力）。忘却の閉包の対象で、根拠の出典を忘れると消える。
+ * 候補は `context`・`searchState`・`listState` に現れない。忘却の閉包の対象で、根拠の出典を忘れると消える。
  */
 export const CANDIDATE_STATUSES = Object.freeze([
 	"open",
@@ -601,8 +576,6 @@ export const CANDIDATE_REASON_CODES = Object.freeze([
 	"SOURCE_STALE",
 	"SOURCE_TOMBSTONED",
 	"EVIDENCE_LIMIT_EXCEEDED",
-	/** 候補が open でない（昇格済み・却下済み）。 */
-	"CANDIDATE_NOT_OPEN",
 ] as const);
 export type CandidateReasonCode = (typeof CANDIDATE_REASON_CODES)[number];
 
@@ -666,54 +639,5 @@ export interface ReadCandidateInput extends ScopedRead {
 
 export type ReadCandidateResult =
 	| { readonly status: "ok"; readonly candidate: InferredCandidate }
-	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode }
-	| { readonly status: MissingStatus };
-
-export interface DismissCandidateInput extends ScopedWrite {
-	readonly candidateId: string;
-	readonly sourceRunId?: string;
-}
-
-/** open → dismissed（重複の統合・不採用）。dismissed への再操作は `unchanged`、昇格済みは `CANDIDATE_NOT_OPEN`。 */
-export type DismissCandidateResult =
-	| {
-			readonly status: "applied" | "unchanged";
-			readonly candidate: InferredCandidate;
-	  }
-	| { readonly status: "rejected"; readonly reasonCode: CandidateReasonCode }
-	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode }
-	| { readonly status: MissingStatus };
-
-// ---- 昇格（候補 → 長期記憶）----
-
-/**
- * 候補（L1）から長期記憶（State、L2）への昇格。昇格した item は `agent_inferred`（本人の確認ではない）で、根拠は
- * 候補の根拠の一覧（複数の会話）をそのまま引き継ぐ。item は候補に `derived_from` で依存する（候補を忘れると item も消える）。
- * - 根拠の検査: `GroundedClaim` の昇格の記録として検査する（`sourceRunId` 必須、独立した会話の数が `minConversations`
- *   〔既定 2〕以上、根拠の出典が墓標でない）。通らなければ `rejected`。
- * - 同じ事実に active があり、値が同じ: item は変えず（revision も増えない）、候補を昇格済みにして根拠を足す（`unchanged`）。
- * - 値が違う: `replaces`（CAS）が要る。置き換え対象が本人由来なら `USER_TEXT_PROTECTED` で拒否する
- *   （本人の記録の本文は整理で書き換えない）。置き換えた旧版の変更フィードの行に `changeKind`（`change`、既定 `correction`）が付く。
- */
-export interface PromoteCandidateInput extends ScopedWrite {
-	readonly candidateId: string;
-	readonly sourceRunId: string;
-	readonly minConversations?: number;
-	readonly replaces?: { readonly itemId: string; readonly revision: number };
-	readonly change?: StateChangeKind;
-}
-
-export type PromoteReasonCode =
-	| GroundedReasonCode
-	| CandidateReasonCode
-	| StateReasonCode;
-
-export type PromoteCandidateResult =
-	| {
-			readonly status: "promoted" | "unchanged";
-			readonly item: StateItem;
-			readonly candidate: InferredCandidate;
-	  }
-	| { readonly status: "rejected"; readonly reasonCode: PromoteReasonCode }
 	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode }
 	| { readonly status: MissingStatus };

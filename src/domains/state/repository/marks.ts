@@ -1,5 +1,5 @@
 /**
- * 抑制（話題に出さない）・強度（順位の重み）・時間軸の照会。契約は `src/domains/state/contracts/index.ts`。
+ * 抑制（話題に出さない）・時間軸の照会。契約は `src/domains/state/contracts/index.ts`。
  * 書き込みはホストの write transaction の中で 1 回呼ぶ（入口は `enterWrite`）。除外の印は Lifecycle が journal 経由で書く
  * （`memory_exclusion`）ので、ここは読み出しでだけ外す。
  */
@@ -23,23 +23,18 @@ import {
 } from "../../../infrastructure/sqlite/session.ts";
 import { LIMITS_STATE, STATE_KINDS } from "../contracts/index.ts";
 import type {
-	DecayStateStrengthInput,
 	ListStateByTimeInput,
 	ListStateByTimeResult,
 	ListSuppressionsInput,
 	ListSuppressionsResult,
-	ReinforceStateStrengthInput,
 	StateMarkTarget,
-	StateStrengthResult,
 	SuppressStateInput,
 	SuppressStateResult,
 	TimedStateItem,
 } from "../contracts/index.ts";
 import {
-	parseDecayStateStrengthInput,
 	parseListStateByTimeInput,
 	parseListSuppressionsInput,
-	parseReinforceStateStrengthInput,
 	parseSuppressStateInput,
 } from "../service/parse-recall.ts";
 import {
@@ -261,66 +256,6 @@ export function clearStateMarks(
 			);
 		}
 	}
-}
-
-// ---- 強度 ----
-
-/**
- * 減衰: scope の active な item の強度に `factor` を掛ける（`floor` を下回らない）。順位の重みだけを変え、item の値・
- * status・revision・変更フィードは変えない。冪等ではない（呼ぶたびに掛ける）。呼ぶ頻度はホストが決める。
- */
-export function decayStateStrength(
-	db: MemoryDb,
-	rawInput: DecayStateStrengthInput,
-): StateStrengthResult {
-	const input = parseDecayStateStrengthInput(rawInput);
-	enterWrite(db);
-	if (!isPermitted(input.access, input.scopeKey)) {
-		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
-	}
-	const floor = ownValue(input, "floor") ?? 0;
-	const rows = guarded(() =>
-		db
-			.query(
-				`UPDATE memory_state_item
-				SET strength = MAX(strength * ?, ?)
-				WHERE principal = ? AND scope_key = ? AND status = 'active' AND strength > ?
-				RETURNING item_id`,
-			)
-			.all(input.factor, floor, input.access.principal, input.scopeKey, floor),
-	);
-	return { status: "ok", updated: rows.length };
-}
-
-/** 強化: 使われた item の強度を `amount` だけ上げる（上限 1）。 */
-export function reinforceStateStrength(
-	db: MemoryDb,
-	rawInput: ReinforceStateStrengthInput,
-): StateStrengthResult {
-	const input = parseReinforceStateStrengthInput(rawInput);
-	enterWrite(db);
-	if (!isPermitted(input.access, input.scopeKey)) {
-		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
-	}
-	const params: SqlValue[] = [
-		input.amount,
-		input.access.principal,
-		input.scopeKey,
-		...input.itemIds,
-	];
-	const rows = guarded(() =>
-		db
-			.query(
-				`UPDATE memory_state_item AS i
-				SET strength = MIN(1.0, strength + ?)
-				WHERE i.principal = ? AND i.scope_key = ? AND i.status <> 'forgotten'
-					AND i.strength < 1.0 AND i.item_id IN (${placeholders(input.itemIds.length)})
-					AND ${NO_TOMBSTONE}
-				RETURNING item_id`,
-			)
-			.all(...params),
-	);
-	return { status: "ok", updated: rows.length };
 }
 
 // ---- 時間軸の照会 ----

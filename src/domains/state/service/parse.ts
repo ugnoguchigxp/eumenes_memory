@@ -248,7 +248,7 @@ function readOrigin(record: Rec, path: string) {
 	);
 }
 
-export function readRevision(value: unknown, path: string): number {
+function readRevision(value: unknown, path: string): number {
 	return readSafeInteger(value, path, 1, Number.MAX_SAFE_INTEGER);
 }
 
@@ -738,7 +738,7 @@ export function parseSearchStateInput(value: unknown): SearchStateInput {
 }
 
 /** 強度・閾値・係数に使う有限の数（0 以上 1 以下）。 */
-export function readStrengthValue(value: unknown, path: string): number {
+function readStrengthValue(value: unknown, path: string): number {
 	if (typeof value !== "number") return fail("INVALID_TYPE", path);
 	if (!Number.isFinite(value) || value < 0 || value > 1) {
 		return fail("INVALID_VALUE", path);
