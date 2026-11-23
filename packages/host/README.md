@@ -5,7 +5,7 @@ Bun 1.4.4以降、SQLite 3.44以上（FTS5有効）、macOS/Linux向け。同じ
 ## 配布物から開始
 
 ```sh
-bun add /absolute/path/eumenes-memory-host-0.2.1.tgz
+bun add /absolute/path/eumenes-memory-host-0.2.2.tgz
 bunx --no-install eumenes-memory init /tmp/my-memory
 bunx --no-install eumenes-memory serve /tmp/my-memory
 # 別の端末
@@ -87,6 +87,8 @@ serveは専用の前景プロセスです。MCP接続が終わっても所有者
 旧ホストを停止し、DBと最新の忘却journalを揃えてバックアップしてください。0.2.0は起動時に、ホストのスキーマを1から2へ所有者のトランザクション内で移行します。既存のStateと出典を引き継ぎます。本体は同梱の`eumenes-memory@0.0.4`、本体DBスキーマは8、wire版は1です。移行後のDBは旧ホストでは開けません。journalは最新のものを保持してください。agencyの`profile.md`や`agenda-state.json`は別途移行が必要です。
 
 0.2.1は同梱の本体を`eumenes-memory@0.0.5`（本体DBスキーマ10）に更新しました。起動時にmigration 0010（除外・抑制・記憶の候補・強度・変更フィードの列）を適用します。0010を適用したDBは0.2.0以前のホストでは開けません。ホストの操作と挙動は0.2.0のままです（0010の部品はホストからは公開していません）。
+
+0.2.2は同梱の本体を`eumenes-memory@0.0.6`（本体DBスキーマ10）に更新しました。本体から候補の昇格・却下、強度の減衰・強化、自分のrunを除く変更の照会を取り除いた版で、ホストの操作・挙動・DBは0.2.1のままです（これらはホストからは使っていません）。
 
 ## 自然文CLI
 
