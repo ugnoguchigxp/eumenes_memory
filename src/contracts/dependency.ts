@@ -7,17 +7,22 @@ export const DEPENDENCY_ROLES = Object.freeze([
 ] as const);
 export type DependencyRole = (typeof DEPENDENCY_ROLES)[number];
 
-/** 依存する側。`external` は外部ドメインの派生物（`ExternalDependent`）。 */
+/** 依存する側。`candidate` は記憶の候補（L1）、`external` は外部ドメインの派生物（`ExternalDependent`）。 */
 export const DEPENDENT_NODE_TYPES = Object.freeze([
 	"state_item",
+	"candidate",
 	"external",
 ] as const);
 export type DependentNodeType = (typeof DEPENDENT_NODE_TYPES)[number];
 
-/** 依存される側。`source` の id は `SourceKey`（会話 message と Records の両方）。 */
+/**
+ * 依存される側。`source` の id は `SourceKey`（会話 message と Records の両方）。`candidate` は記憶の候補（L1）で、
+ * 候補から昇格した state_item が `derived_from` で依存する。
+ */
 export const DEPENDENCY_NODE_TYPES = Object.freeze([
 	"source",
 	"state_item",
+	"candidate",
 ] as const);
 export type DependencyNodeType = (typeof DEPENDENCY_NODE_TYPES)[number];
 
@@ -26,6 +31,7 @@ export const TOMBSTONE_TARGET_TYPES = Object.freeze([
 	"record",
 	"source",
 	"state_item",
+	"candidate",
 	"external",
 ] as const);
 export type TombstoneTargetType = (typeof TOMBSTONE_TARGET_TYPES)[number];

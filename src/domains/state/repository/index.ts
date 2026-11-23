@@ -24,6 +24,7 @@ import {
 	STATE_ITEM_STATUSES,
 	STATE_KINDS,
 	STATE_ORIGINS,
+	USER_STATE_ORIGINS,
 } from "../contracts/index.ts";
 import type {
 	AssertUserStateInput,
@@ -34,6 +35,7 @@ import type {
 	SearchStateInput,
 	SearchStateResult,
 	StateCause,
+	StateChangeKind,
 	StateEventDraft,
 	StateItem,
 	StateItemStatus,
@@ -73,6 +75,13 @@ import {
 } from "../service/reducer.ts";
 import type { StateTransitionRequest } from "../service/reducer.ts";
 import { appendMemoryChange } from "../../../infrastructure/sqlite/changes.ts";
+import {
+	excludedSql,
+	stateFactKey,
+	suppressedSql,
+	USER_ORIGIN_SQL,
+} from "../../../infrastructure/sqlite/marks.ts";
+import { stateValueEquals } from "../service/value.ts";
 import { addDependency } from "../../../infrastructure/sqlite/dependency.ts";
 import {
 	guarded,
@@ -80,6 +89,7 @@ import {
 	readInteger,
 	readNullableInteger,
 	readNullableText,
+	readRow,
 	readText,
 } from "../../../infrastructure/sqlite/db.ts";
 import type { MemoryDb, SqlValue } from "../../../infrastructure/sqlite/db.ts";
@@ -94,22 +104,34 @@ import { syncStateSearch } from "./search-index.ts";
 
 // ---- 行の読み取り ----
 
-interface ItemRow {
+export interface ItemRow {
 	readonly view: StateItemView;
 	readonly validFromMs: number | null;
 	readonly validUntilMs: number | null;
 	readonly validity?: ValidityPeriod;
 	readonly createdSeq: number;
 	readonly updatedSeq: number;
+	readonly strength: number;
+	readonly suppressed: boolean;
+	readonly excluded: boolean;
 }
 
-const ITEM_COLUMNS = `i.item_id, i.subject, i.kind, i.semantic_key, i.status, i.revision,
+export const ITEM_COLUMNS = `i.item_id, i.subject, i.kind, i.semantic_key, i.status, i.revision,
 	i.value_text, i.polarity, i.origin, i.evidence_ordinal, i.valid_from_ms,
 	i.valid_until_ms, i.valid_from_text, i.valid_until_text, i.valid_basis,
-	i.created_seq, i.updated_seq`;
+	i.created_seq, i.updated_seq, i.strength,
+	${suppressedSql("i")} AS suppressed, ${excludedSql("i")} AS excluded`;
 
-const NO_TOMBSTONE = `NOT EXISTS (SELECT 1 FROM memory_tombstone t
+export const NO_TOMBSTONE = `NOT EXISTS (SELECT 1 FROM memory_tombstone t
 	WHERE t.target_type = 'state_item' AND t.target_id = i.item_id)`;
+
+function readStrength(row: unknown): number {
+	const value = readRow(row)["strength"];
+	if (typeof value !== "number" || !(value >= 0 && value <= 1)) {
+		throw new MemoryStoreError("CORRUPT_ROW");
+	}
+	return value;
+}
 
 function readEnumText<T extends string>(
 	row: unknown,
@@ -164,10 +186,13 @@ function readItemRow(
 		...readValidityColumns(row),
 		createdSeq: readInteger(row, "created_seq"),
 		updatedSeq: readInteger(row, "updated_seq"),
+		strength: readStrength(row),
+		suppressed: readInteger(row, "suppressed") === 1,
+		excluded: readInteger(row, "excluded") === 1,
 	};
 }
 
-function placeholders(count: number): string {
+export function placeholders(count: number): string {
 	return Array.from({ length: count }, () => "?").join(", ");
 }
 
@@ -237,7 +262,7 @@ function loadEvidence(
 }
 
 /** 行を `StateItem`（evidence・attributes つき）にまとめる。 */
-function hydrate(
+export function hydrate(
 	db: MemoryDb,
 	scopeKey: string,
 	rows: readonly unknown[],
@@ -257,16 +282,19 @@ function hydrate(
 			...(parsed.validity === undefined ? {} : { validity: parsed.validity }),
 			createdSeq: parsed.createdSeq,
 			updatedSeq: parsed.updatedSeq,
+			...(parsed.strength === 1 ? {} : { strength: parsed.strength }),
+			...(parsed.suppressed ? { suppressed: true as const } : {}),
+			...(parsed.excluded ? { excluded: true as const } : {}),
 		};
 	});
 }
 
-type LoadedItem =
+export type LoadedItem =
 	| { readonly status: "found"; readonly row: ItemRow }
 	| { readonly status: "missing" | "forgotten" };
 
 /** scope 内の item を 1 件読む（reducer 用）。他 scope・存在しない → missing、墓標あり／forgotten → forgotten。 */
-function loadItem(
+export function loadItem(
 	db: MemoryDb,
 	principal: string,
 	scopeKey: string,
@@ -288,7 +316,7 @@ function loadItem(
 	return { status: "found", row: parsed };
 }
 
-function loadActiveForKey(
+export function loadActiveForKey(
 	db: MemoryDb,
 	principal: string,
 	scopeKey: string,
@@ -382,7 +410,7 @@ function subjectItemOf(
 	return view;
 }
 
-function readFullItem(
+export function readFullItem(
 	db: MemoryDb,
 	principal: string,
 	scopeKey: string,
@@ -406,14 +434,20 @@ function readFullItem(
 
 // ---- 書き込み ----
 
-interface WriteContext {
+export interface WriteContext {
 	readonly principal: string;
 	readonly scopeKey: string;
 	readonly seq: number;
 	readonly atMs: number;
+	/** 変更フィードの行に残す、変更を起こした run の ID。 */
+	readonly sourceRunId?: string;
+	/** `supersede` の旧版の行に付ける種類（既定 `correction`）。 */
+	readonly change?: StateChangeKind;
+	/** 候補（L1）からの昇格で作った item の行に `promoted` を付ける。 */
+	readonly promoted?: boolean;
 }
 
-interface NewItemExtras {
+export interface NewItemExtras {
 	readonly evidence: readonly Pick<EvidenceSpan, "source">[];
 	readonly validFromMs: number | null;
 	readonly validUntilMs: number | null;
@@ -453,7 +487,7 @@ function readValidityColumns(row: unknown): { validity?: ValidityPeriod } {
 	}
 }
 
-function run(db: MemoryDb, sql: string, params: SqlValue[]): void {
+export function run(db: MemoryDb, sql: string, params: SqlValue[]): void {
 	guarded(() => db.query(sql).run(...params));
 }
 
@@ -496,7 +530,7 @@ function sameAttributes(
 	});
 }
 
-function insertEvidence(
+export function insertEvidence(
 	db: MemoryDb,
 	ctx: WriteContext,
 	itemId: string,
@@ -553,7 +587,7 @@ function itemExists(db: MemoryDb, itemId: string): boolean {
  * 既存の evidence の後ろに追記する（同じ出典・同じ範囲は足さない）。origin の格上げで、確認に使った出典を
  * 根拠と依存辺に残すため（その出典の忘却が item に届くように）。格上げは item ごとに一度なので件数は有界。
  */
-function appendEvidence(
+export function appendEvidence(
 	db: MemoryDb,
 	ctx: WriteContext,
 	itemId: string,
@@ -712,7 +746,7 @@ function writeEvent(
  * reducer の結果を書く。items の順（旧 → 新）に書くので、同 key の active 一意 index を壊さない。
  * 変更があれば item ごとに変更フィードへ追記する。
  */
-function persist(
+export function persist(
 	db: MemoryDb,
 	ctx: WriteContext,
 	result: Extract<StateTransitionResult, { ok: true }>,
@@ -737,7 +771,16 @@ function persist(
 		db,
 		result.items.map((view) => view.itemId),
 	);
+	const created = result.events.find((event) => event.action === "assert");
 	for (const view of result.items) {
+		const replaced = result.events.some(
+			(event) => event.itemId === view.itemId && event.action === "supersede",
+		);
+		const changeKind = replaced
+			? (ctx.change ?? "correction")
+			: ctx.promoted === true && created?.itemId === view.itemId
+				? ("promoted" as const)
+				: undefined;
 		appendMemoryChange(db, {
 			principal: ctx.principal,
 			scopeKey: ctx.scopeKey,
@@ -747,16 +790,23 @@ function persist(
 			revision: String(view.revision),
 			status: view.status,
 			forgetId: null,
+			...(ctx.sourceRunId === undefined
+				? {}
+				: { sourceRunId: ctx.sourceRunId }),
+			...(changeKind === undefined ? {} : { changeKind }),
+			...(replaced && created !== undefined
+				? { successorId: created.itemId }
+				: {}),
 		});
 	}
 }
 
-function isPermitted(access: AccessContext, scopeKey: string): boolean {
+export function isPermitted(access: AccessContext, scopeKey: string): boolean {
 	return access.scopeKeys.includes(scopeKey);
 }
 
 /** 墓標のある出典（SourceKey、または Memory の record）を根拠にできない。 */
-function hasTombstonedSource(
+export function hasTombstonedSource(
 	db: MemoryDb,
 	evidence: readonly EvidenceSpan[],
 ): boolean {
@@ -772,9 +822,12 @@ function hasTombstonedSource(
 }
 
 /** 明示操作の根拠検査。本文つきの `sources` が入力であり現在状態でもある。 */
-function checkUserEvidence(
+export function checkUserEvidence(
 	db: MemoryDb,
-	input: AssertUserStateInput,
+	input: Pick<
+		AssertUserStateInput,
+		"access" | "scopeKey" | "evidence" | "sources"
+	>,
 ):
 	| { readonly ok: false; readonly reasonCode: StateReasonCode }
 	| { readonly ok: true; readonly ordinal: number } {
@@ -848,11 +901,23 @@ export function assertUserState(
 		if (loaded.status !== "found") return { status: loaded.status };
 		target = loaded.row;
 	}
+	const change = ownValue(parsed, "change");
+	if (
+		change === "consolidation" &&
+		target !== null &&
+		isUserOrigin(target.view.origin) &&
+		!stateValueEquals(target.view.value, parsed.value)
+	) {
+		return { status: "rejected", reasonCode: "USER_TEXT_PROTECTED" };
+	}
+	const sourceRunId = ownValue(parsed, "sourceRunId");
 	const ctx: WriteContext = {
 		principal,
 		scopeKey,
 		seq,
 		atMs: parsed.clock.atMs,
+		...(sourceRunId === undefined ? {} : { sourceRunId }),
+		...(change === undefined ? {} : { change }),
 	};
 	const identity = {
 		itemId: stateItemId(principal, scopeKey, seq),
@@ -914,6 +979,10 @@ export function assertUserState(
 	};
 }
 
+function isUserOrigin(origin: string): boolean {
+	return (USER_STATE_ORIGINS as readonly string[]).includes(origin);
+}
+
 function changeStatus(
 	db: MemoryDb,
 	input: StateTargetInput,
@@ -937,11 +1006,13 @@ function changeStatus(
 		view.kind,
 		view.semanticKey,
 	);
+	const sourceRunId = ownValue(parsed, "sourceRunId");
 	const ctx: WriteContext = {
 		principal,
 		scopeKey,
 		seq,
 		atMs: parsed.clock.atMs,
+		...(sourceRunId === undefined ? {} : { sourceRunId }),
 	};
 	const result = applyStateTransition(
 		view,
@@ -1028,6 +1099,13 @@ export function searchState(
 		filter += " AND i.subject = ?";
 		filterParams.push(subject);
 	}
+	// 除外された item は常に外す。推定由来だけ、強度の閾値で外す（本人由来は常に残す）。
+	filter += ` AND NOT ${excludedSql("i")}`;
+	const minStrength = ownValue(parsed, "minStrength");
+	if (minStrength !== undefined) {
+		filter += ` AND (i.origin IN ${USER_ORIGIN_SQL} OR i.strength >= ?)`;
+		filterParams.push(minStrength);
+	}
 	const { indexed, scanned } = parsed.terms;
 	const fetch = parsed.limit + 1;
 	let rows: unknown[];
@@ -1045,7 +1123,7 @@ export function searchState(
 					JOIN memory_state_search_row r ON r.search_rowid = f.rowid
 					JOIN memory_state_item i ON i.item_id = r.item_id
 					WHERE memory_state_fts MATCH ? AND ${filter}${short}
-					ORDER BY bm25(memory_state_fts), i.updated_seq DESC, i.item_id ASC
+					ORDER BY bm25(memory_state_fts) * i.strength, i.updated_seq DESC, i.item_id ASC
 					LIMIT ?`,
 				)
 				.all(
@@ -1077,7 +1155,7 @@ export function searchState(
 					FROM memory_state_item i
 					JOIN memory_state_search_doc d ON d.item_id = i.item_id
 					WHERE ${filter}${short}
-					ORDER BY i.updated_seq DESC, i.item_id ASC
+					ORDER BY i.strength DESC, i.updated_seq DESC, i.item_id ASC
 					LIMIT ?`,
 				)
 				.all(...filterParams, ...scanned, fetch),
@@ -1127,6 +1205,17 @@ export function listState(
 		cursorClause =
 			" AND (i.updated_seq < ? OR (i.updated_seq = ? AND i.item_id > ?))";
 		params.push(after.updatedSeq, after.updatedSeq, after.itemId);
+	}
+	if (ownValue(parsed, "includeExcluded") !== true) {
+		cursorClause += ` AND NOT ${excludedSql("i")}`;
+	}
+	if (ownValue(parsed, "suppressed") === "omit") {
+		cursorClause += ` AND NOT ${suppressedSql("i")}`;
+	}
+	const minStrength = ownValue(parsed, "minStrength");
+	if (minStrength !== undefined) {
+		cursorClause += ` AND (i.origin IN ${USER_ORIGIN_SQL} OR i.strength >= ?)`;
+		params.push(minStrength);
 	}
 	const pageSize = limit ?? LIMITS_STATE.maxListItems;
 	params.push(pageSize + 1);
@@ -1190,18 +1279,28 @@ export function readStateFact(
 
 // ---- 忘却（lifecycle の閉包適用が呼ぶ。reducer を通さない）----
 
-function selectFirst(db: MemoryDb, sql: string, params: SqlValue[]): unknown {
+export function selectFirst(
+	db: MemoryDb,
+	sql: string,
+	params: SqlValue[],
+): unknown {
 	const row = guarded(() => db.query(sql).get(...params));
 	return row === undefined ? null : row;
 }
 
-function selectAll(db: MemoryDb, sql: string, params: SqlValue[]): unknown[] {
+export function selectAll(
+	db: MemoryDb,
+	sql: string,
+	params: SqlValue[],
+): unknown[] {
 	return guarded(() => db.query(sql).all(...params));
 }
 
 export interface ScrubbedStateItem {
 	/** 行が principal のものなら scope。行がない／他 principal の行なら null（何も書かない）。 */
 	readonly scopeKey: string | null;
+	/** 消す前の事実キー（抑制の印の後始末用）。初めて forgotten になるときだけ。 */
+	readonly factKey: string | null;
 	/** 今回 `forgotten` に遷移したか（既に forgotten なら false）。 */
 	readonly transitioned: boolean;
 }
@@ -1219,14 +1318,21 @@ export function scrubStateItem(
 ): ScrubbedStateItem {
 	const row = selectFirst(
 		db,
-		"SELECT principal, scope_key, status FROM memory_state_item WHERE item_id = ?",
+		"SELECT principal, scope_key, status, subject, kind, semantic_key FROM memory_state_item WHERE item_id = ?",
 		[itemId],
 	);
 	if (row === null || readText(row, "principal") !== principal) {
-		return { scopeKey: null, transitioned: false };
+		return { scopeKey: null, factKey: null, transitioned: false };
 	}
 	const scopeKey = readText(row, "scope_key");
 	const transitioned = readText(row, "status") !== "forgotten";
+	const factKey = transitioned
+		? stateFactKey(
+				readText(row, "subject"),
+				readText(row, "kind"),
+				readText(row, "semantic_key"),
+			)
+		: null;
 	run(db, "DELETE FROM memory_state_attribute WHERE item_id = ?", [itemId]);
 	run(db, "DELETE FROM memory_state_evidence WHERE item_id = ?", [itemId]);
 	run(
@@ -1256,7 +1362,7 @@ export function scrubStateItem(
 			[issueSeq(db), itemId, principal, scopeKey],
 		);
 	}
-	return { scopeKey, transitioned };
+	return { scopeKey, factKey, transitioned };
 }
 
 /** scope の state item の ID（`createdBefore` が非 null ならその seq より前に作られたものだけ）。 */

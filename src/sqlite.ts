@@ -4,9 +4,10 @@
  * ホストが渡す `MemoryDb` に対する同期関数と、スキーマ定義（migrations）だけを提供する。
  * 起動手順と運用規則は `src/infrastructure/sqlite/README.md`、migration の追加手順は `src/infrastructure/sqlite/migrations/README.md`。
  *
- * 提供する関数: `listMemoryChanges` / `latestMemoryChangeSeq`、`assertMemorySchema`、`migrations`、`MemoryStoreError`、
- * Records（`captureRecord` / `readRecord` と、再生成可能な資料の `retainRecord` ほか）、State（`assertUserState` / `listState` / `readStateFact` と状態遷移）、
- * Lifecycle（`planForget` / `applyForget` / `reconcileForgetJournal` / `getForgetReceipt` / `recordExternalDeletion`）、
+ * 提供する関数: `listMemoryChanges` / `latestMemoryChangeSeq` / `hasMemoryChangesExcludingRun`、`assertMemorySchema`、`migrations`、`MemoryStoreError`、
+ * Records（`captureRecord` / `readRecord` と、再生成可能な資料の `retainRecord` ほか）、State（`assertUserState` / `listState` / `readStateFact` と状態遷移、
+ * 時間軸の照会 `listStateByTime`、抑制 `suppressState`、強度 `decayStateStrength`、記憶の候補 `recordCandidate` / `promoteCandidate` ほか）、
+ * Lifecycle（`planForget` / `applyForget` / `reconcileForgetJournal` / `getForgetReceipt` / `recordExternalDeletion`、即時の除外 `planExclusion` / `applyExclusion` / `listExclusions`）、
  * ExternalDependent の登録・解除。World / Consolidation は別ドメイン・別リポジトリ（接続部は ExternalDependent と変更フィードだけ）。
  */
 export type {
@@ -32,17 +33,31 @@ export {
 export {
 	assertUserState,
 	deactivateState,
+	decayStateStrength,
+	dismissCandidate,
+	listCandidates,
 	listState,
+	listStateByTime,
+	listSuppressions,
+	promoteCandidate,
 	reactivateState,
+	readCandidate,
 	readStateFact,
 	rebuildStateSearchIndex,
+	recordCandidate,
+	reinforceStateStrength,
+	releaseStateSuppression,
 	retractState,
 	searchState,
+	suppressState,
 	verifyStateSearchIndex,
 } from "./domains/state/sqlite.ts";
 export {
+	applyExclusion,
 	applyForget,
 	getForgetReceipt,
+	listExclusions,
+	planExclusion,
 	planForget,
 	readForgetJournalHead,
 	reconcileForgetJournal,
@@ -51,6 +66,7 @@ export {
 	unregisterExternalDependents,
 } from "./domains/lifecycle/sqlite.ts";
 export {
+	hasMemoryChangesExcludingRun,
 	latestMemoryChangeSeq,
 	listMemoryChanges,
 } from "./infrastructure/sqlite/changes.ts";

@@ -4,7 +4,11 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, copyFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CONTRACT_VERSIONS, verifyForgetJournal } from "eumenes-memory";
+import {
+	CONTRACT_VERSIONS,
+	checkGroundedClaim,
+	verifyForgetJournal,
+} from "eumenes-memory";
 import {
 	migrations,
 	assertMemorySchema,
@@ -14,6 +18,12 @@ import {
 	assertUserState,
 	listState,
 	readStateFact,
+	planExclusion,
+	applyExclusion,
+	listStateByTime,
+	recordCandidate,
+	promoteCandidate,
+	hasMemoryChangesExcludingRun,
 	planForget,
 	applyForget,
 	reconcileForgetJournal,
@@ -291,6 +301,134 @@ try {
 	];
 	assert.equal(verifyForgetJournal(tamperedJournal).status, "inconsistent");
 	checks.push("host intent journal format 2 and restore");
+	// 記憶の作り直しの部品（版 0.0.5）: 即時の除外、時間軸、記憶の候補と昇格、run を除く変更の照会。
+	const fresh = (id, content) => {
+		const digest = createHash("sha256").update(content).digest("hex");
+		const src = {
+			namespace: "conversation",
+			kind: "message",
+			id,
+			representation: "text",
+			revision: `sha256:${digest}`,
+			digest,
+			principal: access.principal,
+			scopeKey: "scope",
+			status: "available",
+			content,
+			ordinal: 10,
+		};
+		const range = { startByte: 0, endByte: Buffer.byteLength(content) };
+		return {
+			src,
+			span: {
+				source: {
+					namespace: src.namespace,
+					kind: src.kind,
+					id,
+					representation: "text",
+					revision: src.revision,
+					digest,
+					range,
+				},
+				quote: content,
+			},
+		};
+	};
+	const walk1 = fresh("walk-1", "夜は散歩する");
+	const walk2 = fresh("walk-2", "今夜も散歩した");
+	const cursor = hasMemoryChangesExcludingRun(db, {
+		contractVersion: 1,
+		access,
+		scopeKeys: ["scope"],
+		afterSeq: 0,
+		sourceRunId: "run-a",
+	}).latestSeq;
+	const kept = write(() =>
+		assertUserState(db, {
+			...state,
+			semanticKey: "walk",
+			kind: "habit",
+			value: { text: "夜は散歩する", polarity: "affirmed" },
+			evidence: [walk1.span],
+			sources: [walk1.src],
+			sourceRunId: "run-a",
+		}),
+	);
+	assert.equal(kept.status, "applied");
+	const after = hasMemoryChangesExcludingRun(db, {
+		contractVersion: 1,
+		access,
+		scopeKeys: ["scope"],
+		afterSeq: cursor,
+		sourceRunId: "run-a",
+	});
+	assert.equal(after.changed, false);
+	const exclusionPlan = planExclusion(db, {
+		contractVersion: 2,
+		access,
+		op: "exclude",
+		targets: [
+			{ type: "state_item", itemId: kept.item.itemId, scopeKey: "scope" },
+		],
+		clock: { atMs: 600 },
+	});
+	assert.equal(exclusionPlan.status, "planned");
+	assert.equal(exclusionPlan.plan.entry.journalFormat, 3);
+	assert.equal(
+		verifyForgetJournal([...intentJournal, exclusionPlan.plan.entry]).status,
+		"ok",
+	);
+	write(() =>
+		applyExclusion(db, {
+			contractVersion: 2,
+			entry: exclusionPlan.plan.entry,
+			clock: { atMs: 600 },
+		}),
+	);
+	assert.equal(listState(db, readCommon).items.length, 0);
+	assert.equal(
+		listState(db, { ...readCommon, includeExcluded: true }).items[0].excluded,
+		true,
+	);
+	assert.equal(
+		listStateByTime(db, { ...readCommon, current: true }).items.length,
+		0,
+	);
+	const observe = (one, conversationId) =>
+		write(() =>
+			recordCandidate(db, {
+				...common,
+				kind: "habit",
+				subject: "self",
+				semanticKey: "walk-candidate",
+				value: { text: "夜は散歩する", polarity: "affirmed" },
+				evidence: [one.span],
+				sources: [one.src],
+				conversationId,
+			}),
+		);
+	observe(walk1, "c1");
+	const candidate = observe(walk2, "c2");
+	assert.equal(candidate.candidate.observationCount, 2);
+	assert.equal(
+		write(() =>
+			promoteCandidate(db, {
+				...common,
+				candidateId: candidate.candidate.candidateId,
+				sourceRunId: "deep-1",
+			}),
+		).status,
+		"promoted",
+	);
+	assert.equal(
+		checkGroundedClaim(
+			{},
+			{},
+			{ principal: access.principal, scopeKey: "scope" },
+		).reasonCode,
+		"NO_GROUNDING",
+	);
+	checks.push("exclusion journal format 3, time query, candidate promotion");
 	// inTransaction を持たない接続への書き込みは、検査を省かずに拒否する。
 	const bare = { exec: db.exec, query: db.query };
 	assert.throws(

@@ -19,6 +19,7 @@
  * 古い DB を復元して reconcile すると外部削除は `pending` に戻る（ホストが `recordExternalDeletion` をやり直す）。
  */
 import { canonicalJson } from "../../../canonical/json.ts";
+import { MEMORY_CHANGE_STATUSES } from "../../../contracts/external.ts";
 import {
 	DEPENDENCY_ROLES,
 	DEPENDENT_NODE_TYPES,
@@ -26,13 +27,16 @@ import {
 	EXTERNAL_DELETION_STATES,
 	GENESIS_JOURNAL_HASH,
 	JOURNAL_FORMAT,
+	JOURNAL_FORMAT_EXCLUSION,
 	JOURNAL_FORMAT_HOST_INTENT,
 } from "../contracts/index.ts";
 import type {
+	ApplyExclusionInput,
 	ApplyForgetInput,
 	ClosureEdge,
 	ClosureNodeRef,
 	ExternalDeletion,
+	ExclusionTarget,
 	ExternalDeletionState,
 	ForgetExternalState,
 	ForgetJournalEntry,
@@ -43,6 +47,10 @@ import type {
 	GetForgetReceiptInput,
 	GetForgetReceiptResult,
 	HostIntentToReapply,
+	ListExclusionsInput,
+	ListExclusionsResult,
+	PlanExclusionInput,
+	PlanExclusionResult,
 	PlanForgetInput,
 	PlanForgetResult,
 	RecordExternalDeletionInput,
@@ -61,8 +69,11 @@ import {
 	verifyForgetJournal,
 } from "../service/journal.ts";
 import {
+	parseApplyExclusionInput,
 	parseApplyForgetInput,
 	parseGetForgetReceiptInput,
+	parseListExclusionsInput,
+	parsePlanExclusionInput,
 	parsePlanForgetInput,
 	parseReconcileForgetJournalInput,
 } from "../service/parse.ts";
@@ -90,7 +101,11 @@ import {
 	enterWrite,
 } from "../../../infrastructure/sqlite/session.ts";
 import {
+	candidateScope,
+	clearStateMarks,
+	listCandidateIdsInScope,
 	listStateItemIdsInScope,
+	scrubCandidate,
 	scrubStateItem,
 	stateItemScope,
 } from "../../state/sqlite.ts";
@@ -240,7 +255,7 @@ function collectClosure(
 
 // ---- forget の対象集合 ----
 
-type DerivedNodeType = "state_item" | "external";
+type DerivedNodeType = "state_item" | "candidate" | "external";
 
 interface DerivedNode {
 	readonly type: DerivedNodeType;
@@ -268,7 +283,7 @@ interface ForgetSet {
 }
 
 function isDerivedType(type: string): type is DerivedNodeType {
-	return type === "state_item" || type === "external";
+	return type === "state_item" || type === "candidate" || type === "external";
 }
 
 function queryIds(
@@ -334,6 +349,14 @@ function resolveForgetSet(
 				});
 				break;
 			}
+			case "candidate": {
+				addStart({
+					type: "candidate",
+					id: target.id,
+					scopeKey: target.scopeKey,
+				});
+				break;
+			}
 			case "scope": {
 				for (const recordId of listRecordIdsInScope(
 					db,
@@ -350,6 +373,14 @@ function resolveForgetSet(
 					createdBefore,
 				)) {
 					addStart({ type: "state_item", id, scopeKey: target.scopeKey });
+				}
+				for (const id of listCandidateIdsInScope(
+					db,
+					principal,
+					target.scopeKey,
+					createdBefore,
+				)) {
+					addStart({ type: "candidate", id, scopeKey: target.scopeKey });
 				}
 				// 外部派生物（辺に作成 seq がないため、再適用ではその forget が墓標を書いた分だけ）。
 				if (createdBefore === null) {
@@ -475,6 +506,14 @@ function hasForeignTarget(
 			) {
 				return true;
 			}
+		} else if (target.type === "candidate") {
+			const owner = candidateScope(db, target.id);
+			if (
+				owner !== null &&
+				(owner.principal !== principal || owner.scopeKey !== target.scopeKey)
+			) {
+				return true;
+			}
 		}
 	}
 	return false;
@@ -494,6 +533,12 @@ function targetOf(input: ForgetTarget): ForgetJournalTarget {
 			};
 		case "state_item":
 			return { type: "state_item", id: input.itemId, scopeKey: input.scopeKey };
+		case "candidate":
+			return {
+				type: "candidate",
+				id: input.candidateId,
+				scopeKey: input.scopeKey,
+			};
 		case "scope":
 			return { type: "scope", id: input.scopeKey, scopeKey: input.scopeKey };
 	}
@@ -661,10 +706,12 @@ function applyEntry(
 	entry: ForgetJournalEntry,
 	atMs: number,
 	opSeq: number,
+	sourceRunId?: string,
 ): ForgetReceipt {
 	if (!isSelfConsistent(entry)) {
 		throw new MemoryStoreError("JOURNAL_ENTRY_INVALID");
 	}
+	const runField = sourceRunId === undefined ? {} : { sourceRunId };
 	for (const target of entry.targets) {
 		if (target.type === "record" && !isRecordId(target.id)) {
 			throw new MemoryStoreError("JOURNAL_ENTRY_INVALID");
@@ -676,6 +723,9 @@ function applyEntry(
 
 	if (hasForeignTarget(db, entry.principal, entry.targets)) {
 		throw new MemoryStoreError("JOURNAL_ENTRY_INVALID");
+	}
+	if (entry.journalFormat === JOURNAL_FORMAT_EXCLUSION) {
+		return applyExclusionEntry(db, entry, atMs, opSeq, sourceRunId);
 	}
 	const head = readJournalHead(db);
 	let isNew = false;
@@ -742,6 +792,7 @@ function applyEntry(
 				revision: null,
 				status: "forgotten",
 				forgetId: entry.forgetId,
+				...runField,
 			});
 		}
 	}
@@ -767,15 +818,30 @@ function applyEntry(
 				revision: null,
 				status: "forgotten",
 				forgetId: entry.forgetId,
+				...runField,
 			});
 		}
 	}
 	// 閉包内の派生行: 値を消し、墓標を書く。
+	const scrubbedItems: {
+		itemId: string;
+		scopeKey: string | null;
+		factKey: string | null;
+	}[] = [];
 	for (const node of set.nodes) {
 		let scopeKey = node.scopeKey;
 		let transitioned = false;
 		if (node.type === "state_item") {
 			const scrubbed = scrubStateItem(db, principal, node.id, opSeq);
+			scopeKey = scrubbed.scopeKey ?? scopeKey;
+			transitioned = scrubbed.transitioned;
+			scrubbedItems.push({
+				itemId: node.id,
+				scopeKey: scrubbed.scopeKey,
+				factKey: scrubbed.factKey,
+			});
+		} else if (node.type === "candidate") {
+			const scrubbed = scrubCandidate(db, principal, node.id, opSeq);
 			scopeKey = scrubbed.scopeKey ?? scopeKey;
 			transitioned = scrubbed.transitioned;
 		}
@@ -810,9 +876,12 @@ function applyEntry(
 				revision: null,
 				status: "forgotten",
 				forgetId: entry.forgetId,
+				...runField,
 			});
 		}
 	}
+	// 忘れた item の除外・抑制の印を消す（閉包削除が済めば、印は要らない）。
+	clearStateMarks(db, principal, scrubbedItems);
 	for (const providerRef of providerRefs) {
 		insertPendingExternal(db, entry.forgetId, providerRef, "", opSeq);
 	}
@@ -848,7 +917,256 @@ export function applyForget(
 ): ForgetReceipt {
 	const input = parseApplyForgetInput(rawInput);
 	const seq = enterWrite(db);
-	return applyEntry(db, input.entry, input.clock.atMs, seq);
+	return applyEntry(
+		db,
+		input.entry,
+		input.clock.atMs,
+		seq,
+		ownValue(input, "sourceRunId"),
+	);
+}
+
+// ---- 即時の除外 ----
+
+function exclusionPresent(
+	db: MemoryDb,
+	principal: string,
+	scopeKey: string,
+	target: { readonly type: string; readonly id: string },
+): boolean {
+	const row = guarded(() =>
+		db
+			.query(
+				`SELECT 1 AS found FROM memory_exclusion
+				WHERE principal = ? AND scope_key = ? AND target_type = ? AND target_id = ?`,
+			)
+			.get(principal, scopeKey, target.type, target.id),
+	);
+	return row !== null && row !== undefined;
+}
+
+function exclusionTombstoned(
+	db: MemoryDb,
+	target: { readonly type: string; readonly id: string },
+): boolean {
+	return isTombstoned(
+		db,
+		target.type === "candidate" ? "candidate" : "state_item",
+		target.id,
+	);
+}
+
+/**
+ * 即時の除外・解除の entry を適用する（format 3）。新規（head の次）だけが除外表を書く。適用済み（seq <= head）の再適用は
+ * 何も書かず receipt を返す（後の解除を打ち消さない）。忘却済み（墓標あり）の対象には除外を足さない。
+ */
+function applyExclusionEntry(
+	db: MemoryDb,
+	entry: ForgetJournalEntry,
+	atMs: number,
+	opSeq: number,
+	sourceRunId: string | undefined,
+): ForgetReceipt {
+	const head = readJournalHead(db);
+	if (entry.seq <= head.seq) {
+		if (selectAppliedForget(db, entry) === null) {
+			throw new MemoryStoreError("JOURNAL_ENTRY_INVALID");
+		}
+		return buildReceipt(db, entry.forgetId);
+	}
+	if (entry.seq !== head.seq + 1 || entry.prevHash !== head.hash) {
+		throw new MemoryStoreError("JOURNAL_ENTRY_INVALID");
+	}
+	const op = entry.exclusionOp;
+	if (op === undefined) throw new MemoryStoreError("JOURNAL_ENTRY_INVALID");
+	for (const target of entry.targets) {
+		const present = exclusionPresent(
+			db,
+			entry.principal,
+			target.scopeKey,
+			target,
+		);
+		if (op === "exclude") {
+			if (present || exclusionTombstoned(db, target)) continue;
+			guarded(() =>
+				db
+					.query(
+						`INSERT INTO memory_exclusion
+							(principal, scope_key, target_type, target_id, journal_seq, seq)
+						VALUES (?, ?, ?, ?, ?, ?)`,
+					)
+					.run(
+						entry.principal,
+						target.scopeKey,
+						target.type,
+						target.id,
+						entry.seq,
+						opSeq,
+					),
+			);
+		} else {
+			if (!present) continue;
+			guarded(() =>
+				db
+					.query(
+						`DELETE FROM memory_exclusion
+						WHERE principal = ? AND scope_key = ? AND target_type = ? AND target_id = ?`,
+					)
+					.run(entry.principal, target.scopeKey, target.type, target.id),
+			);
+		}
+		if (target.type === "state_item") {
+			const row = guarded(() =>
+				db
+					.query(
+						`SELECT revision, status FROM memory_state_item
+						WHERE principal = ? AND scope_key = ? AND item_id = ? AND status <> 'forgotten'`,
+					)
+					.get(entry.principal, target.scopeKey, target.id),
+			);
+			if (row !== null && row !== undefined) {
+				appendMemoryChange(db, {
+					principal: entry.principal,
+					scopeKey: target.scopeKey,
+					atMs,
+					targetType: "state_item",
+					targetId: target.id,
+					revision: String(readInteger(row, "revision")),
+					status: pick(readText(row, "status"), MEMORY_CHANGE_STATUSES),
+					forgetId: null,
+					changeKind: op === "exclude" ? "excluded" : "exclusion_released",
+					...(sourceRunId === undefined ? {} : { sourceRunId }),
+				});
+			}
+		}
+	}
+	guarded(() => {
+		db.query(
+			`INSERT INTO memory_forget
+				(forget_id, principal, request_json, local_state, external_state, journal_seq, entry_hash, seq, at_ms)
+			VALUES (?, ?, ?, 'applied', 'none', ?, ?, ?, ?)`,
+		).run(
+			entry.forgetId,
+			entry.principal,
+			canonicalJson({ exclusionOp: op, targets: entry.targets }),
+			entry.seq,
+			entry.hash,
+			opSeq,
+			atMs,
+		);
+		db.query(
+			`UPDATE memory_journal_state SET applied_head_seq = ?, applied_head_hash = ? WHERE id = 1`,
+		).run(entry.seq, entry.hash);
+	});
+	return buildReceipt(db, entry.forgetId);
+}
+
+/**
+ * 読み取りのみ。DB の journal head の次の除外・解除の entry（format 3）を返す。ホストは journal へ追記して fsync し、
+ * 同じ write transaction の中で `applyExclusion` を呼ぶ（忘却の `planForget` / `applyForget` と同じ順序規則）。
+ */
+export function planExclusion(
+	db: MemoryDb,
+	rawInput: PlanExclusionInput,
+): PlanExclusionResult {
+	const input = parsePlanExclusionInput(rawInput);
+	enterRead(db);
+	if (
+		input.targets.some(
+			(target) => !input.access.scopeKeys.includes(target.scopeKey),
+		)
+	) {
+		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
+	}
+	const principal = input.access.principal;
+	const targets = input.targets.map(
+		(target: ExclusionTarget): ForgetJournalTarget =>
+			target.type === "state_item"
+				? { type: "state_item", id: target.itemId, scopeKey: target.scopeKey }
+				: {
+						type: "candidate",
+						id: target.candidateId,
+						scopeKey: target.scopeKey,
+					},
+	);
+	if (hasForeignTarget(db, principal, targets)) {
+		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
+	}
+	const head = readJournalHead(db);
+	const entry = buildJournalEntry({
+		journalFormat: JOURNAL_FORMAT_EXCLUSION,
+		seq: head.seq + 1,
+		prevHash: head.hash,
+		principal,
+		targets,
+		exclusionOp: input.op,
+	});
+	let affected = 0;
+	for (const target of entry.targets) {
+		const present = exclusionPresent(db, principal, target.scopeKey, target);
+		if (input.op === "exclude" ? !present : present) {
+			if (input.op === "release" || !exclusionTombstoned(db, target)) {
+				affected += 1;
+			}
+		}
+	}
+	return { status: "planned", plan: { entry, affected } };
+}
+
+/** 書き込み。`planExclusion` が返し、ホストが journal へ追記した entry を適用する。冪等（適用済みの再送は何もしない）。 */
+export function applyExclusion(
+	db: MemoryDb,
+	rawInput: ApplyExclusionInput,
+): ForgetReceipt {
+	const input = parseApplyExclusionInput(rawInput);
+	const seq = enterWrite(db);
+	if (!isSelfConsistent(input.entry)) {
+		throw new MemoryStoreError("JOURNAL_ENTRY_INVALID");
+	}
+	if (hasForeignTarget(db, input.entry.principal, input.entry.targets)) {
+		throw new MemoryStoreError("JOURNAL_ENTRY_INVALID");
+	}
+	return applyExclusionEntry(
+		db,
+		input.entry,
+		input.clock.atMs,
+		seq,
+		ownValue(input, "sourceRunId"),
+	);
+}
+
+/** 読み取りのみ。scope で今除外されている対象。 */
+export function listExclusions(
+	db: MemoryDb,
+	rawInput: ListExclusionsInput,
+): ListExclusionsResult {
+	const input = parseListExclusionsInput(rawInput);
+	enterRead(db);
+	if (!input.access.scopeKeys.includes(input.scopeKey)) {
+		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
+	}
+	const rows = guarded(() =>
+		db
+			.query(
+				`SELECT target_type, target_id FROM memory_exclusion
+				WHERE principal = ? AND scope_key = ? ORDER BY journal_seq ASC, target_id ASC`,
+			)
+			.all(input.access.principal, input.scopeKey),
+	);
+	const targets: ExclusionTarget[] = rows.map((row) =>
+		readText(row, "target_type") === "candidate"
+			? {
+					type: "candidate" as const,
+					candidateId: readText(row, "target_id"),
+					scopeKey: input.scopeKey,
+				}
+			: {
+					type: "state_item" as const,
+					itemId: readText(row, "target_id"),
+					scopeKey: input.scopeKey,
+				},
+	);
+	return { status: "ok", targets };
 }
 
 // ---- reconcile ----

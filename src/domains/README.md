@@ -6,8 +6,8 @@
 |---|---|---|
 | temporal | 精度つき日付、成立期間、現在・過去・未来・時点不明の判定（時刻はホスト注入） | なし |
 | records | 原文の記録、出典識別、UTF-8範囲、再生成可能な資料の保持（retention）、原文の消去 | なし |
-| state | 状態台帳、状態遷移、根拠の検査、成立期間の精度の永続 | records, temporal |
-| lifecycle | 忘却閉包、ジャーナル照合、外部削除・派生物 | records, state |
+| state | 状態台帳、状態遷移、根拠の検査、成立期間の精度の永続、時間軸の照会、抑制・強度の印、記憶の候補（L1）と昇格 | records, temporal |
+| lifecycle | 忘却閉包、ジャーナル照合、即時の除外（journal format 3）、外部削除・派生物 | records, state |
 
 依存の正本は `scripts/domains.ts`。共有契約を経由する依存も検査する。
 
@@ -18,7 +18,7 @@
 - `sqlite.ts`: 他ドメイン向けの保存API。
 - `test/`: 判断と実SQLiteのテスト。複数ドメインのシナリオは `test/scenario/`。
 - `testing.ts`: 他ドメインのテストで使う素材。製品コードからの参照は禁止。
-- `migrations/`: 所有するSQL定義。0002はRecords、0003・0004・0007はState。複数ドメインにまたがる0008（取り除いた機能の表の削除）は共通基盤に置く。
+- `migrations/`: 所有するSQL定義。0002はRecords、0003・0004・0007はState。複数ドメインにまたがる0008（取り除いた機能の表の削除）と0010（除外・抑制・記憶の候補・強度・変更フィードの列）は共通基盤に置く。除外・抑制の読み出し SQL の部品（`src/infrastructure/sqlite/marks.ts`）は State が読み、除外の書き込みは Lifecycle が行う。
 
 これらのドメイン入口は内部用で、パッケージとして公開しない。`src/contracts/` は出典・アクセスなどの共有形式と読み取り部品を持つ。依存辺・墓標の語彙は `dependency.ts` に置く。
 

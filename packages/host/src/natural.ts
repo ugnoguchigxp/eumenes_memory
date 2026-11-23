@@ -9,8 +9,14 @@ import {
 import { commandComplete, measureRecallInput } from "./model.ts";
 import { request } from "./transport.ts";
 import { modelItems } from "./meaning/model-input.ts";
-import { parsePlan, planningSchema } from "./meaning/planning.ts";
+import {
+	modelAgendaItems,
+	parsePlan,
+	planningSchema,
+	requiresQuote,
+} from "./meaning/planning.ts";
 import { naturalRecall, type RecallView } from "./natural-recall.ts";
+import type { AgendaItem } from "./agenda-contract.ts";
 import type { Complete } from "./meaning/protocol.ts";
 
 const inputSchema = z
@@ -21,21 +27,29 @@ const inputSchema = z
 	})
 	.strict();
 /** Transport/pagination only: selection and semantic relations remain with Complete. */
-async function snapshot(profile: Profile, scopeKey: string) {
-	let page = await request(profile, "context", { scopeKeys: [scopeKey] });
+async function snapshot(profile: Profile, scopeKey: string, agenda: boolean) {
+	let page = await request(profile, "context", {
+		scopeKeys: [scopeKey],
+		agenda,
+	});
 	demand(page.status === "context", String(page.code ?? "CONTEXT_UNAVAILABLE"));
 	const items = [...(page["items"] as HostItem[])];
+	const agendaItems = [...((page["agendaItems"] as AgendaItem[]) ?? [])];
 	const id = page["snapshotId"];
 	while (page["nextCursor"]) {
-		page = await request(profile, "context", { cursor: page["nextCursor"] });
+		page = await request(profile, "context", {
+			cursor: page["nextCursor"],
+			agenda,
+		});
 		demand(page.status === "context", "CONTEXT_UNAVAILABLE");
 		items.push(...(page["items"] as HostItem[]));
+		agendaItems.push(...((page["agendaItems"] as AgendaItem[]) ?? []));
 	}
 	demand(
 		(page["coverage"] as { complete: boolean }).complete,
 		"COMPLETE_SNAPSHOT_REQUIRED",
 	);
-	return { items, id };
+	return { items, agendaItems, id };
 }
 export async function natural(
 	profile: Profile,
@@ -47,7 +61,7 @@ export async function natural(
 	if (method === "recall") {
 		let view: RecallView | undefined;
 		try {
-			const full = await snapshot(profile, input.scopeKey);
+			const full = await snapshot(profile, input.scopeKey, false);
 			const items = modelItems(full.items, [], { provenance: true });
 			if (measureRecallInput(items, input.message).fitsModelInput)
 				view = { id: full.id, items, complete: true };
@@ -60,7 +74,7 @@ export async function natural(
 		}
 		return naturalRecall(profile, input, complete, view);
 	}
-	const view = await snapshot(profile, input.scopeKey);
+	const view = await snapshot(profile, input.scopeKey, method === "plan");
 	const items = modelItems(view.items, [], { provenance: true });
 	if (method === "recall-size") {
 		const measurement = measureRecallInput(items, input.message);
@@ -79,16 +93,18 @@ export async function natural(
 			sourceHandle: input.sourceHandle,
 		});
 		demand(read.status === "found", "SOURCE_UNAVAILABLE");
+		demand(read["sourceRole"] !== "agent", "SOURCE_ROLE_MISMATCH");
 		source = read["source"] as { content: string };
 	}
+	const agendaItems = modelAgendaItems(view.agendaItems);
 	const schema = {
 		type: "object",
 		additionalProperties: false,
 		required: ["proposal", "evidence"],
 		properties: {
 			proposal: planningSchema(
-				items.map((x) => x.itemId),
-				{ quoteMode: "range" },
+				[...items, ...agendaItems].map((x) => x.itemId),
+				{ quoteMode: "range", agenda: true },
 			),
 			evidence: {
 				type: "array",
@@ -108,11 +124,12 @@ export async function natural(
 	const response = await complete(
 		JSON.stringify({
 			task: "decide",
+			agendaItems,
 			message: input.message,
 			items,
 			source: source?.content ?? null,
 			outputInstructions:
-				"Return proposal plus evidence for executable remember actions only. Evidence occurrence is the zero-based occurrence of that exact action quote in source, counting overlapping matches. Choose the supporting occurrence explicitly. No source means no remember. Use [] evidence for same/conflicts/forget. Do not auto-apply.",
+				"Return proposal plus evidence for executable remember, remember_agenda and set_agenda_status actions only. Evidence occurrence is the zero-based occurrence of that exact action quote in source, counting overlapping matches. Choose the supporting occurrence explicitly. No source means no remember. Include an evidence entry even when the executable relation is supersedes. Omit entries for same, conflicts and forget. Return an empty evidence array only if no executable action needs a quote. Do not auto-apply.",
 		}),
 		schema,
 		"decide",
@@ -133,12 +150,17 @@ export async function natural(
 		})
 		.strict()
 		.parse(JSON.parse(response.raw));
-	const parsed = parsePlan(JSON.stringify(output.proposal), items, "");
+	const parsed = parsePlan(
+		JSON.stringify(output.proposal),
+		items,
+		"",
+		agendaItems,
+	);
 	const evidence = output.evidence.map((e) => {
 		const action = parsed.changes.find((c) => c.actionIndex === e.actionIndex)
 			?.actions[0];
 		demand(
-			source && action?.type === "remember" && action.quote.length,
+			source && action && requiresQuote(action) && action.quote.length,
 			"EVIDENCE_INVALID",
 		);
 		let at = -1;

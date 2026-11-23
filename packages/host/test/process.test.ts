@@ -68,7 +68,7 @@ test("CLI and two independent MCP processes share one owner; closing one connect
 		clients.push(a);
 		expect(a.getServerVersion()).toEqual({
 			name: "eumenes-memory",
-			version: "0.1.0",
+			version: "0.2.0",
 		});
 		const b = await connect(profile);
 		clients.push(b);
@@ -589,6 +589,75 @@ test("T-INT Grok Bot style usage: save, search from another process, correct, fo
 			owner.kill("SIGTERM");
 			await owner.exited;
 		}
+		rmSync(dir, { recursive: true, force: true });
+		rmSync(recoveryDirectory, { recursive: true, force: true });
+	}
+});
+
+test("installed CLI and MCP share structured commitments and agenda status", async () => {
+	const dir = mkdtempSync(join(tmpdir(), "emp-agenda-"));
+	let owner: ReturnType<typeof Bun.spawn> | undefined;
+	let client: Client | undefined;
+	try {
+		expect((await command(["init", dir])).code).toBe(0);
+		owner = Bun.spawn([process.execPath, cli, "serve", dir], {
+			stdout: "pipe",
+			stderr: "pipe",
+			stdin: "ignore",
+		});
+		const reader = (owner.stderr as ReadableStream<Uint8Array>).getReader();
+		const first = await reader.read();
+		expect(new TextDecoder().decode(first.value)).toContain('"ready"');
+		reader.releaseLock();
+		const profile = join(dir, "profile.json");
+		client = await connect(profile);
+		const quote = "京都の朝の天気を調べておきますね";
+		const source = await tool(client, "source", {
+			submissionId: "process-reply",
+			scopeKey: "personal",
+			content: quote,
+			kind: "agent_reply",
+		});
+		expect(source.status).toBe("registered");
+		const { result: saved, code } = await command(
+			["--profile", profile, "apply", "--input", "-"],
+			{
+				agenda: {
+					type: "record_commitment",
+					scopeKey: "personal",
+					sourceHandle: source["sourceHandle"],
+					startByte: 0,
+					endByte: Buffer.byteLength(quote),
+					quote,
+					text: quote,
+					time: null,
+					trigger: null,
+				},
+			},
+		);
+		expect(code).toBe(0);
+		expect(saved.status).toBe("completed");
+		expect(
+			await tool(client, "apply", {
+				agenda: {
+					type: "set_agenda_status",
+					scopeKey: "personal",
+					itemId: saved["itemId"],
+					status: "done",
+				},
+			}),
+		).toMatchObject({ status: "completed", itemId: saved["itemId"] });
+		expect(await tool(client, "context", { agenda: true })).toMatchObject({
+			status: "context",
+			items: [],
+			agendaItems: [
+				{ itemId: saved["itemId"], sourceRole: "agent", quote, status: "done" },
+			],
+		});
+	} finally {
+		await client?.close();
+		owner?.kill();
+		await owner?.exited;
 		rmSync(dir, { recursive: true, force: true });
 	}
 });

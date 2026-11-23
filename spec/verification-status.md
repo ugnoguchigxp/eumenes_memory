@@ -25,12 +25,18 @@
 | State 台帳（`assertUserState` / `deactivateState` / `reactivateState` / `retractState` / `listState` / `readStateFact`、reducer） | ● | ● | ● | ● | ● | fixture S01–S07・S11–S16・S20・S21・S24。origin `agent_inferred`（ユーザー由来の保護は受けない）。既存 DB の `disputed` / `invalidated` / `admitted_extraction` の行の読み取りと遷移も実 SQLite で試験 |
 | Lifecycle / Forget（plan / apply / reconcile / receipt、外部削除） | ● | ● | ● | ● | ● | target は record / host_source / state_item / scope。閉包は state_item / external に届き、値を消す。論理的な削除で、物理消去は保証しない。Eumenes 結合: state_item の忘却を外部 journal（fsync）経由で適用、起動時 reconcile、古い DB 復元で再適用、journal の破損・食い違いで Memory を使わない。2026-11-06 契約版 2（同じ scope の複数 target、`hostIntent` と journal format 2、`hostIntentsToReapply`）: C/I/F/S は本リポジトリの試験と fixture L29〜L34・配布物の Bun/Node consumer で確認。H は Eumenes の block journal 廃止（忘却1回を1行に、旧 block journal の取り込み）の試験で確認（[改善設計](improvement-design.md) §1） |
 | State の全文検索（migration 0009、`searchState`、`verifyStateSearchIndex` / `rebuildStateSearchIndex`） | ● | ● | ● | ● | — | FTS5 trigram ＋ `secure-delete`、削除は trigger、追加は `persist` の最後の `syncStateSearch`。総当たりとの性質試験（`src/domains/state/test/search.test.ts`）、無作為な操作の後の一致（T-IDX-1）、索引の古い文書の検出（T-IDX-5）、確認で索引を作り直さないこと（T-IDX-6）、忘却後に DB と WAL に trigram が残らない（T-LEAK-1〜5）。同梱ホスト（`packages/host`）の `search` と CLI / MCP は試験済み。Eumenes 本体への結合は未着手（H は —）。測定は [search-bench-results.md](search-bench-results.md) |
+| 即時の除外（`planExclusion` / `applyExclusion` / `listExclusions`、journal format 3） | ● | ● | ● | ● | — | 忘却と同じ鎖の entry。fixture L35〜L38、古い DB の復元 + journal の再適用で除外・解除を再現、閉包削除で印が消える（`test/scenario/forget-closure.test.ts`）。設計は [recall-controls-design.md](recall-controls-design.md)。Eumenes 結合は未着手 |
+| `sourceRunId` と変更の種類（`hasMemoryChangesExcludingRun`、`changeKind` / `successorId`、`change`） | ● | ● | — | ● | — | `src/domains/state/test/recall-controls.test.ts`。Eumenes 結合は未着手 |
+| 二重の時間軸の照会（`listStateByTime`） | ● | ● | — | ● | — | 記録・失効の時点は `memory_state_event` の `at_ms` から導く（列を足さない） |
+| 抑制（`suppressState` ほか） | ● | ● | — | ● | — | journal には載せない（可逆）。item・事実に付く。忘却で消える |
+| 記憶の候補 L1・昇格（`recordCandidate` / `promoteCandidate` ほか）、根拠必須の検査（`checkGroundedClaim`） | ● | ● | — | ● | — | `agent_inferred` だけ、観測の回数と会話の一覧、忘却の閉包の対象。傾向（L4）の表は未実装 |
+| 強度（`decayStateStrength` / `reinforceStateStrength`、`minStrength`） | ● | ● | — | ● | — | 順位の重みだけ。本人由来は外れない |
 | 時間判定（temporal: 精度つき期間、現在/過去/未来/時点不明） | ● | ● | — | ● | ● | 成立期間の精度・根拠は State に永続（`assertUserState` の `validity`）。Eumenes 結合で期限切れ項目を現在の理解から除外 |
 | World / Consolidation | — | — | — | — | — | **本体では作らない**（別ドメイン・別リポジトリ）。接続部は ExternalDependent と変更フィードだけ |
 
 ## 2. migration
 
-0001〜0007 は Eumenes の実 DB に適用済みで、本文と順序を変えない（追記専用）。0008 は未リリースの追記。SQL 定義は所有ドメインの `migrations/`、登録は `src/infrastructure/sqlite/migrations/index.ts`（手順は同ディレクトリの README）。
+0001〜0009 は Eumenes の実 DB に適用済みで、本文と順序を変えない（追記専用）。0010 は未リリースの追記（版 0.0.5）。SQL 定義は所有ドメインの `migrations/`、登録は `src/infrastructure/sqlite/migrations/index.ts`（手順は同ディレクトリの README）。
 
 | 番号 | 内容 |
 |---|---|
@@ -42,7 +48,8 @@
 | 0006 | 忘却した資料の retention metadata を除去する |
 | 0007 | state の origin に `agent_inferred` を加える（CHECK の変更のため state 表4つを作り直し。行は不変） |
 | 0008 | 抽出の6表、全文索引 `memory_record_fts`、`memory_scope_state` の削除。取り除いた node 種別の依存辺と墓標の削除。`src/infrastructure/sqlite/test/remove-extraction-migration.test.ts` が、抽出の行・候補由来の State・過去の忘却の記録を含む版 7 の DB への適用と、その後の読み取り・忘却・ジャーナルの照合・ExternalDependent の登録を試験する |
-| 0009 | State の全文検索の索引（`memory_state_search_row`、view `memory_state_search_doc`、FTS5 表 `memory_state_fts`（trigram、`secure-delete`）、削除の trigger 4 つ、既存の active な item の初回投入）。未リリースの追記。戻しは `packages/host/scripts/rollback-0009.ts` |
+| 0009 | State の全文検索の索引（`memory_state_search_row`、view `memory_state_search_doc`、FTS5 表 `memory_state_fts`（trigram、`secure-delete`）、削除の trigger 4 つ、既存の active な item の初回投入）。未リリースの追記。戻しは `packages/host/scripts/rollback-0009.ts`（版 9 の DB だけを扱う。0010 の後は使えない） |
+| 0010 | 即時の除外 `memory_exclusion`、抑制 `memory_suppression`、記憶の候補 `memory_inferred_candidate` / `_evidence`、`memory_state_item.strength`、`memory_change` の 3 列（`source_run_id` / `change_kind` / `successor_id`）。既存の表は作り直さない。`src/infrastructure/sqlite/test/recall-controls-migration.test.ts` が版 9 の DB の更新を試験する |
 
 既存の CHECK 制約は作り直さないので、`candidate` / `extraction_run` / role `input`（依存辺・墓標）と、State の `admitted_extraction` / `disputed` / `invalidated` / `dispute` / `invalidate` / `candidate` は、既存の行に残りうる語彙として DB の制約に残る。TS 側は、書かない語彙（`candidate` などの node 種別、`input`）を型から外し、読む語彙（State の status / origin / event / cause）を残している。
 

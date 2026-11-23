@@ -1,9 +1,5 @@
 import { EXPIRE_PLAN_ID, extendRelated } from "./expiry.ts";
-import {
-	LIMITS_LIFECYCLE,
-	type HostForgetIntent,
-	type StateItem,
-} from "eumenes-memory";
+import { LIMITS_LIFECYCLE, type HostForgetIntent } from "eumenes-memory";
 import {
 	applyForget,
 	assertUserState,
@@ -21,17 +17,26 @@ import {
 	HostError,
 	type Grant,
 	type HostResult,
-	type MethodParams,
+	type PlanApplyParams,
 } from "./contracts.ts";
 import {
 	grantKey,
-	listItems,
+	isAgendaItem,
+	type StoredItem,
 	opaqueId,
 	referenceKey,
 	sourceState,
 	type SourceRow,
 } from "./state.ts";
-import type { MemoryPlan } from "./meaning/planning.ts";
+import { targetItemId, type MemoryPlan } from "./meaning/planning.ts";
+import type { HostAction } from "./meaning/protocol.ts";
+import {
+	addAgenda,
+	agendaKey,
+	agendaProvider,
+	changeAgendaStatus,
+	isAgendaId,
+} from "./agenda.ts";
 import type { MemoryHost } from "./service.ts";
 
 export interface StoredPlan {
@@ -42,7 +47,7 @@ export interface StoredPlan {
 	policy: string;
 	grantKey: string;
 	fingerprint: string;
-	parsed: MemoryPlan;
+	parsed: MemoryPlan<HostAction>;
 	evidence: {
 		actionIndex: number;
 		sourceId: string;
@@ -124,8 +129,8 @@ function currentItems(
 	db: MemoryDb,
 	grant: Grant,
 	plan: StoredPlan,
-): StateItem[] {
-	return listItems(db, host.access(grant), plan.scopes);
+): StoredItem[] {
+	return host.listSnapshotItems(db, grant, plan.scopes);
 }
 function validateSources(
 	host: MemoryHost,
@@ -165,19 +170,17 @@ function validateSources(
 }
 function checkWriteProtection(
 	grant: Grant,
-	items: readonly StateItem[],
+	items: readonly StoredItem[],
 	plan: StoredPlan,
 ): void {
 	for (const change of plan.parsed.changes)
-		for (const id of change.actions.flatMap((a) =>
-			a.type === "forget"
-				? [a.itemId]
-				: a.replacesItemId
-					? [a.replacesItemId]
-					: [],
-		)) {
-			const item = items.find((x) => x.itemId === id);
-			if (item && ["user_confirmed", "user_edited"].includes(item.origin))
+		for (const action of change.actions) {
+			const item = items.find((x) => x.itemId === targetItemId(action));
+			if (
+				item &&
+				!isAgendaItem(item) &&
+				["user_confirmed", "user_edited"].includes(item.origin)
+			)
 				demand(grant.confirmedWrites, "CONFIRMED_WRITE_NOT_PERMITTED");
 		}
 }
@@ -245,7 +248,9 @@ export function cleanExternal(
 	demand(result.status === "found", "RECEIPT_MISSING");
 	for (const external of result.receipt.externalDeletions) {
 		if (
-			!["memory-host", "memory-host-source"].includes(external.providerRef) ||
+			!["memory-host", "memory-host-source", agendaProvider].includes(
+				external.providerRef,
+			) ||
 			external.externalId === null
 		)
 			continue;
@@ -254,6 +259,8 @@ export function cleanExternal(
 			.get(external.externalId) as { plan_id: string } | null;
 		if (external.providerRef === "memory-host-source")
 			host.scrub(db, { "host.sources": [external.externalId] });
+		else if (external.providerRef === agendaProvider)
+			db.query("DELETE FROM host_agenda WHERE id=?").run(external.externalId);
 		else if (row) host.scrub(db, { "host.plans": [row.plan_id] });
 		const confirmed = recordExternalDeletion(db, {
 			contractVersion: 2,
@@ -388,9 +395,14 @@ function performForget(
 	host.authorizeForget(db, grant);
 	const indexes = plan.parsed.groups[groupIndex] ?? [];
 	const stateIds = new Set<string>();
+	const agendaKeys = new Set<string>();
 	for (const i of indexes)
 		for (const action of plan.parsed.changes[i]!.actions) {
 			if (action.type !== "forget") continue;
+			if (isAgendaId(action.itemId)) {
+				agendaKeys.add(agendaKey(action.itemId));
+				continue;
+			}
 			const fact = readStateFact(db, {
 				contractVersion: 1,
 				access: host.access(grant),
@@ -408,9 +420,10 @@ function performForget(
 		"host.scope": [plan.scopeKey],
 		"host.states": [...stateIds],
 		"host.sources": extraSources.map((x) => x.id),
-		"host.sourceKeys": extraSources
-			.filter((x) => !x.recordId)
-			.map((x) => x.key),
+		"host.sourceKeys": [
+			...agendaKeys,
+			...extraSources.filter((x) => !x.recordId).map((x) => x.key),
+		],
 		"host.records": extraSources.flatMap((x) =>
 			x.recordId ? [x.recordId] : [],
 		),
@@ -422,6 +435,11 @@ function performForget(
 			type: "state_item" as const,
 			scopeKey: plan.scopeKey,
 			itemId,
+		})),
+		...[...agendaKeys].map((sourceKey) => ({
+			type: "host_source" as const,
+			scopeKey: plan.scopeKey,
+			sourceKey,
 		})),
 		...extraSources.map((s): ForgetTarget =>
 			s.recordId
@@ -436,7 +454,7 @@ function performForget(
 	if (!targets.length) return;
 	// One durable complete intent before any partial batch can be lost to backup restore.
 	demand(
-		stateIds.size + extraSources.length * 2 + 4 <= 65536,
+		stateIds.size + agendaKeys.size + extraSources.length * 2 + 4 <= 65536,
 		"FORGET_INTENT_TOO_LARGE",
 	);
 	for (let i = 0; i < targets.length; i += 64) {
@@ -509,10 +527,54 @@ export function recoverIntents(host: MemoryHost, db: MemoryDb): void {
 			);
 	}
 }
+function applyPlannedAgenda(
+	host: MemoryHost,
+	db: MemoryDb,
+	grant: Grant,
+	plan: StoredPlan,
+	action: Exclude<HostAction, { type: "remember" | "forget" }>,
+	source: SourceRow,
+	range: { startByte: number; endByte: number },
+): void {
+	demand(source.kind === "text", "SOURCE_ROLE_MISMATCH");
+	const scope = plan.scopeKey;
+	let itemId: string;
+	if (action.type === "set_agenda_status") {
+		host.checkQuote(source, range, action.quote);
+		itemId = action.itemId;
+		changeAgendaStatus(host, db, grant, scope, itemId, action.status, source);
+	} else {
+		if (action.replacesItemId !== null)
+			changeAgendaStatus(
+				host,
+				db,
+				grant,
+				scope,
+				action.replacesItemId,
+				"cancelled",
+				source,
+			);
+		const { text, certainty, time, trigger } = action;
+		itemId = addAgenda(
+			host,
+			db,
+			grant,
+			source,
+			action.kind,
+			{ text, certainty, time, trigger },
+			action.quote,
+			range,
+		);
+	}
+	host.registerPlanDependencies(db, grant, plan.id, [
+		{ scope, ref: { type: "source", id: agendaKey(itemId) } },
+	]);
+}
+
 export async function applyPlan(
 	host: MemoryHost,
 	credential: string,
-	params: MethodParams<"apply">,
+	params: PlanApplyParams,
 ): Promise<HostResult> {
 	// Only execution is coordinated here; durable results remain the source of truth.
 	const running = host.inFlight.get(params.operationId);
@@ -532,7 +594,7 @@ export async function applyPlan(
 async function runPlan(
 	host: MemoryHost,
 	credential: string,
-	params: MethodParams<"apply">,
+	params: PlanApplyParams,
 ): Promise<HostResult> {
 	let existing: HostResult | undefined;
 	const initial = await host.write((db) => {
@@ -677,7 +739,7 @@ async function runPlan(
 					checkWriteProtection(grant, items, candidate.plan);
 					for (const change of changes)
 						for (const action of change.actions) {
-							if (action.type !== "remember")
+							if (action.type === "forget")
 								throw new HostError("MIXED_GROUP_UNSUPPORTED");
 							const e = candidate.plan.evidence.find(
 								(x) => x.actionIndex === change.actionIndex,
@@ -685,10 +747,28 @@ async function runPlan(
 							const source = db
 								.query("SELECT * FROM host_source WHERE id=?")
 								.get(e.sourceId) as SourceRow;
+							if (action.type !== "remember") {
+								applyPlannedAgenda(
+									host,
+									db,
+									grant,
+									candidate.plan,
+									action,
+									source,
+									e,
+								);
+								continue;
+							}
 							const replacement = action.replacesItemId
-								? items.find((i) => i.itemId === action.replacesItemId)
+								? items.find(
+										(i) =>
+											!isAgendaItem(i) && i.itemId === action.replacesItemId,
+									)
 								: undefined;
-							if (action.replacesItemId !== null && !replacement)
+							if (
+								action.replacesItemId !== null &&
+								(!replacement || isAgendaItem(replacement))
+							)
 								throw new HostError("CORRECTION_TARGET_STALE", "stale");
 							const result = assertUserState(db, {
 								contractVersion: 1,
@@ -710,7 +790,7 @@ async function runPlan(
 									},
 								],
 								sources: [sourceState(source, host.config.principal)],
-								...(replacement
+								...(replacement && !isAgendaItem(replacement)
 									? {
 											replaces: {
 												itemId: replacement.itemId,

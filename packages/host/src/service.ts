@@ -26,6 +26,7 @@ import {
 	HOST_LIMITS,
 	HostError,
 	methodSchemas,
+	planApplySchema,
 	type Grant,
 	type HostConfig,
 	type HostResult,
@@ -70,12 +71,17 @@ import {
 	SnapshotStore,
 	sourceState,
 	stateFingerprint,
+	isAgendaItem,
+	type StoredItem,
 	type Snapshot,
 	type SourceRow,
 } from "./state.ts";
 import {
 	parsePlan,
 	planningSchema,
+	modelAgendaItems,
+	requiresQuote,
+	targetItemId,
 	type MemoryPlan,
 } from "./meaning/planning.ts";
 import {
@@ -83,7 +89,11 @@ import {
 	type EvidenceStatus,
 	type HostItem,
 } from "./meaning/model-input.ts";
-import { hostPlanningInstructions } from "./meaning/planning.ts";
+import type { HostAction } from "./meaning/protocol.ts";
+import {
+	hostPlanningInstructions,
+	hostAgendaPlanningInstructions,
+} from "./meaning/planning.ts";
 import {
 	applyPlan,
 	cleanExternal,
@@ -93,6 +103,14 @@ import {
 	scrubHostIntent,
 	type StoredPlan,
 } from "./operations.ts";
+
+import {
+	agendaKey,
+	agendaSources,
+	applyAgenda,
+	isAgendaId,
+	listAgenda,
+} from "./agenda.ts";
 
 export interface HostOptions {
 	port: AppPort;
@@ -125,7 +143,7 @@ export const SOURCE_BY_REF_SQL =
 	"SELECT * FROM host_source WHERE scope_key=? AND forgotten=0 AND json_extract(ref,'$.namespace')=? AND json_extract(ref,'$.kind')=? AND json_extract(ref,'$.id')=?";
 /** 根拠の版と状態を調べる関数（`MemoryHost.inspectEvidence` と同じ結果）。 */
 export type EvidenceInspector = (
-	item: StateItem,
+	item: StoredItem,
 	ref: SourceRef,
 ) => ReturnType<MemoryHost["inspectEvidence"]>;
 export class MemoryHost {
@@ -229,7 +247,7 @@ export class MemoryHost {
 		this.snapshots.invalidate(this.config.scopeKeys);
 		this.options.port.failClosed?.();
 	}
-	validatePlanDependencies(plan: MemoryPlan): void {
+	validatePlanDependencies(plan: MemoryPlan<HostAction>): void {
 		const forgotten = new Set(
 			plan.changes.flatMap((c) =>
 				c.actions.flatMap((a) => (a.type === "forget" ? [a.itemId] : [])),
@@ -238,26 +256,17 @@ export class MemoryHost {
 		const corrected = new Set<string>();
 		for (const change of plan.changes)
 			for (const action of change.actions) {
-				if (action.type !== "remember" || action.replacesItemId === null)
-					continue;
-				if (corrected.has(action.replacesItemId))
+				if (action.type === "forget") continue;
+				const target = targetItemId(action);
+				if (target === null) continue;
+				if (corrected.has(target))
 					throw new HostError(
 						"DUPLICATE_CORRECTION_TARGET",
 						"needs_clarification",
 					);
-				corrected.add(action.replacesItemId);
+				corrected.add(target);
 			}
-
-		if (
-			plan.changes.some((c) =>
-				c.actions.some(
-					(a) =>
-						a.type === "remember" &&
-						a.replacesItemId !== null &&
-						forgotten.has(a.replacesItemId),
-				),
-			)
-		)
+		if ([...corrected].some((id) => forgotten.has(id)))
 			throw new HostError("DEPENDENT_GROUP_UNSUPPORTED", "needs_clarification");
 	}
 	authorizeForget(db: MemoryDb, grant: Grant): void {
@@ -478,16 +487,15 @@ export class MemoryHost {
 						(params as MethodParams<"reactivate">).itemId,
 					);
 				});
-			if (name === "apply")
-				return await applyPlan(
-					this,
-					credential,
-					params as MethodParams<"apply">,
-				);
+			const direct =
+				name === "apply" ? (params as MethodParams<"apply">).agenda : undefined;
+			if (name === "apply" && !direct)
+				return await applyPlan(this, credential, planApplySchema.parse(params));
 			return await this.write((db) => {
 				const current = this.grant(credential);
 				demand(grantKey(current) === grantKey(grant), "ACCESS_CHANGED");
 				this.cleanup(db);
+				if (direct) return applyAgenda(this, db, current, direct);
 				if (name === "source")
 					return this.source(db, current, params as MethodParams<"source">);
 				if (name === "plan")
@@ -519,7 +527,7 @@ export class MemoryHost {
 		const items = p.items.map((ref) => {
 			const seen = snapshot.items.find((x) => x.itemId === ref.itemId);
 			const item = current.get(ref.itemId);
-			demand(seen && item, "ITEM_NOT_AVAILABLE");
+			demand(seen && !isAgendaItem(seen) && item, "ITEM_NOT_AVAILABLE");
 			demand(
 				seen.revision === ref.revision && item.revision === ref.revision,
 				"STALE_REVISION",
@@ -687,7 +695,12 @@ export class MemoryHost {
 			).run(this.epoch, receiptHorizon);
 		const unused = db
 			.query(
-				"SELECT * FROM host_source WHERE content IS NOT NULL AND created_at < ? AND forgotten=0 AND NOT EXISTS(SELECT 1 FROM host_state_source s WHERE s.source_id=host_source.id) AND NOT EXISTS (SELECT 1 FROM host_plan p WHERE p.payload IS NOT NULL AND EXISTS(SELECT 1 FROM json_each(p.payload,'$.sourceIds') j WHERE j.value=host_source.id)) LIMIT 64",
+				`SELECT * FROM host_source WHERE content IS NOT NULL AND created_at < ? AND forgotten=0
+				AND NOT EXISTS(SELECT 1 FROM host_state_source s WHERE s.source_id=host_source.id)
+				AND NOT EXISTS(SELECT 1 FROM host_agenda a WHERE a.source_id=host_source.id OR a.status_source_id=host_source.id)
+				AND NOT EXISTS(SELECT 1 FROM host_plan p WHERE p.payload IS NOT NULL
+					AND EXISTS(SELECT 1 FROM json_each(p.payload,'$.sourceIds') j WHERE j.value=host_source.id))
+				LIMIT 64`,
 			)
 			.all(this.clock() - HOST_LIMITS.sourceTtlMs) as SourceRow[];
 		for (const row of unused) expireUnusedSource(this, db, row);
@@ -721,7 +734,7 @@ export class MemoryHost {
 		const hash = createHash("sha256").update(p.content).digest("hex");
 		let ref: SourceRef = {
 			namespace: "eumenes-host",
-			kind: "message",
+			kind: p.kind === "agent_reply" ? "agent-reply" : "message",
 			id,
 			representation: "text",
 			revision: `sha256:${hash}`,
@@ -804,6 +817,7 @@ export class MemoryHost {
 			scopeKey: row.scope_key,
 			origin: row.origin,
 			provenance: row.provenance ?? "unknown",
+			...(row.kind === "agent_reply" ? { sourceRole: "agent" } : {}),
 			byteLength: Buffer.byteLength(row.content ?? ""),
 			source: JSON.parse(row.ref),
 		};
@@ -835,10 +849,34 @@ export class MemoryHost {
 		}
 		return row;
 	}
+	checkQuote(
+		row: SourceRow,
+		range: { startByte: number; endByte: number },
+		quote: string,
+	): void {
+		demand(row.content !== null && !row.forgotten, "SOURCE_UNAVAILABLE");
+		const slice = sliceUtf8Range(
+			row.content,
+			{ startByte: range.startByte, endByte: range.endByte },
+			1024,
+		);
+		demand(slice.status === "ok" && slice.text === quote, "QUOTE_MISMATCH");
+	}
+
+	listSnapshotItems(
+		db: MemoryDb,
+		grant: Grant,
+		scopes: readonly string[],
+		cap = HOST_LIMITS.snapshotItems,
+	): StoredItem[] {
+		const items = listItems(db, this.access(grant), scopes, cap);
+		if (items.length > cap) return items;
+		return [...items, ...listAgenda(db, scopes, cap - items.length + 1)];
+	}
 	/** Technical identity/version checks only; meaning and applicability remain with the caller's LLM. */
 	inspectEvidence(
 		db: MemoryDb,
-		item: StateItem,
+		item: StoredItem,
 		ref: SourceRef,
 	): { status: EvidenceStatus; version: unknown } {
 		if (ref.namespace === "memory") {
@@ -955,19 +993,26 @@ export class MemoryHost {
 	}
 	fingerprint(
 		db: MemoryDb,
-		items: readonly StateItem[],
-		inspect: EvidenceInspector = (x, ref) => this.inspectEvidence(db, x, ref),
+		items: readonly StoredItem[],
+		inspect: EvidenceInspector = (item, ref) =>
+			this.inspectEvidence(db, item, ref),
 	): string {
+		const facts = items.filter((item) => !isAgendaItem(item));
+		const agenda = items.filter(isAgendaItem);
 		const versions = [...items]
 			.sort((a, b) => a.itemId.localeCompare(b.itemId))
 			.flatMap((item) =>
-				item.evidence.map((ref) => [
+				(isAgendaItem(item) ? [item.evidence] : item.evidence).map((ref) => [
 					item.itemId,
 					referenceKey(ref),
 					inspect(item, ref).version,
 				]),
 			);
-		return digest([stateFingerprint(items), versions]);
+		return digest([
+			stateFingerprint(facts),
+			versions,
+			...(agenda.length ? [agenda] : []),
+		]);
 	}
 
 	context(grant: Grant, p: MethodParams<"context">): HostResult {
@@ -995,12 +1040,11 @@ export class MemoryHost {
 			snapshot = this.options.port.read((db) => {
 				const inspect = this.evidenceInspector(db);
 				const value = this.snapshots.create(
-					listItems(
-						db,
-						this.access(grant),
-						scopes,
-						HOST_LIMITS.snapshotItems,
-					).map((item) => this.withEvidenceStatus(db, item, inspect)),
+					this.listSnapshotItems(db, grant, scopes).map((item) =>
+						isAgendaItem(item)
+							? item
+							: this.withEvidenceStatus(db, item, inspect),
+					),
 					scopes,
 					grant,
 					this.policy,
@@ -1016,7 +1060,8 @@ export class MemoryHost {
 			epoch: this.epoch,
 			snapshotId: snapshot.id,
 			scopeKeys: snapshot.scopes,
-			items,
+			items: items.filter((item) => !isAgendaItem(item)),
+			agendaItems: items.filter(isAgendaItem),
 			coverage: {
 				complete: snapshot.complete && next >= snapshot.items.length,
 				snapshotComplete: snapshot.complete,
@@ -1030,20 +1075,59 @@ export class MemoryHost {
 						).toString("base64url"),
 					}
 				: {}),
-			proposalSchema: planningSchema(undefined, { quoteMode: "range" }),
-			instructions: hostPlanningInstructions,
+			proposalSchema: planningSchema(undefined, {
+				quoteMode: "range",
+				agenda: p.agenda ?? false,
+			}),
+			instructions: p.agenda
+				? hostAgendaPlanningInstructions
+				: hostPlanningInstructions,
 		};
 	}
+	private checkSnapshotInTransaction(
+		db: MemoryDb,
+		snapshot: Snapshot,
+		grant: Grant,
+	): void {
+		demand(
+			this.fingerprint(
+				db,
+				this.listSnapshotItems(db, grant, snapshot.scopes),
+				this.evidenceInspector(db),
+			) === snapshot.fingerprint,
+			"SNAPSHOT_STALE",
+		);
+	}
+
 	checkSnapshot(snapshot: Snapshot, grant: Grant): void {
 		this.options.port.read((db) =>
-			demand(
-				this.fingerprint(
-					db,
-					listItems(db, this.access(grant), snapshot.scopes),
-				) === snapshot.fingerprint,
-				"SNAPSHOT_STALE",
-			),
+			this.checkSnapshotInTransaction(db, snapshot, grant),
 		);
+	}
+
+	/** Only for the application that owns this host's SQLite connection. */
+	isContextCurrentInTransaction(
+		db: MemoryDb,
+		credential: string,
+		snapshotId: string,
+	): boolean {
+		try {
+			demand(
+				this.healthy && (this.options.port.isReady?.() ?? true),
+				"HOST_NOT_READY",
+			);
+			const config = this.config;
+			const grant = this.grant(credential, config);
+			demand(grant.read, "READ_NOT_PERMITTED");
+			const policy = digest(config);
+			const snapshot = this.snapshots.get(snapshotId, grant, policy);
+			demand(snapshot.complete, "COMPLETE_SNAPSHOT_REQUIRED");
+			this.checkSnapshotInTransaction(db, snapshot, grant);
+			return this.policy === policy;
+		} catch (error) {
+			if (error instanceof HostError) return false;
+			throw error;
+		}
 	}
 
 	private validatePartialSnapshot(
@@ -1097,18 +1181,13 @@ export class MemoryHost {
 					status: "found",
 					source: sourceState(row, this.config.principal),
 					origin: row.origin,
+					...(row.kind === "agent_reply" ? { sourceRole: "agent" } : {}),
 				};
 			}
 			demand(p.snapshotId, "INVALID_INPUT");
 			const snapshot = this.snapshots.get(p.snapshotId, grant, this.policy);
 			if (snapshot.complete)
-				demand(
-					this.fingerprint(
-						db,
-						listItems(db, this.access(grant), snapshot.scopes),
-					) === snapshot.fingerprint,
-					"SNAPSHOT_STALE",
-				);
+				this.checkSnapshotInTransaction(db, snapshot, grant);
 			if (!p.itemId) {
 				demand(snapshot.complete, "COMPLETE_SNAPSHOT_REQUIRED");
 				return {
@@ -1118,26 +1197,29 @@ export class MemoryHost {
 					current: true,
 				};
 			}
-			// 指定の item だけを読む（前は scope の先頭の snapshotItems 件だけを見ていたので、古い item が見つからなかった）。
-			const item = listItems(
-				db,
-				this.access(grant),
-				snapshot.scopes,
-				Infinity,
-				false,
-				[p.itemId],
-			)[0];
-			demand(
-				snapshot.items.some((x) => x.itemId === p.itemId) && item,
-				"ITEM_NOT_AVAILABLE",
-			);
+			const seen = snapshot.items.find((x) => x.itemId === p.itemId);
+			const item =
+				seen && isAgendaItem(seen)
+					? this.listSnapshotItems(db, grant, snapshot.scopes).find(
+							(x) => x.itemId === p.itemId,
+						)
+					: listItems(
+							db,
+							this.access(grant),
+							snapshot.scopes,
+							Infinity,
+							false,
+							[p.itemId],
+						)[0];
+			demand(seen && item, "ITEM_NOT_AVAILABLE");
 			if (!snapshot.complete)
 				demand(
 					this.fingerprint(db, [item]) ===
 						snapshot.itemFingerprints.get(item.itemId),
 					"SNAPSHOT_STALE",
 				);
-			const sources = item.evidence.map((ref) => {
+			const refs = isAgendaItem(item) ? [item.evidence] : item.evidence;
+			const sources = refs.map((ref) => {
 				const inspected = this.inspectEvidence(db, item, ref);
 				if (inspected.status !== "current") return { status: inspected.status };
 				const row = (
@@ -1177,7 +1259,7 @@ export class MemoryHost {
 			});
 			return {
 				status: "found",
-				item: this.withEvidenceStatus(db, item),
+				item: isAgendaItem(item) ? item : this.withEvidenceStatus(db, item),
 				sources,
 			};
 		});
@@ -1193,16 +1275,18 @@ export class MemoryHost {
 		demand(
 			this.fingerprint(
 				db,
-				listItems(db, this.access(grant), snapshot.scopes),
+				this.listSnapshotItems(db, grant, snapshot.scopes),
 			) === snapshot.fingerprint,
 			"SNAPSHOT_STALE",
 		);
-		let parsed: MemoryPlan;
+		let parsed: MemoryPlan<HostAction>;
 		try {
+			const items = snapshot.items.filter((x) => x.scopeKey === p.scopeKey);
 			parsed = parsePlan(
 				JSON.stringify(p.proposal),
-				modelItems(snapshot.items.filter((x) => x.scopeKey === p.scopeKey)),
+				modelItems(items.filter((item) => !isAgendaItem(item))),
 				"",
+				modelAgendaItems(items.filter(isAgendaItem)),
 			);
 		} catch {
 			throw new HostError("INVALID_PROPOSAL");
@@ -1239,7 +1323,7 @@ export class MemoryHost {
 			demand(row.scope_key === p.scopeKey, "SOURCE_SCOPE_MISMATCH");
 		const changes = parsed.changes.flatMap((c) => c.actions);
 		demand(
-			p.evidence.length === changes.filter((a) => a.type === "remember").length,
+			p.evidence.length === changes.filter(requiresQuote).length,
 			"EVIDENCE_COUNT_MISMATCH",
 		);
 		demand(
@@ -1247,31 +1331,30 @@ export class MemoryHost {
 			"DUPLICATE_EVIDENCE",
 		);
 		for (const change of parsed.changes) {
-			if (change.actions[0]?.type === "remember") {
+			const action = change.actions[0];
+			if (action && requiresQuote(action)) {
 				const e = evidence.find((x) => x.actionIndex === change.actionIndex);
 				demand(e, "EVIDENCE_REQUIRED");
 				const row = db
 					.query("SELECT * FROM host_source WHERE id=?")
 					.get(e.sourceId) as SourceRow;
-				const slice = sliceUtf8Range(
-					row.content!,
-					{ startByte: e.startByte, endByte: e.endByte },
-					1024,
-				);
 				demand(
-					slice.status === "ok" && slice.text === change.actions[0].quote,
-					"QUOTE_MISMATCH",
+					action.type === "remember"
+						? row.kind !== "agent_reply"
+						: row.kind === "text",
+					"SOURCE_ROLE_MISMATCH",
 				);
+				this.checkQuote(row, e, action.quote);
 			}
-			for (const id of change.actions.flatMap((a) =>
-				a.type === "forget"
-					? [a.itemId]
-					: a.replacesItemId
-						? [a.replacesItemId]
-						: [],
-			)) {
-				const item = snapshot.items.find((x) => x.itemId === id);
-				if (item?.origin === "user_confirmed" || item?.origin === "user_edited")
+			for (const action of change.actions) {
+				const item = snapshot.items.find(
+					(x) => x.itemId === targetItemId(action),
+				);
+				if (
+					item &&
+					!isAgendaItem(item) &&
+					(item.origin === "user_confirmed" || item.origin === "user_edited")
+				)
 					demand(grant.confirmedWrites, "CONFIRMED_WRITE_NOT_PERMITTED");
 			}
 			// §4B.3 の 4: 外部由来の根拠だけでは、行動を縛る記憶を保存せず、外部でない記憶も置き換えない。
@@ -1295,7 +1378,9 @@ export class MemoryHost {
 						? snapshot.items.find((x) => x.itemId === remembered.replacesItemId)
 						: undefined;
 					demand(
-						!replaced || this.trust(db, replaced) === "external",
+						!replaced ||
+							(!isAgendaItem(replaced) &&
+								this.trust(db, replaced) === "external"),
 						"EXTERNAL_EVIDENCE_NOT_ALLOWED",
 					);
 				}
@@ -1303,7 +1388,11 @@ export class MemoryHost {
 		}
 		for (const indexes of parsed.groups) {
 			const kinds = new Set(
-				indexes.flatMap((i) => parsed.changes[i]!.actions.map((a) => a.type)),
+				indexes.flatMap((i) =>
+					parsed.changes[i]!.actions.map((a) =>
+						a.type === "forget" ? "forget" : "write",
+					),
+				),
 			);
 			if (kinds.size >= 2)
 				throw new HostError("MIXED_GROUP_UNSUPPORTED", "needs_clarification");
@@ -1373,10 +1462,24 @@ export class MemoryHost {
 		);
 		// A plan is derived from the supplied context. Register every read item, in bounded batches.
 		const dependencies = [
-			...snapshot.items.map((item) => ({
-				scope: item.scopeKey,
-				ref: { type: "state_item" as const, id: item.itemId },
-			})),
+			...snapshot.items.flatMap<{
+				scope: string;
+				ref: { type: "source" | "state_item"; id: string };
+			}>((item) =>
+				isAgendaItem(item)
+					? [agendaKey(item.itemId), ...agendaSources(db, item.itemId)].map(
+							(id) => ({
+								scope: item.scopeKey,
+								ref: { type: "source" as const, id },
+							}),
+						)
+					: [
+							{
+								scope: item.scopeKey,
+								ref: { type: "state_item" as const, id: item.itemId },
+							},
+						],
+			),
 			...stored.sourceIds.map((sourceId) => {
 				const row = db
 					.query("SELECT * FROM host_source WHERE id=?")
@@ -1393,6 +1496,14 @@ export class MemoryHost {
 		this.registerPlanDependencies(db, grant, id, dependencies);
 		const targets: import("eumenes-memory/sqlite").ForgetTarget[] = [];
 		for (const itemId of selectedIds) {
+			if (isAgendaId(itemId)) {
+				targets.push({
+					type: "host_source",
+					scopeKey: p.scopeKey,
+					sourceKey: agendaKey(itemId),
+				});
+				continue;
+			}
 			const fact = readStateFact(db, {
 				contractVersion: 1,
 				access: this.access(grant),
@@ -1470,9 +1581,15 @@ export class MemoryHost {
 		}[],
 	): void {
 		for (const scope of new Set(dependencies.map((x) => x.scope))) {
-			const selected = dependencies
-				.filter((x) => x.scope === scope)
-				.map((x) => x.ref);
+			const selected = [
+				...new Map(
+					dependencies
+						.filter((x) => x.scope === scope)
+						.map(
+							({ ref }) => [JSON.stringify([ref.type, ref.id]), ref] as const,
+						),
+				).values(),
+			];
 			for (let n = 0; n < selected.length; n += 32) {
 				const externalId = `${planId}.${opaqueId()}`;
 				const saved = registerExternalDependents(db, {

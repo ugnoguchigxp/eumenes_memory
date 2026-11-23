@@ -1,0 +1,66 @@
+{
+	"id": "L37-chain-exclusion-op-tampered",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"chain",
+		"exclusion"
+	],
+	"kind": "chain",
+	"description": "Flipping the exclusion operation of an entry breaks its hash",
+	"input": {
+		"entries": [
+			{
+				"journalFormat": 1,
+				"seq": 1,
+				"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+				"forgetId": "forget:f6e9938e246ec3a9e4d8d8548baabafd734f800a18d6b09e2b1392d625b0b881",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "state_item",
+						"id": "state:a",
+						"scopeKey": "conversation:c1"
+					}
+				],
+				"hash": "3890af2634f05bd5a5bd84b098f7eba07f37a31df7729d9b140a3865e14e1099"
+			},
+			{
+				"journalFormat": 3,
+				"seq": 2,
+				"prevHash": "3890af2634f05bd5a5bd84b098f7eba07f37a31df7729d9b140a3865e14e1099",
+				"forgetId": "forget:dd3cb8891e08504c43e5bd491b22e2345c6918073117313c948cc3ec45aa8387",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "state_item",
+						"id": "state:b",
+						"scopeKey": "conversation:c1"
+					}
+				],
+				"exclusionOp": "release",
+				"hash": "68615cd02b1fd6f49beacd917cff9258ebde776ec0f8fe2ccf7e72b0cf03f0ef"
+			},
+			{
+				"journalFormat": 3,
+				"seq": 3,
+				"prevHash": "68615cd02b1fd6f49beacd917cff9258ebde776ec0f8fe2ccf7e72b0cf03f0ef",
+				"forgetId": "forget:f61dd0d37bc07558cdb399f1130e5b29c96a49db82308434a89bfd9c4fe6b134",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "state_item",
+						"id": "state:b",
+						"scopeKey": "conversation:c1"
+					}
+				],
+				"exclusionOp": "release",
+				"hash": "90e3dd7c89332d25d4f7fb8c9121741606b035fc587e64fad4f9a360feb5eec4"
+			}
+		]
+	},
+	"expect": {
+		"status": "inconsistent",
+		"reasonCode": "JOURNAL_CHAIN_BROKEN"
+	}
+}

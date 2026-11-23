@@ -1,0 +1,768 @@
+{
+	"rubric_version": "1.1.0",
+	"mode": "technical",
+	"depth": "deep",
+	"technical_profile": "library",
+	"assessment_kind": "re-evaluated",
+	"target": {
+		"locator": "/Users/y.noguchi/Code/eumenes_memory",
+		"snapshot": "eb49dc01a1657f1271c30c092755a67856915ead",
+		"reviewed_at": "2026-11-16",
+		"stage": "ローカル候補。パック済み配布物を隔離したEumenesで検証。",
+		"scope": "基準と同じlibrary・deepと30技術基準。macOS arm64・Linux arm64コンテナ、Bun 1.4.4。レビュー対象はコミット済みの候補。作業中の予定管理は別途共存試験。ホスト型CI、実モデル、新規本番データ、実運用を除外。"
+	},
+	"evidence": [
+		{
+			"id": "E01",
+			"kind": "code",
+			"locator": "src/index.ts; src/sqlite.ts; src/infrastructure/sqlite/schema-check.ts:29; scripts/boundaries.ts @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "純粋 API と永続 API、SQLite ポート、追記 migration のハッシュ照合、依存境界検査を分離。",
+			"scope": "コア主要ドメインおよびホスト接続面。SQL 接続と運用はホストに委譲。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E02",
+			"kind": "code",
+			"locator": "packages/host/src/{mcp.ts,transport.ts:64,service.ts,operations.ts:515,storage.ts}; src/domains/state/service/reducer.ts @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "CLI と MCP は同じ Unix socket と dispatch を使用。権限・scope、UTF-8の出典範囲、snapshot/CAS を検査し、単一 writer で mutation。処理後に操作IDで結果を照会。",
+			"scope": "主経路 source → context → plan → apply → operation、同梱ホストの信頼境界。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E03",
+			"kind": "code",
+			"locator": "packages/host/src/{transport.ts:79,contracts.ts:127,model.ts,mcp.ts,search.ts}; packages/host/test/{service,model-limits,review-regressions,provenance,search}.test.ts @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "Bearer と Unix ファイル権限、scope 再検査、入力/出力/並行数・モデル期限の制限、検索パラメータ束縛、無権限と出力制限の回帰。出所は自己申告で確認済み権限は付与しない。",
+			"scope": "同一ユーザーのローカルホストと信頼された組み込みアプリ。外部公開認証、網羅監査、長時間飽和を含まない。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E04",
+			"kind": "code",
+			"locator": "packages/host/src/{service.ts,operations.ts,storage.ts}; src/domains/lifecycle/repository/index.ts; packages/host/test/{checkpoint,crash,idempotency,search-index}.test.ts @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "ジャーナル追記とfsync、コミット前失敗時停止、起動時再適用、WAL checkpoint と失敗時再試行。SIGKILL時や同じID再送、既存DB索引の更新を検査。",
+			"scope": "ログが保持される条件の忘却・操作回復。物理消去一般は保証しない。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E05",
+			"kind": "execution",
+			"locator": "/tmp/eumenes-fts.zIGYpsAU/{verify-all,verify-package,verify-host,eumenes}.log",
+			"observation": "同じコミット00e9bc2の統合作業記録。bun run verify:all、verify:package、verify:host は終了0。全体1036成功/3 opt-in skip、Bun/Node隔離配布と新旧MCP SDK。candidateをリンクしたEumenesのopt-in結合は3成功。",
+			"scope": "先行ターンの同一コミット、macOS arm64/Bun 1.4.4/Node 24.11.1。CI実行や実運用を意味しない。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E06",
+			"kind": "code",
+			"locator": ".github/workflows/verify.yml:9; scripts/{verify,verify-package,verify-host,pack-host,dependencies}.ts; bun.lock; packages/host/bun.lock; THIRD_PARTY_NOTICES.md @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "Linux/macOSのCI構成、actionハッシュ固定、freeze install、ビルド・型・パック検査、source/hash manifestと改変の対照、コア実行時依存ゼロ、同梱ホストはSDK/zod。MITと参照設計の出所を記録。",
+			"scope": "実CIログ、ホスト依存の到達性ベースの助言監査、公開署名を未確認。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E07",
+			"kind": "execution",
+			"locator": "probes.log; snapshot/packages/host/test/review-probe.test.ts",
+			"observation": "git archiveした同じコミットで bun test packages/host/test/{review-probe,backup,expiry,idempotency,search-index,process}.test.ts 相当を実行、終了0、43成功。2件は欠陥の現状を確認する観測テスト、41件は既存回帰。",
+			"scope": "macOS arm64 / Bun 1.4.4 / SQLite 3.51.0、使い捨てDB、合成データ、外部モデルなし。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E08",
+			"kind": "code",
+			"locator": "packages/host/src/backup.ts:359; packages/host/src/transport.ts:161; docs/cli-mcp.md:51 @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "ライブジャーナルが存在しないとバックアップの中で最長の写しを採用し、選択バックアップのheadと比較して公開。snapshotが古いと最新だった根拠がない。",
+			"scope": "同梱ホストの復元でのみ確認。ライブジャーナル保持の対照では忘却維持。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E09",
+			"kind": "code",
+			"locator": "packages/host/src/expiry.ts:157; packages/host/src/expiry.ts:209; packages/host/src/service.ts:484 @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "use は最終利用日を更新するが State revision を更新しない。期限停止は読取で対象決定後、別の write で revision のみ確認。",
+			"scope": "対象選択とwriteの間にuseがコミットする場合。停止状態はreactivateで可逆。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E10",
+			"kind": "primary_doc",
+			"locator": "spec/search-bench-results.md:81; spec/search-bench-results.md:114 @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "合成で10,000件のホストp95は再測定で2.21–15.6 ms、100,000件の核で頻出/混合114.2/116ms。短語のみ上限20,000件。変更なしの再索引を省く対照。",
+			"scope": "掲載値。ホスト経由の再測定は1万件、socket/現実の出典構成を十分含まない。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E11",
+			"kind": "primary_doc",
+			"locator": "examples/quality/RESULTS.md:1; examples/experiments/one-shot-holdout/RESULTS.md:15; packages/host/src/natural.ts:28 @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "事前登録の合成100件で構造化根拠選択78→95、1001件スライスでは19→18。別の1001件fixtureの現行方式は約310KBで131072Bを16/16で超過。natural recallは全件、MCP検索は別経路。",
+			"scope": "過去のモデル・合成ワークロード。現行FTSを使う最終回答や実ユーザー品質への一般化不可。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E12",
+			"kind": "code",
+			"locator": "README.md:98; src/infrastructure/sqlite/migrations/index.ts:21; docs/host-guide.md:17; packages/host/src/storage.ts @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "READMEは版8と記載、登録済みschemaは版9。SQLite 3.44+/FTS5と再索引はホスト導入ガイドに記載。",
+			"scope": "現行mainのREADME、導入ガイドと実装の比較。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E13",
+			"kind": "code",
+			"locator": "Eumenes d7b81e5c:package.json:58; vendor/eumenes-memory/; api/domains/memory/ @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "Eumenesは本体とホストのtgzをvendorし、会話の出典・訂正・忘却・キャッシュのコードパスを持つ。Git履歴に版0.0.4と忘却契約の更新あり。",
+			"scope": "接続と過去の取り込み。現コミットの配備・継続利用頻度・利用者効果は未確認。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E14",
+			"kind": "primary_doc",
+			"locator": "docs/cli-mcp.md:1; spec/verification-status.md:17; spec/honcho-adoption-plan.md; spec/quality-improvement-plan.md @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "導入はローカル初期化・共有profileまたはtgz取り込み。適用済み/未検証を区別。モデル評価は採用基準・予算を固定し、不採用も記録。",
+			"scope": "実装とGit履歴と照合。外部市場や利用者への実測は含まない。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E15",
+			"kind": "external_observation",
+			"locator": "https://docs.mem0.ai/platform/quickstart ; https://docs.mem0.ai/core-concepts/memory-operations/delete ; https://honcho.dev/docs/v3/documentation/introduction/overview ; https://github.com/plastic-labs/honcho ; https://docs.langchain.com/oss/javascript/concepts/memory",
+			"observation": "Mem0は会話メモリの追加・検索・削除API、Honchoはセッションと人物表現・推論、LangGraphはアプリ側でメモリを設計する基盤。",
+			"scope": "公式資料のみ、同一 workload の性能・忘却契約・採用費の比較試験なし。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E16",
+			"kind": "code",
+			"locator": "packages/host/src/{service.ts,backup.ts,expiry.ts,review.ts,capacity.ts}; git log --first-parent @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "ホストサービスが起動・dispatch・権限・snapshot・計画・evidence・メンテナンスを横断。検索、期限、復元ファイル処理等は別モジュールだがコンパイル時/運用時の境界は一部共有。",
+			"scope": "代表経路を追跡。保守工数の時系列測定なし。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E17",
+			"kind": "primary_doc",
+			"locator": "spec/reviews/quality-80-2026-11-05/baseline-score-summary.json; docs/quality-validation.md @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "旧同ルーブリック評価は技術71.1暫定、対象は主にコアと旧例示ホスト。予算上限と評価指標の区別を明記。",
+			"scope": "対象スコープ差により旧総合点との差を改善/劣化量としない。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "E18",
+			"kind": "code",
+			"locator": "packages/host/src/{search.ts,state.ts,mcp.ts}; src/domains/state/repository/{index.ts,search-index.ts}; packages/host/test/search.test.ts @ 00e9bc2229519014880b0965b8563d2d1ce99c23",
+			"observation": "FTSの候補IDを正本に照合し、scopeや墓標条件を確認。件数/バイト予算を別に持ち、少数文字走査も制限。MCP/CLIの構造化検索で同じ忘却の仕組みを使用。",
+			"scope": "テキスト一致の性能・契約。意味検索の精度、未知の質問への回答品質は未測定。",
+			"observed_at": "2026-11-16"
+		},
+		{
+			"id": "V01",
+			"kind": "execution",
+			"locator": "/tmp/eumenes-quality.qJMstdUt/restore-baseline.log; /tmp/eumenes-quality.qJMstdUt/expiry-baseline.log; /tmp/eumenes-quality.qJMstdUt/recovery-expiry.log; /tmp/eumenes-quality.qJMstdUt/restore-crash.log; /tmp/eumenes-quality.qJMstdUt/restore-foreign.log; /tmp/eumenes-quality.qJMstdUt/final-mac-all.log; /tmp/eumenes-quality.qJMstdUt/final-linux.log",
+			"observed_at": "2026-11-16",
+			"observation": "旧実装では欠損・短縮・破損ジャーナルの受入試験3件と並行停止1件が失敗。候補では通過。DB置換直前・直後のSIGKILL、別系統の有効なjournal、checksumが整合する異常schema、liveのWALを含む復元を観測。",
+			"scope": "合成データ。SQLiteのDBファイルと所有者プロセスを使用。電源断や全ストレージ損失の実機試験は行わない。"
+		},
+		{
+			"id": "V02",
+			"kind": "code",
+			"locator": "packages/host/src/{owner-lock.ts,backup.ts:348,backup.ts:415,transport.ts:161,service.ts:313,expiry.ts:209} @ eb49dc01a1657f1271c30c092755a67856915ead",
+			"observed_at": "2026-11-16",
+			"observation": "所有者ロックを一つ使い、ライブjournalを検証し現在DBの適用点と照合。隔離した候補に再適用してから単一rename。旧DBは退避。期限はwriter内で再確認。",
+			"scope": "現在DBの適用点が読めない場合は安全に停止。journalとDBが同時に古い場合に最新性を保証しない。"
+		},
+		{
+			"id": "V03",
+			"kind": "execution",
+			"locator": "/tmp/eumenes-quality.qJMstdUt/final-mac-all.log; /tmp/eumenes-quality.qJMstdUt/final-linux.log; /tmp/eumenes-quality.qJMstdUt/worktree/verification-reports/host/package.json; /tmp/eumenes-quality.qJMstdUt/final-linux-results/host/package.json; /tmp/eumenes-quality.qJMstdUt/worktree/verification-reports/quality-80/package.json; /tmp/eumenes-quality.qJMstdUt/final-linux-results/quality-80/package.json",
+			"observed_at": "2026-11-16",
+			"observation": "同じ候補コミットで macOS・Linuxそれぞれ全体1045件成功、標準では外部Eumenes3件をskip。build、型、公開境界、コアとホストの配布物、BunとNode、新旧SDK、欠落・改変・別ソースの配布物を検査。同一source hash。",
+			"scope": "macOSでは直接実行、LinuxではローカルbundleからDockerにcloneして同じ工程。ホスト型のGitHub Actionsは実行していない。"
+		},
+		{
+			"id": "V04",
+			"kind": "execution",
+			"locator": "/tmp/eumenes-quality.qJMstdUt/final-eumenes-packaged.log; /tmp/eumenes-quality.qJMstdUt/agenda-quality.log",
+			"observed_at": "2026-11-16",
+			"observation": "候補のコアtgzとホストtgzを展開し隔離Eumenesに組み込んで3件成功。別worktreeで予定管理を重ね、旧State版8・予定管理版2の移行とCLI、MCP、自然文検索を含む13件成功。",
+			"scope": "Eumenes d7b81e5cのfixture。予定管理のoverlayは採点対象外で、候補の検証時点から変わったのは配布スクリプトのみ。"
+		},
+		{
+			"id": "V05",
+			"kind": "code",
+			"locator": "scripts/{host-runtime-dependencies.ts:26,build-host.ts,verify-host.ts,verify-package.ts:25}; .github/workflows/verify.yml @ eb49dc01a1657f1271c30c092755a67856915ead",
+			"observed_at": "2026-11-16",
+			"observation": "変造・別ソースのartifactを配布検証で拒否。直接・推移のホスト実行依存を解決して版とライセンス原文を同梱し、隔離インストールと照合。",
+			"scope": "依存監査はbun auditの公開DBの結果、網羅的な脆弱性調査や署名・公開経路の試験とは別。"
+		},
+		{
+			"id": "V06",
+			"kind": "execution",
+			"locator": "/tmp/eumenes-quality.qJMstdUt/host-quality-focused.log; /tmp/eumenes-quality.qJMstdUt/ipc-capacity.log; /tmp/eumenes-quality.qJMstdUt/final-mac-all.log; /tmp/eumenes-quality.qJMstdUt/final-linux.log",
+			"observed_at": "2026-11-16",
+			"observation": "モデル入力境界、MODEL_BUSY、日次予約、期限、子プロセス残存、MCP取消と後続の操作照会を確認。実Unixソケットで認証済み64件を保留し追加要求をHOST_BUSYで拒否、無効資格情報は別に拒否。解放後に追加要求が成功。",
+			"scope": "固定応答・使い捨てsocket・ローカル単一所有者。飽和時の利用者横断SLOは未計測。"
+		},
+		{
+			"id": "V07",
+			"kind": "execution",
+			"locator": "/tmp/eumenes-quality.qJMstdUt/recall-with-fallback.log; /tmp/eumenes-quality.qJMstdUt/final-mac-all.log; /tmp/eumenes-quality.qJMstdUt/final-linux.log",
+			"observed_at": "2026-11-16",
+			"observation": "1,001件の全件入力が128 KiBを超えることを測定。固定モデルで選んだクエリから同じ根拠検査を通って範囲限定回答を返し、別scopeと検索中に忘却された根拠を返さない。空検索では根拠不足。",
+			"scope": "実SQLite、実IPC、固定モデル応答。実モデルのクエリ品質や自然文最終回答の根拠精度・費用は未測定。"
+		},
+		{
+			"id": "V08",
+			"kind": "execution",
+			"locator": "/tmp/eumenes-quality.qJMstdUt/search-host.json; /tmp/eumenes-quality.qJMstdUt/search-host-ranked.json",
+			"observed_at": "2026-11-16",
+			"observation": "Bun 1.4.4のホスト検索合成ベンチで1万件頻出語p95 8.609ms、10万件148.946ms、同混合語179.863ms。狭い列を先に選ぶCTE案の10万件頻出p95 229.672msで見送り。最終候補の全文検索SQLは測定した現行方式と同じ。",
+			"scope": "単一ホスト・実SQLite、合成分布。環境の時間変動があるためCTEの速度差の厳密推定ではなく、目標達成の証拠として採用できないという判断。"
+		},
+		{
+			"id": "V09",
+			"kind": "code",
+			"locator": "README.md:98; docs/cli-mcp.md:51; packages/host/README.md; packages/host/src/{natural.ts,natural-recall.ts,meaning/retrieval.ts} @ eb49dc01a1657f1271c30c092755a67856915ead",
+			"observed_at": "2026-11-16",
+			"observation": "READMEの版9と要件、復元停止時と候補検索時の対応を記録。自然文の検索制御を別モジュールにし、意味判断、根拠検査、既存のscope権限を再利用。",
+			"scope": "対象差分を確認。自然文回答の意味はモデルに残し個別発話で分岐しない。"
+		},
+		{
+			"id": "V10",
+			"kind": "execution",
+			"locator": "/tmp/eumenes-quality.qJMstdUt/audit-root.json; /tmp/audit-host.json",
+			"observed_at": "2026-11-16",
+			"observation": "同じlockfileのbun audit --jsonとホストのbun audit --production --jsonは該当0件。配布物には@modelcontextprotocol/server、core、zodの実体とライセンス原文が一致することを検査。",
+			"scope": "公開された関連依存パッケージ情報の照会。実行時到達性の網羅認定ではない。"
+		}
+	],
+	"claims": [
+		{
+			"id": "R01",
+			"type": "Fact",
+			"statement": "レビューで再現した忘却の復活と利用・停止の競合は候補では再現しない。",
+			"evidence_ids": ["V01", "V02", "V03"],
+			"limitations": "欠損の復元を拒否。ストレージ全体と独立ジャーナルを同時に失う障害は対象外。"
+		},
+		{
+			"id": "R02",
+			"type": "Fact",
+			"statement": "両OSの同一ソースからビルドした配布物を検証した。",
+			"evidence_ids": ["V03", "V04", "V05"],
+			"limitations": "GitHub上のホスト型CI実行、実運用への配布は未実施。"
+		},
+		{
+			"id": "R03",
+			"type": "Unknown",
+			"statement": "実モデルでの候補検索の根拠再現率、応答・費用と自然文最終回答の誤支持率。",
+			"limitations": "今回の候補の検索は合成・固定応答で検証。"
+		}
+	],
+	"findings": [
+		{
+			"id": "F01",
+			"status": "withdrawn",
+			"severity": "High",
+			"priority": "P0",
+			"title": "最新の忘却ジャーナルが無い復元が成功し、忘却済み項目が再表示される",
+			"root_cause": "バックアップ内の最大件数を最新の確証なく採用し、選択したバックアップ時点だけと比較する。",
+			"evidence_ids": ["E07", "E08"],
+			"condition": "忘却前のバックアップ、バックアップ再処理の失敗、ライブjournalの消失が重なる。",
+			"consequence": "復元がcompleted/startedを返し、過去に忘却した項目を通常の読取で返す。",
+			"counterevidence": "最新journalが保持される既存T-BAK-4では復元後も忘却を維持。バックアップの外部独立保管は運用で可能。",
+			"fix": "ライブjournalがない場合は既定で停止し、独立保管された最新journalの検証後にだけ復元候補を公開する。",
+			"verification": "最新未確認で復元が拒否され、現DBは置換されない。真正な最新journalを与えた復元でも対象0件。",
+			"priority_reason": "この復元を業務や個人記憶の障害対策として頼る前。",
+			"confidence": "High",
+			"impacts": [
+				{
+					"track": "technical",
+					"dimension": "reliability",
+					"criterion": "recovery",
+					"reason": "ユーザーの忘却意思を復旧が維持しない。"
+				},
+				{
+					"track": "technical",
+					"dimension": "operability",
+					"criterion": "signals",
+					"reason": "不完全な復旧が正常完了になる。"
+				}
+			],
+			"status_reason": "最終候補で受入条件を再確認。以前の所見はbaselineに保存。"
+		},
+		{
+			"id": "F02",
+			"status": "withdrawn",
+			"severity": "Medium",
+			"priority": "P1",
+			"title": "利用で期限を延長した記憶が同時実行のexpireで停止される",
+			"root_cause": "停止を判断した後、同一write内で最終利用日・期限を読み直さない。",
+			"evidence_ids": ["E07", "E09"],
+			"condition": "候補取得とwriteの間に当該項目のmemory_useがコミット。",
+			"consequence": "利用応答が成功でも項目がinactiveになり検索から消える。",
+			"counterevidence": "訂正ならrevisionにより再検査される。reactivateによる可逆性あり。",
+			"fix": "停止を書くtransactionの中で現在の最終利用日と期限を再検査する。",
+			"verification": "候補抽出後にuseを挟む決定的な並行試験で項目がactiveを維持。",
+			"priority_reason": "自動停止が定期実行される次の運用版まで。",
+			"confidence": "High",
+			"impacts": [
+				{
+					"track": "technical",
+					"dimension": "correctness",
+					"criterion": "concurrency",
+					"reason": "useとexpireの並行処理で契約が崩れる。"
+				}
+			],
+			"status_reason": "最終候補で受入条件を再確認。以前の所見はbaselineに保存。"
+		},
+		{
+			"id": "F03",
+			"status": "confirmed",
+			"severity": "Medium",
+			"priority": "P1",
+			"title": "10万件の検索が公称のp95を超え、自然文の実モデル評価が残る",
+			"root_cause": "広く一致するクエリはbm25順位づけに多数の候補を含む。自然文の候補選択は固定応答のみ実測。",
+			"evidence_ids": ["E10", "V07", "V08"],
+			"condition": "許可範囲の合成10万件で頻出・混合条件。自然文では全件がモデル入力予算を超える条件。",
+			"consequence": "10万件頻出のp95は148.946ms。1,001件での改善を実モデルの正答率に外挿できない。",
+			"counterevidence": "1万件は頻出8.609ms。固定モデルの部分検索は上限内で返り、空・失効・別scopeの根拠を採用しない。",
+			"fix": "順位と忘却条件を保ったままホットパスを計測し、代表会話で実モデルの根拠と費用を検証する。",
+			"verification": "固定しておいた10万件負荷と実モデル・許可済みの質問の再計測で採用条件を満たす。",
+			"priority_reason": "自然文利用の対象を広げる前。",
+			"confidence": "Medium",
+			"impacts": [
+				{
+					"track": "technical",
+					"dimension": "performance",
+					"criterion": "budget",
+					"reason": "自然文入力予算と規模でのテール目標の失敗。"
+				}
+			]
+		},
+		{
+			"id": "F04",
+			"status": "withdrawn",
+			"severity": "Low",
+			"priority": "P2",
+			"title": "導入READMEのDB版が実装とずれる",
+			"root_cause": "0009追加後もREADMEのDB版と公開面の表の更新が揃っていない。",
+			"evidence_ids": ["E01", "E12"],
+			"condition": "READMEだけで本体版とSQLite要件を判断。",
+			"consequence": "導入やロールバックの前提を取り違え得る。",
+			"counterevidence": "ホスト導入ガイドには版9の要件を記載。",
+			"fix": "READMEの版・公開面を同期し、migration登録と矛盾しないことを確認する。",
+			"verification": "READMEと公開schema定数、配布物の更新手順、SQLite要件が一致。",
+			"priority_reason": "機能改修に依存せず直せる文書の小規模修正。",
+			"confidence": "High",
+			"impacts": [
+				{
+					"track": "technical",
+					"dimension": "maintainability",
+					"criterion": "clarity",
+					"reason": "入口の契約説明が実装と不一致。"
+				}
+			],
+			"status_reason": "最終候補で受入条件を再確認。以前の所見はbaselineに保存。"
+		},
+		{
+			"id": "F05",
+			"status": "confirmed",
+			"severity": "Medium",
+			"priority": "P1",
+			"priority_reason": "DBの消失・破損に備えた復旧手順を広げる前。",
+			"confidence": "High",
+			"title": "現在DBの適用点が読めない場合は自動復元を停止する",
+			"root_cause": "最新の証拠を自動判定するため、稼働DBが記録したjournal headを確認する。",
+			"evidence_ids": ["V02", "V09"],
+			"condition": "ディスク故障等で現在DBまたはheadが読み出せない。",
+			"consequence": "独立に保存した最新journalと有効な古いDBがあっても、既存CLIは自動置換を拒否する。",
+			"counterevidence": "元DBが読める欠損、短縮、破損、別系統の試験は、現行DBを安全に維持した。",
+			"fix": "既存のjournalを再適用する仕組みを使い、障害前のheadを独立に証明する運用と明示的な復旧経路を別設計で定める。",
+			"verification": "稼働DBなしの隔離環境で、最新の独立証拠を備えた場合のみ復旧し、古いものと別系統を拒否。",
+			"impacts": [
+				{
+					"track": "technical",
+					"dimension": "reliability",
+					"criterion": "recovery",
+					"reason": "稼働DBを失う災害復旧は安全に停止するが、その先の自動再開に範囲制限がある。"
+				}
+			]
+		}
+	],
+	"tracks": {
+		"technical": {
+			"dimensions": {
+				"architecture": {
+					"criteria": {
+						"boundaries": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "V02", "V03", "V04"],
+							"rationale": "所有者のロック・コアの再適用を再利用し、ホスト配布とアプリ組み込みを分離。",
+							"countercheck": "旧DB head の検証にコアの基盤表への読み依存があるため3を維持。"
+						},
+						"flow": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E02", "E04", "E07"],
+							"rationale": "保存・訂正・忘却の状態遷移と順序に明示契約がある。",
+							"countercheck": "WALとSIGKILLの対照は成立するが、ライブjournal欠損の復元に穴。"
+						},
+						"fit": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E05", "E10", "E13"],
+							"rationale": "単一writerの組み込み用途とBun/Node配布に適合。",
+							"countercheck": "100,000件と短語の限界、最新版の実配備未確認。"
+						}
+					}
+				},
+				"correctness": {
+					"criteria": {
+						"contracts": {
+							"status": "assessed",
+							"value": 4,
+							"confidence": "High",
+							"evidence_ids": ["E02", "E18", "V01", "V03", "V04", "V07"],
+							"rationale": "CLI/MCPと実パッケージ、Eumenesで保存、訂正、古い出典、忘却と復元を試験。容量と期限の戻り値を独立なSQLite状態と照合。",
+							"countercheck": "復元不可でも現在DBを保持し、正常復元では忘却を維持。部分検索は別scope・失効根拠と全件の対照がある。",
+							"anchor_support": "最終候補の2 OSで同じ失敗条件と正常系を検証。新旧MCP consumerと実Eumenesのtgzが通過。"
+						},
+						"edge_cases": {
+							"status": "assessed",
+							"value": 4,
+							"confidence": "High",
+							"evidence_ids": ["E04", "E18", "V01", "V06", "V07"],
+							"rationale": "破損、短縮、別系統、入れ替え前後、巨大UTF-8入力、忘却中の根拠を個別に試験。",
+							"countercheck": "checksumの一致だけで不正schemaを許さず、現行DBと正常な復元を対照にした。",
+							"anchor_support": "DB、プロセス、IPC、サイズ境界で機能の異常経路を独立に再現。"
+						},
+						"concurrency": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E04", "V01", "V06"],
+							"rationale": "期限を確定するtransactionで先行した再利用を確認。重複適用、取消後照会と同時制限も検証。",
+							"countercheck": "修正前に失敗した決定的な順序を再現し、再利用が先ならactiveを維持。"
+						}
+					}
+				},
+				"security": {
+					"criteria": {
+						"access": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E02", "E03", "E18"],
+							"rationale": "grantとscopeを主経路で再検査し、検索と読取の権限をテスト。",
+							"countercheck": "本人確認は自己申告から昇格しない。ホストとOS権限は別の信頼境界。"
+						},
+						"input_secrets": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E03", "E06", "E18"],
+							"rationale": "入力schema、SQLの引数束縛、ソケットとファイルのprivate mode、エラーの制限。",
+							"countercheck": "サイズ・タイムアウト・不正型・FTS構文の回帰を確認。依存の網羅監査はなし。"
+						},
+						"abuse": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E03", "V06", "V07"],
+							"rationale": "IPC同時枠、無資格の別拒否、入力・出力・依存モデル予算を別々に制限し、解放後に再開した。",
+							"countercheck": "飽和させた正常資格の要求を解放して回復を実測。ネットワーク公開への一般化はしない。"
+						}
+					}
+				},
+				"reliability": {
+					"criteria": {
+						"failure": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E03", "E04", "E07"],
+							"rationale": "途中失敗・タイムアウト・不確実な結果に機械判読の応答がある。",
+							"countercheck": "コミット失敗後のfail-closedと通常再試行を確認。復元安全性の低評価はrecoveryに計上。"
+						},
+						"recovery": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E04", "V01", "V02", "V03", "V04"],
+							"rationale": "ログ欠損で安全停止し、置換直前直後の中断、再起動と重複、実Eumenesを検証。",
+							"countercheck": "現在DBの適用点を失った障害では独立ジャーナルを持っていても現CLIは手動復元まで誘導しないため4にしない。"
+						},
+						"resilience": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E03", "V03", "V06", "V07"],
+							"rationale": "checkpoint busy、モデル枠、IPC飽和で拒否と回復を実測。",
+							"countercheck": "期限・取消・上限を明示エラーとして扱い、自然文回復で権限・入力上限を維持する。"
+						}
+					}
+				},
+				"maintainability": {
+					"criteria": {
+						"clarity": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E16", "V03", "V09"],
+							"rationale": "スキーマ説明、復元停止、部分検索の挙動を実装・配布物に揃える。",
+							"countercheck": "版8→9の試験、ホストガイドのリンクとパック欠落の対照を確認。"
+						},
+						"change": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E04", "E05", "E06"],
+							"rationale": "migration追記とhash、公開面、隔離配布物、互換型を回帰で検査。",
+							"countercheck": "版8から9、ダウングレードと再適用も試験。運用環境の互換性まで網羅しない。"
+						},
+						"debt": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E16", "V02", "V04", "V09"],
+							"rationale": "復元・起動のロックを共通化、候補検索と既存の意味処理を分離し、変更をホスト境界に限定した。",
+							"countercheck": "既存の予定管理を重ねた際の調整は新旧のモデル・自然文接続の2ファイル。SQLiteコアと公開型の置換を要さず実結合で確認。"
+						}
+					}
+				},
+				"common_components": {
+					"criteria": {
+						"duplication": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E02", "E05", "E18"],
+							"rationale": "CLI、MCP、同梱ホストで適用・忘却・検索の処理と契約を共有。",
+							"countercheck": "CLI-only操作は意図的に分離、同一所有者に複数MCP接続するテストで照合。"
+						},
+						"reuse": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E05", "E13"],
+							"rationale": "同じSQLiteコアがCLI/MCPとEumenesのwriterで再利用される。",
+							"countercheck": "BunとNodeのconsumerおよびEumenesのfixtureで互換を確認。"
+						},
+						"abstraction": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E01", "E02", "E13"],
+							"rationale": "ホストのDB・journalポートが同梱版と既存アプリwriterの違いを限定。",
+							"countercheck": "外部削除の確認は所有者の責務で、同梱ホストが任意連携を抽象化しない。"
+						}
+					}
+				},
+				"testing": {
+					"criteria": {
+						"risk_coverage": {
+							"status": "assessed",
+							"value": 4,
+							"confidence": "High",
+							"evidence_ids": ["E04", "V01", "V03", "V04", "V07"],
+							"rationale": "代表する復元・競合・入口・配布・容量・範囲のリスクを含めた。",
+							"countercheck": "復元欠損、並行停止、アーカイブ改変、別ソース、忘却中の応答の各対照を確認。",
+							"anchor_support": "ローカル2 OSと複数consumerで異常を複数個所へ注入して確認。"
+						},
+						"quality": {
+							"status": "assessed",
+							"value": 4,
+							"confidence": "High",
+							"evidence_ids": ["V01", "V03", "V06", "V07"],
+							"rationale": "再現テストは変更前に落ち、変更後はDB状態と公開応答を検証。ソースが異なる自己整合したtarballも拒否。",
+							"countercheck": "候補選定順を同期で制御、復元中断をSIGKILLで注入、失敗を成功と誤認しない対照を比較。",
+							"anchor_support": "実DB、同一コードの2 OS、対照確認で検出力を確認。固定応答は意味精度に加点しない。"
+						},
+						"automation": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E06", "V03"],
+							"rationale": "同じワークフローのコマンドを2 OSで実行し、同一hash。",
+							"countercheck": "公開originへの送信を行わず、ホスト型CIの実行結果と反復信頼性は確認していないため3を維持。"
+						}
+					}
+				},
+				"supply_chain": {
+					"criteria": {
+						"dependencies": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E06", "V03", "V05", "V10"],
+							"rationale": "コアとホストのlockfileを確認。配布ホストの直接・推移依存の実解決を同梱manifest、隔離インストール、公開助言確認と照合。",
+							"countercheck": "環境を変えて同一解決を確認。依存監査はその実行時点・登録範囲。"
+						},
+						"build_release": {
+							"status": "assessed",
+							"value": 4,
+							"confidence": "High",
+							"evidence_ids": ["V03", "V04", "V05"],
+							"rationale": "実コア・ホストtarballの内容と作成元hashを検査。隔離Node/Bunと新旧SDK、実Eumenesで更新候補の配布物を検証。",
+							"countercheck": "内容改変、必須文書・export欠落、別ソース由来を拒否する実対照。",
+							"anchor_support": "作成、独立インストール、組み込みの更新候補を確認し、macOSとLinuxで同じsource hashと対照に成功。"
+						},
+						"license": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E06", "V03", "V05"],
+							"rationale": "同梱のコア・出所表示、ホストの直接・推移依存のライセンス原文を配布物から追跡可能。",
+							"countercheck": "宣言だけでなく隔離インストール内容のhashを各通知と照合。"
+						}
+					}
+				},
+				"performance": {
+					"criteria": {
+						"budget": {
+							"status": "assessed",
+							"value": 1,
+							"confidence": "Medium",
+							"evidence_ids": ["E10", "E11", "V07", "V08"],
+							"rationale": "自然文の対象検索で1,001件に対応する経路を確認。10万件頻出語の測定148.946msは100msの公称目標未達。実モデルの費用と最終回答の性能は確認なし。"
+						},
+						"hot_path": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E10", "E18"],
+							"rationale": "索引と短語の走査上限、根拠用索引、差分だけ索引更新を使い、1万件では妥当な合成性能。",
+							"countercheck": "頻出語と広い範囲では性能が落ちる。MCP検索と全件natural recallは別。"
+						},
+						"measurement": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["E10", "E11"],
+							"rationale": "合成・件数・分布・p95・対象外・再測定を記録。モデル費用/入力量も別に保存。",
+							"countercheck": "実用条件の出典構成やsocket遅延が欠け、回帰CI用の代表負荷は限定的。"
+						}
+					}
+				},
+				"operability": {
+					"criteria": {
+						"signals": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["V01", "V02", "V06", "V09"],
+							"rationale": "不足するjournal、誤った系統、checkpoint競合、部分検索、IPC飽和に別の状態と対処がある。",
+							"countercheck": "復元不能と正常完了、枠解放前後の状態を同じ入口で確認。"
+						},
+						"lifecycle": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["V01", "V03", "V04", "V09"],
+							"rationale": "配布物から導入、旧DB移行、忘却付きの復旧と停止を実施。",
+							"countercheck": "現在DBを保った復元拒否と、退避後に新DBで再起動の両方を確認。"
+						},
+						"interaction": {
+							"status": "assessed",
+							"value": 3,
+							"confidence": "Medium",
+							"evidence_ids": ["V03", "V04", "V07", "V09"],
+							"rationale": "配布CLIと新旧MCPの保存・検索・訂正・忘却・復元を通し、容量不足の復帰経路を示した。",
+							"countercheck": "固定モデルの範囲限定回答、根拠を失った失敗を試験。実利用頻度は未確認。"
+						}
+					}
+				}
+			}
+		}
+	},
+	"baseline_snapshot": "00e9bc2229519014880b0965b8563d2d1ce99c23",
+	"verification_runs": [
+		{
+			"platform": "macOS arm64",
+			"sourceHash": "94e4710c9c13fcb8fbca6d27bb030d105ee54459e933466283d59d29d09003e5",
+			"passed": 1045,
+			"skipped": 3,
+			"coreArtifactSha256": "c51663d16ba0f3453074b786230177b3d24864e176222e7f20bbeb45beb05143",
+			"hostArtifactSha256": "0a2df57af2cddae60a3ab06d1cb3cce5044e8624783189e53dd32982906410a0",
+			"runtimeDependencies": [
+				{
+					"name": "@modelcontextprotocol/core",
+					"version": "2.4.0",
+					"license": "Apache-2.0",
+					"notice": "%40modelcontextprotocol%2Fcore@2.4.0.txt",
+					"sha256": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a"
+				},
+				{
+					"name": "@modelcontextprotocol/server",
+					"version": "2.4.0",
+					"license": "Apache-2.0",
+					"notice": "%40modelcontextprotocol%2Fserver@2.4.0.txt",
+					"sha256": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a"
+				},
+				{
+					"name": "zod",
+					"version": "4.6.7",
+					"license": "MIT",
+					"notice": "zod@4.6.7.txt",
+					"sha256": "3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8"
+				}
+			],
+			"coreNegativeControls": [
+				"missing export rejected",
+				"missing guide rejected",
+				"modified artifact rejected",
+				"artifact from different source rejected"
+			],
+			"hostNegativeControls": [
+				"modified artifact rejected",
+				"artifact from different source rejected"
+			]
+		},
+		{
+			"platform": "Linux arm64 container",
+			"sourceHash": "94e4710c9c13fcb8fbca6d27bb030d105ee54459e933466283d59d29d09003e5",
+			"passed": 1045,
+			"skipped": 3,
+			"coreArtifactSha256": "c51663d16ba0f3453074b786230177b3d24864e176222e7f20bbeb45beb05143",
+			"hostArtifactSha256": "0a2df57af2cddae60a3ab06d1cb3cce5044e8624783189e53dd32982906410a0",
+			"runtimeDependencies": [
+				{
+					"name": "@modelcontextprotocol/core",
+					"version": "2.4.0",
+					"license": "Apache-2.0",
+					"notice": "%40modelcontextprotocol%2Fcore@2.4.0.txt",
+					"sha256": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a"
+				},
+				{
+					"name": "@modelcontextprotocol/server",
+					"version": "2.4.0",
+					"license": "Apache-2.0",
+					"notice": "%40modelcontextprotocol%2Fserver@2.4.0.txt",
+					"sha256": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a"
+				},
+				{
+					"name": "zod",
+					"version": "4.6.7",
+					"license": "MIT",
+					"notice": "zod@4.6.7.txt",
+					"sha256": "3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8"
+				}
+			],
+			"coreNegativeControls": [
+				"missing export rejected",
+				"missing guide rejected",
+				"modified artifact rejected",
+				"artifact from different source rejected"
+			],
+			"hostNegativeControls": [
+				"modified artifact rejected",
+				"artifact from different source rejected"
+			]
+		}
+	]
+}

@@ -2,7 +2,7 @@ import { readBoundedText } from "./io.ts";
 import { createHash } from "node:crypto";
 import { Database } from "bun:sqlite";
 import { demand, HOST_LIMITS, HostError, type Profile } from "./contracts.ts";
-import { hostPlanningInstructions } from "./meaning/planning.ts";
+import { hostAgendaPlanningInstructions } from "./meaning/planning.ts";
 import {
 	hostGroundingInstructions,
 	recallPrompt,
@@ -26,7 +26,7 @@ export function encodeModelInput(
 		instructions:
 			instructions ??
 			(task === "decide"
-				? hostPlanningInstructions
+				? hostAgendaPlanningInstructions
 				: hostGroundingInstructions),
 		maxOutputTokens: 4096,
 	});

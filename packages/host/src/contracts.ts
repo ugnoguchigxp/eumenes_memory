@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { STATE_KINDS } from "eumenes-memory";
+import { directAgendaWrite } from "./agenda-contract.ts";
 
 export const HOST_VERSION = 1;
 /** 出典の由来（§4B.3）。`user_message` と `agent_reasoning` 以外は外部由来として扱う。 */
@@ -131,6 +132,10 @@ export const evidenceSchema = z
 		endByte: z.number().int().positive(),
 	})
 	.strict();
+export const planApplySchema = z
+	.object({ planId: id, operationId: id, epoch: id })
+	.strict();
+export type PlanApplyParams = z.infer<typeof planApplySchema>;
 export const methodSchemas = {
 	status: z.object({}).strict(),
 	source: z
@@ -138,7 +143,7 @@ export const methodSchemas = {
 			submissionId: id,
 			scopeKey: id,
 			content: z.string().min(1),
-			kind: z.enum(["text", "record"]).default("text"),
+			kind: z.enum(["text", "record", "agent_reply"]).default("text"),
 			/** 出典の由来。Grok Bot の自己申告で、実行環境は確かめない（決定 12）。信頼を下げる方向にだけ効く。 */
 			provenance: z.enum(PROVENANCES).default("unknown"),
 		})
@@ -147,6 +152,7 @@ export const methodSchemas = {
 		.object({
 			scopeKeys: scopes.optional(),
 			cursor: id.optional(),
+			agenda: z.boolean().optional(),
 			limit: z.number().int().min(1).max(100).default(100),
 		})
 		.strict(),
@@ -167,7 +173,15 @@ export const methodSchemas = {
 			sourceHandles: z.array(id).max(8).default([]),
 		})
 		.strict(),
-	apply: z.object({ planId: id, operationId: id, epoch: id }).strict(),
+	apply: planApplySchema
+		.partial()
+		.extend({ agenda: directAgendaWrite.optional() })
+		.strict()
+		.refine((p) =>
+			p.agenda
+				? !p.planId && !p.operationId && !p.epoch
+				: p.planId && p.operationId && p.epoch,
+		),
 	operation: z.object({ operationId: id, epoch: id }).strict(),
 	/** 管理用（admin の grant）。MCP には出さない（`CLI_ONLY_METHODS`）。 */
 	backup: z.object({}).strict(),

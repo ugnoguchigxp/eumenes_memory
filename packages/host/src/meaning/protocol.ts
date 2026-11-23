@@ -1,5 +1,6 @@
 import { POLARITIES, STATE_KINDS } from "eumenes-memory";
 import type { Polarity, StateKind, StateSubject } from "eumenes-memory";
+import { agendaAction, type AgendaAction } from "../agenda-contract.ts";
 import type { ComparisonGroup } from "./model-input.ts";
 
 export const PROMPT_VERSION = "standalone-memory-v25";
@@ -194,6 +195,7 @@ export function decisionOutputSchema(
 	ids?: readonly string[],
 	sourceMessage?: string,
 	quoteMode: "message" | "range" = "message",
+	extraActions: readonly object[] = [],
 ) {
 	const id = ids === undefined ? text : { type: "string", enum: [...ids] };
 	const replacement =
@@ -209,6 +211,7 @@ export function decisionOutputSchema(
 			maxItems: 8,
 			items: {
 				anyOf: [
+					...extraActions,
 					object({
 						type: { enum: ["remember"], type: "string" },
 						subject: {
@@ -622,10 +625,19 @@ function keys(value: Record<string, unknown>, expected: string[]): void {
 		throw new Error("Unexpected output fields");
 }
 
+export type HostAction = Action | AgendaAction;
 export function parseDecision(raw: string): {
 	actions: Action[];
 	clarification: string | null;
-} {
+};
+export function parseDecision(
+	raw: string,
+	agenda: boolean,
+): { actions: HostAction[]; clarification: string | null };
+export function parseDecision(
+	raw: string,
+	agenda = false,
+): { actions: HostAction[]; clarification: string | null } {
 	const root = record(JSON.parse(raw));
 	keys(root, ["actions", "clarification"]);
 	if (
@@ -635,8 +647,14 @@ export function parseDecision(raw: string): {
 		throw new Error("Invalid clarification");
 	if (!Array.isArray(root["actions"]) || root["actions"].length > 8)
 		throw new Error("Invalid actions array");
-	const actions: Action[] = root["actions"].map((input: unknown) => {
+	const actions: HostAction[] = root["actions"].map((input: unknown) => {
 		const action = record(input);
+		if (
+			agenda &&
+			(action["type"] === "remember_agenda" ||
+				action["type"] === "set_agenda_status")
+		)
+			return agendaAction.parse(action);
 		if (action["type"] === "forget") {
 			keys(action, ["type", "itemId"]);
 			if (typeof action["itemId"] !== "string")

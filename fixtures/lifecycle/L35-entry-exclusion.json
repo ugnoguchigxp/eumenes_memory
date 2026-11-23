@@ -1,0 +1,68 @@
+{
+	"id": "L35-entry-exclusion",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"exclusion"
+	],
+	"kind": "entry",
+	"description": "Format 3 (immediate exclusion) sorts and dedupes targets and hashes the exclusion operation; the forgetId also covers it",
+	"input": {
+		"journalFormat": 3,
+		"seq": 1,
+		"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+		"principal": "local:owner",
+		"exclusionOp": "exclude",
+		"targets": [
+			{
+				"type": "state_item",
+				"id": "state:b",
+				"scopeKey": "conversation:c1"
+			},
+			{
+				"type": "candidate",
+				"id": "cand:a",
+				"scopeKey": "conversation:c1"
+			},
+			{
+				"type": "state_item",
+				"id": "state:a",
+				"scopeKey": "conversation:c1"
+			},
+			{
+				"type": "state_item",
+				"id": "state:b",
+				"scopeKey": "conversation:c1"
+			}
+		]
+	},
+	"expect": {
+		"entry": {
+			"journalFormat": 3,
+			"seq": 1,
+			"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+			"forgetId": "forget:5dd92284f828740d0bcce43bcb04399a99b150937512ff463c85ea67cd12eb7b",
+			"principal": "local:owner",
+			"targets": [
+				{
+					"type": "candidate",
+					"id": "cand:a",
+					"scopeKey": "conversation:c1"
+				},
+				{
+					"type": "state_item",
+					"id": "state:a",
+					"scopeKey": "conversation:c1"
+				},
+				{
+					"type": "state_item",
+					"id": "state:b",
+					"scopeKey": "conversation:c1"
+				}
+			],
+			"exclusionOp": "exclude",
+			"hash": "87aae794d0c1f262e028bd30952792151f448a14b9192f63bb033d003c693b89"
+		},
+		"hashInput": "{\"exclusionOp\":\"exclude\",\"forgetId\":\"forget:5dd92284f828740d0bcce43bcb04399a99b150937512ff463c85ea67cd12eb7b\",\"journalFormat\":3,\"prevHash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"principal\":\"local:owner\",\"seq\":1,\"targets\":[{\"id\":\"cand:a\",\"scopeKey\":\"conversation:c1\",\"type\":\"candidate\"},{\"id\":\"state:a\",\"scopeKey\":\"conversation:c1\",\"type\":\"state_item\"},{\"id\":\"state:b\",\"scopeKey\":\"conversation:c1\",\"type\":\"state_item\"}]}"
+	}
+}

@@ -13,3 +13,15 @@ export function stateItemId(
 ): string {
 	return `state:${sha256Hex(canonicalJson([principal, scopeKey, createdSeq]))}`;
 }
+
+/**
+ * 記憶の候補（L1）の ID。`"cand:" + sha256Hex(canonicalJson([principal, scopeKey, createdSeq]))`。
+ * createdSeq は候補を作る操作の seq（1 操作が作る候補は高々 1 件）。
+ */
+export function inferredCandidateId(
+	principal: string,
+	scopeKey: string,
+	createdSeq: number,
+): string {
+	return `cand:${sha256Hex(canonicalJson([principal, scopeKey, createdSeq]))}`;
+}

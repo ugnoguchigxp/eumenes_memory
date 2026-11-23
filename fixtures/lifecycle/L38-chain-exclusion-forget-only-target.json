@@ -1,0 +1,50 @@
+{
+	"id": "L38-chain-exclusion-forget-only-target",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"chain",
+		"exclusion"
+	],
+	"kind": "chain",
+	"description": "A format 3 entry may only target state items and candidates, even when its hash is consistent",
+	"input": {
+		"entries": [
+			{
+				"journalFormat": 1,
+				"seq": 1,
+				"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+				"forgetId": "forget:f6e9938e246ec3a9e4d8d8548baabafd734f800a18d6b09e2b1392d625b0b881",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "state_item",
+						"id": "state:a",
+						"scopeKey": "conversation:c1"
+					}
+				],
+				"hash": "3890af2634f05bd5a5bd84b098f7eba07f37a31df7729d9b140a3865e14e1099"
+			},
+			{
+				"journalFormat": 3,
+				"seq": 2,
+				"prevHash": "3890af2634f05bd5a5bd84b098f7eba07f37a31df7729d9b140a3865e14e1099",
+				"forgetId": "forget:75d442507647bdc8e1601ce3d2458cdba5bc25af6373ac50ad82378439bdf88a",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "scope",
+						"id": "conversation:c1",
+						"scopeKey": "conversation:c1"
+					}
+				],
+				"exclusionOp": "exclude",
+				"hash": "8482dc75f54d0fb07171d380042bbac6e3d66cfd59c73bc95bbdeab47c86eb97"
+			}
+		]
+	},
+	"expect": {
+		"status": "inconsistent",
+		"reasonCode": "JOURNAL_CHAIN_BROKEN"
+	}
+}

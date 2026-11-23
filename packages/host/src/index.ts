@@ -30,3 +30,9 @@ export type {
 	HostResult,
 	Method,
 } from "./contracts.ts";
+
+export type {
+	AgendaItem,
+	AgendaKind,
+	AgendaStatus,
+} from "./agenda-contract.ts";

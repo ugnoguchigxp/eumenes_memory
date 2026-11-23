@@ -25,6 +25,7 @@ export * from "./contracts/external.ts";
 
 // ---- 純粋部品 ----
 export { sliceUtf8Range } from "./domains/records/index.ts";
+export { checkGroundedClaim } from "./domains/state/index.ts";
 export { verifyForgetJournal } from "./domains/lifecycle/index.ts";
 
 // ---- 時間 ----

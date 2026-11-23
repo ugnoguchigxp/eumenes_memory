@@ -77,13 +77,14 @@ describe("assertMemorySchema", () => {
 		const rows = s.writer
 			.query("SELECT key, value FROM memory_schema_info ORDER BY key")
 			.all() as { key: string; value: string }[];
-		expect(rows).toEqual([
+		const expected = [
 			{ key: "db_schema_version", value: String(MEMORY_DB_SCHEMA_VERSION) },
 			...MIGRATION_BODIES.map((body, index) => ({
 				key: `migration_${index + 1}_sha256`,
 				value: migrationHash(body),
 			})),
-		]);
+		].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+		expect(rows).toEqual(expected);
 	});
 
 	test("detects a migration hash mismatch", () => {

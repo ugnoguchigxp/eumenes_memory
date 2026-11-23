@@ -24,23 +24,32 @@ import {
 import type { Rec } from "../../../contracts/reader.ts";
 import { LIMITS } from "../../../contracts/constants.ts";
 import {
+	EXCLUSION_OPS,
+	EXCLUSION_TARGET_TYPES,
 	FORGET_TARGET_TYPES,
 	JOURNAL_FORMAT,
+	JOURNAL_FORMAT_EXCLUSION,
 	JOURNAL_FORMAT_HOST_INTENT,
 	LIFECYCLE_CONTRACT_VERSIONS,
 	LIMITS_LIFECYCLE,
 } from "../contracts/index.ts";
 import type {
+	ApplyExclusionInput,
 	ApplyForgetInput,
+	ExclusionOp,
+	ExclusionTarget,
 	ForgetJournalEntry,
 	ForgetJournalTarget,
 	ForgetTarget,
 	GetForgetReceiptInput,
 	HostForgetIntent,
 	LifecycleContractVersion,
+	ListExclusionsInput,
+	PlanExclusionInput,
 	PlanForgetInput,
 	ReconcileForgetJournalInput,
 } from "../contracts/index.ts";
+import { readSourceRunId } from "../../../contracts/parse-store.ts";
 import { isRecordId } from "../../records/index.ts";
 import { canonicalizeHostIntent } from "./journal.ts";
 
@@ -89,6 +98,15 @@ function readForgetTarget(value: unknown, path: string): ForgetTarget {
 				LIMITS.maxItemIdBytes,
 			);
 			return { type, itemId, scopeKey };
+		}
+		case "candidate": {
+			checkKeys(record, path, ["type", "candidateId", "scopeKey"]);
+			const candidateId = readIdentifier(
+				requiredField(record, path, "candidateId"),
+				keyPath(path, "candidateId"),
+				LIMITS.maxItemIdBytes,
+			);
+			return { type, candidateId, scopeKey };
 		}
 	}
 }
@@ -241,7 +259,8 @@ export function readJournalEntry(
 	const journalFormat = requiredField(record, path, "journalFormat");
 	if (
 		journalFormat !== JOURNAL_FORMAT &&
-		journalFormat !== JOURNAL_FORMAT_HOST_INTENT
+		journalFormat !== JOURNAL_FORMAT_HOST_INTENT &&
+		journalFormat !== JOURNAL_FORMAT_EXCLUSION
 	) {
 		return fail("UNSUPPORTED_SCHEMA_VERSION", keyPath(path, "journalFormat"));
 	}
@@ -257,7 +276,14 @@ export function readJournalEntry(
 	checkKeys(
 		record,
 		path,
-		journalFormat === JOURNAL_FORMAT ? keys : [...keys, "hostIntent"],
+		journalFormat === JOURNAL_FORMAT
+			? keys
+			: [
+					...keys,
+					journalFormat === JOURNAL_FORMAT_EXCLUSION
+						? "exclusionOp"
+						: "hostIntent",
+				],
 	);
 	const seq = readSafeInteger(
 		requiredField(record, path, "seq"),
@@ -292,7 +318,9 @@ export function readJournalEntry(
 			type: readEnum(
 				requiredField(target, targetPath, "type"),
 				keyPath(targetPath, "type"),
-				FORGET_TARGET_TYPES,
+				journalFormat === JOURNAL_FORMAT_EXCLUSION
+					? EXCLUSION_TARGET_TYPES
+					: FORGET_TARGET_TYPES,
 			),
 			id: readIdentifier(
 				requiredField(target, targetPath, "id"),
@@ -310,9 +338,20 @@ export function readJournalEntry(
 		Object.hasOwn(record, "hostIntent")
 			? readHostIntent(record["hostIntent"], keyPath(path, "hostIntent"), true)
 			: null;
-	if (targets.length === 0 && hostIntent === null) {
+	if (
+		targets.length === 0 &&
+		(hostIntent === null || journalFormat === JOURNAL_FORMAT_EXCLUSION)
+	) {
 		return fail("INVALID_VALUE", targetsPath);
 	}
+	const exclusionOp =
+		journalFormat === JOURNAL_FORMAT_EXCLUSION
+			? readEnum(
+					requiredField(record, path, "exclusionOp"),
+					keyPath(path, "exclusionOp"),
+					EXCLUSION_OPS,
+				)
+			: undefined;
 	const hash = readHex64(
 		requiredField(record, path, "hash"),
 		keyPath(path, "hash"),
@@ -325,13 +364,14 @@ export function readJournalEntry(
 		principal,
 		targets,
 		...(hostIntent !== null ? { hostIntent } : {}),
+		...(exclusionOp !== undefined ? { exclusionOp } : {}),
 		hash,
 	};
 }
 
 export function parseApplyForgetInput(value: unknown): ApplyForgetInput {
 	const record = readRecord(value, PATH);
-	checkKeys(record, PATH, ["contractVersion", "entry", "clock"]);
+	checkKeys(record, PATH, ["contractVersion", "entry", "clock", "sourceRunId"]);
 	const contractVersion = readLifecycleContractVersion(record);
 	const entry = readJournalEntry(
 		requiredField(record, PATH, "entry"),
@@ -341,7 +381,97 @@ export function parseApplyForgetInput(value: unknown): ApplyForgetInput {
 		requiredField(record, PATH, "clock"),
 		keyPath(PATH, "clock"),
 	);
-	return deepFreeze({ contractVersion, entry, clock });
+	const sourceRunId = Object.hasOwn(record, "sourceRunId")
+		? readSourceRunId(record["sourceRunId"], keyPath(PATH, "sourceRunId"))
+		: undefined;
+	return deepFreeze({
+		contractVersion,
+		entry,
+		clock,
+		...(sourceRunId === undefined ? {} : { sourceRunId }),
+	});
+}
+
+export function parsePlanExclusionInput(value: unknown): PlanExclusionInput {
+	const record = readRecord(value, PATH);
+	checkKeys(record, PATH, [
+		"contractVersion",
+		"access",
+		"op",
+		"targets",
+		"clock",
+	]);
+	readContractVersionIn(record, PATH, [2] as const);
+	const access = readAccessContext(
+		requiredField(record, PATH, "access"),
+		keyPath(PATH, "access"),
+	);
+	const op: ExclusionOp = readEnum(
+		requiredField(record, PATH, "op"),
+		keyPath(PATH, "op"),
+		EXCLUSION_OPS,
+	);
+	const targetsPath = keyPath(PATH, "targets");
+	const targets = readArray(
+		requiredField(record, PATH, "targets"),
+		targetsPath,
+		LIMITS_LIFECYCLE.maxJournalTargets,
+	).map((element, index): ExclusionTarget => {
+		const target = readForgetTarget(element, indexPath(targetsPath, index));
+		if (target.type !== "state_item" && target.type !== "candidate") {
+			return fail("INVALID_VALUE", indexPath(targetsPath, index));
+		}
+		return target;
+	});
+	if (targets.length === 0) return fail("INVALID_VALUE", targetsPath);
+	const scopeKey = targets[0]?.scopeKey;
+	if (targets.some((target) => target.scopeKey !== scopeKey)) {
+		return fail("INVALID_VALUE", targetsPath);
+	}
+	const clock = readHostClock(
+		requiredField(record, PATH, "clock"),
+		keyPath(PATH, "clock"),
+	);
+	return deepFreeze({
+		contractVersion: 2 as const,
+		access,
+		op,
+		targets,
+		clock,
+	});
+}
+
+export function parseApplyExclusionInput(value: unknown): ApplyExclusionInput {
+	const parsed = parseApplyForgetInput(value);
+	if (
+		parsed.contractVersion !== 2 ||
+		parsed.entry.journalFormat !== JOURNAL_FORMAT_EXCLUSION
+	) {
+		return fail("INVALID_VALUE", keyPath(PATH, "entry"));
+	}
+	return {
+		contractVersion: 2,
+		entry: parsed.entry,
+		clock: parsed.clock,
+		...(parsed.sourceRunId === undefined
+			? {}
+			: { sourceRunId: parsed.sourceRunId }),
+	};
+}
+
+export function parseListExclusionsInput(value: unknown): ListExclusionsInput {
+	const record = readRecord(value, PATH);
+	checkKeys(record, PATH, ["contractVersion", "access", "scopeKey"]);
+	const contractVersion = readLifecycleContractVersion(record);
+	const access = readAccessContext(
+		requiredField(record, PATH, "access"),
+		keyPath(PATH, "access"),
+	);
+	const scopeKey = readScopeKey(
+		requiredField(record, PATH, "scopeKey"),
+		keyPath(PATH, "scopeKey"),
+	);
+	return deepFreeze({ contractVersion, access, scopeKey });
 }
 
 /**

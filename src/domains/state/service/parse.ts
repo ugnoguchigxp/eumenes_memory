@@ -18,6 +18,7 @@ import {
 	readHostClock,
 	readScopeKey,
 	readScopeKeys,
+	readSourceRunId,
 } from "../../../contracts/parse-store.ts";
 import {
 	checkKeys,
@@ -37,6 +38,7 @@ import { ownValue } from "../../../contracts/own.ts";
 import { sourceKey } from "../../../contracts/source-key.ts";
 import {
 	LIMITS_STATE,
+	STATE_CHANGE_KINDS,
 	STATE_KINDS,
 	HOST_STATE_ORIGINS,
 } from "../contracts/index.ts";
@@ -62,7 +64,7 @@ import { utf8ByteLength } from "../../../canonical/utf8.ts";
 const SCOPED_WRITE_KEYS = ["contractVersion", "access", "scopeKey", "clock"];
 const SCOPED_READ_KEYS = ["contractVersion", "access", "scopeKey"];
 
-function readScopedHeader(record: Rec, path: string) {
+export function readScopedHeader(record: Rec, path: string) {
 	const contractVersion = readContractVersion(
 		record,
 		path,
@@ -79,7 +81,7 @@ function readScopedHeader(record: Rec, path: string) {
 	return { contractVersion, access, scopeKey };
 }
 
-function readWriteHeader(record: Rec, path: string) {
+export function readWriteHeader(record: Rec, path: string) {
 	return {
 		...readScopedHeader(record, path),
 		clock: readHostClock(
@@ -132,7 +134,10 @@ export function readStateValue(value: unknown, path: string): StateValue {
 	return { text, polarity, attributes };
 }
 
-function readEvidence(value: unknown, path: string): readonly EvidenceSpan[] {
+export function readEvidence(
+	value: unknown,
+	path: string,
+): readonly EvidenceSpan[] {
 	const items = readArray(value, path, LIMITS_STATE.maxEvidencePerItem);
 	if (items.length === 0) return fail("INVALID_VALUE", path);
 	const spans: EvidenceSpan[] = [];
@@ -172,7 +177,7 @@ function readEvidence(value: unknown, path: string): readonly EvidenceSpan[] {
 	return spans;
 }
 
-function readHostSources(
+export function readHostSources(
 	value: unknown,
 	path: string,
 ): readonly HostSourceState[] {
@@ -243,7 +248,7 @@ function readOrigin(record: Rec, path: string) {
 	);
 }
 
-function readRevision(value: unknown, path: string): number {
+export function readRevision(value: unknown, path: string): number {
 	return readSafeInteger(value, path, 1, Number.MAX_SAFE_INTEGER);
 }
 
@@ -265,6 +270,8 @@ export function parseAssertUserStateInput(
 		"validUntilMs",
 		"validity",
 		"replaces",
+		"sourceRunId",
+		"change",
 	]);
 	const header = readWriteHeader(record, path);
 	const kind = readEnum(
@@ -344,6 +351,15 @@ export function parseAssertUserStateInput(
 			),
 		};
 	}
+	const sourceRunId = Object.hasOwn(record, "sourceRunId")
+		? readSourceRunId(record["sourceRunId"], keyPath(path, "sourceRunId"))
+		: undefined;
+	const change = Object.hasOwn(record, "change")
+		? readEnum(record["change"], keyPath(path, "change"), STATE_CHANGE_KINDS)
+		: undefined;
+	if (change !== undefined && replaces === undefined) {
+		return fail("INVALID_VALUE", keyPath(path, "change"));
+	}
 	return deepFreeze({
 		...header,
 		kind,
@@ -357,6 +373,8 @@ export function parseAssertUserStateInput(
 		...(validUntilMs === undefined ? {} : { validUntilMs }),
 		...(validity === undefined ? {} : { validity }),
 		...(replaces === undefined ? {} : { replaces }),
+		...(sourceRunId === undefined ? {} : { sourceRunId }),
+		...(change === undefined ? {} : { change }),
 	});
 }
 
@@ -431,7 +449,12 @@ function readValidity(value: unknown, path: string): ValidityPeriod {
 export function parseStateTargetInput(value: unknown): StateTargetInput {
 	const path = "$";
 	const record = readRecord(value, path);
-	checkKeys(record, path, [...SCOPED_WRITE_KEYS, "itemId", "expectedRevision"]);
+	checkKeys(record, path, [
+		...SCOPED_WRITE_KEYS,
+		"itemId",
+		"expectedRevision",
+		"sourceRunId",
+	]);
 	return deepFreeze({
 		...readWriteHeader(record, path),
 		itemId: readIdentifier(
@@ -443,6 +466,14 @@ export function parseStateTargetInput(value: unknown): StateTargetInput {
 			requiredField(record, path, "expectedRevision"),
 			keyPath(path, "expectedRevision"),
 		),
+		...(Object.hasOwn(record, "sourceRunId")
+			? {
+					sourceRunId: readSourceRunId(
+						record["sourceRunId"],
+						keyPath(path, "sourceRunId"),
+					),
+				}
+			: {}),
 	});
 }
 
@@ -456,6 +487,9 @@ export function parseListStateInput(value: unknown): ListStateInput {
 		"limit",
 		"after",
 		"itemIds",
+		"includeExcluded",
+		"suppressed",
+		"minStrength",
 	]);
 	const header = readScopedHeader(record, path);
 	let kinds: ListStateInput["kinds"];
@@ -523,6 +557,23 @@ export function parseListStateInput(value: unknown): ListStateInput {
 		}
 		itemIds = parsed;
 	}
+	let includeExcluded: boolean | undefined;
+	if (Object.hasOwn(record, "includeExcluded")) {
+		const flag = record["includeExcluded"];
+		if (typeof flag !== "boolean") {
+			return fail("INVALID_TYPE", keyPath(path, "includeExcluded"));
+		}
+		includeExcluded = flag;
+	}
+	const suppressed = Object.hasOwn(record, "suppressed")
+		? readEnum(record["suppressed"], keyPath(path, "suppressed"), [
+				"mark",
+				"omit",
+			] as const)
+		: undefined;
+	const minStrength = Object.hasOwn(record, "minStrength")
+		? readStrengthValue(record["minStrength"], keyPath(path, "minStrength"))
+		: undefined;
 	return deepFreeze({
 		...header,
 		...(kinds === undefined ? {} : { kinds }),
@@ -530,6 +581,9 @@ export function parseListStateInput(value: unknown): ListStateInput {
 		...(limit === undefined ? {} : { limit }),
 		...(after === undefined ? {} : { after }),
 		...(itemIds === undefined ? {} : { itemIds }),
+		...(includeExcluded === undefined ? {} : { includeExcluded }),
+		...(suppressed === undefined ? {} : { suppressed }),
+		...(minStrength === undefined ? {} : { minStrength }),
 	});
 }
 
@@ -598,6 +652,7 @@ export function parseSearchStateInput(value: unknown): SearchStateInput {
 		"subject",
 		"limit",
 		"scanMax",
+		"minStrength",
 	]);
 	const contractVersion = readContractVersion(
 		record,
@@ -666,6 +721,9 @@ export function parseSearchStateInput(value: unknown): SearchStateInput {
 				STATE_SEARCH_LIMITS.maxScanMax,
 			)
 		: undefined;
+	const minStrength = Object.hasOwn(record, "minStrength")
+		? readStrengthValue(record["minStrength"], keyPath(path, "minStrength"))
+		: undefined;
 	return deepFreeze({
 		contractVersion,
 		access,
@@ -675,5 +733,15 @@ export function parseSearchStateInput(value: unknown): SearchStateInput {
 		...(subject === undefined ? {} : { subject }),
 		limit,
 		...(scanMax === undefined ? {} : { scanMax }),
+		...(minStrength === undefined ? {} : { minStrength }),
 	}) as SearchStateInput;
+}
+
+/** 強度・閾値・係数に使う有限の数（0 以上 1 以下）。 */
+export function readStrengthValue(value: unknown, path: string): number {
+	if (typeof value !== "number") return fail("INVALID_TYPE", path);
+	if (!Number.isFinite(value) || value < 0 || value > 1) {
+		return fail("INVALID_VALUE", path);
+	}
+	return value;
 }

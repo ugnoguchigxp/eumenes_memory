@@ -1,0 +1,89 @@
+{
+	"id": "L36-chain-exclusion-mixed",
+	"fixtureFormat": 1,
+	"covers": [
+		"journal",
+		"chain",
+		"exclusion"
+	],
+	"kind": "chain",
+	"description": "One chain may mix forget entries (formats 1 and 2) and exclusion entries (format 3)",
+	"input": {
+		"entries": [
+			{
+				"journalFormat": 1,
+				"seq": 1,
+				"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+				"forgetId": "forget:f6e9938e246ec3a9e4d8d8548baabafd734f800a18d6b09e2b1392d625b0b881",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "state_item",
+						"id": "state:a",
+						"scopeKey": "conversation:c1"
+					}
+				],
+				"hash": "3890af2634f05bd5a5bd84b098f7eba07f37a31df7729d9b140a3865e14e1099"
+			},
+			{
+				"journalFormat": 3,
+				"seq": 2,
+				"prevHash": "3890af2634f05bd5a5bd84b098f7eba07f37a31df7729d9b140a3865e14e1099",
+				"forgetId": "forget:dd3cb8891e08504c43e5bd491b22e2345c6918073117313c948cc3ec45aa8387",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "state_item",
+						"id": "state:b",
+						"scopeKey": "conversation:c1"
+					}
+				],
+				"exclusionOp": "exclude",
+				"hash": "68615cd02b1fd6f49beacd917cff9258ebde776ec0f8fe2ccf7e72b0cf03f0ef"
+			},
+			{
+				"journalFormat": 3,
+				"seq": 3,
+				"prevHash": "68615cd02b1fd6f49beacd917cff9258ebde776ec0f8fe2ccf7e72b0cf03f0ef",
+				"forgetId": "forget:f61dd0d37bc07558cdb399f1130e5b29c96a49db82308434a89bfd9c4fe6b134",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "state_item",
+						"id": "state:b",
+						"scopeKey": "conversation:c1"
+					}
+				],
+				"exclusionOp": "release",
+				"hash": "90e3dd7c89332d25d4f7fb8c9121741606b035fc587e64fad4f9a360feb5eec4"
+			},
+			{
+				"journalFormat": 2,
+				"seq": 4,
+				"prevHash": "90e3dd7c89332d25d4f7fb8c9121741606b035fc587e64fad4f9a360feb5eec4",
+				"forgetId": "forget:d8b3dabe9fe1997d42bdca2155f7a9fbe44c37bb3a0982092f49f54653c5f503",
+				"principal": "local:owner",
+				"targets": [
+					{
+						"type": "state_item",
+						"id": "state:b",
+						"scopeKey": "conversation:c1"
+					}
+				],
+				"hash": "eeb7edfe0d98fe12a004f4bef5e73b6cca71d6855a7b8807c2e7321ef6824c04",
+				"hostIntent": {
+					"messageIds": [
+						"m:1"
+					]
+				}
+			}
+		]
+	},
+	"expect": {
+		"status": "ok",
+		"head": {
+			"seq": 4,
+			"hash": "eeb7edfe0d98fe12a004f4bef5e73b6cca71d6855a7b8807c2e7321ef6824c04"
+		}
+	}
+}

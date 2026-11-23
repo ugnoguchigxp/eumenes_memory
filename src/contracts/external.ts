@@ -30,6 +30,8 @@ export const LIMITS_EXTERNAL = Object.freeze({
 	maxDependentsPerCall: 256,
 	minChangesPerPage: 1,
 	maxChangesPerPage: 500,
+	/** 変更を起こした run の ID（`sourceRunId`）の UTF-8 bytes。 */
+	maxSourceRunIdBytes: 128,
 });
 
 /** 外部派生物が依存できる本体の対象。`source` の id は SourceKey（Records の出典も会話の出典も同じ形）。 */
@@ -119,6 +121,25 @@ export const MEMORY_CHANGE_STATUSES = Object.freeze([
 ] as const);
 export type MemoryChangeStatus = (typeof MEMORY_CHANGE_STATUSES)[number];
 
+/**
+ * 変更フィードの行に付く「変更の種類」（省略可）。State item の同じ status の変化を区別する。
+ * - `correction`: 値の訂正（旧版が superseded になった。`successorId` が新版）。
+ * - `consolidation`: 意味の変わらない版の更新（統合など。旧版が superseded。`successorId` が新版。参照は新版へ付け替えてよい）。
+ * - `excluded` / `exclusion_released`: 即時の除外（忘却の依頼の直後）の付与・解除。item の status は変わらない。
+ * - `suppressed` / `suppression_released`: 抑制（話題に出さない）の付与・解除。item の status は変わらない。
+ * - `promoted`: 記憶の候補（L1）から昇格して作られた item。
+ */
+export const MEMORY_CHANGE_KINDS = Object.freeze([
+	"correction",
+	"consolidation",
+	"excluded",
+	"exclusion_released",
+	"suppressed",
+	"suppression_released",
+	"promoted",
+] as const);
+export type MemoryChangeKind = (typeof MEMORY_CHANGE_KINDS)[number];
+
 export interface MemoryChange {
 	/** 単調増加で一意（`memory_seq` 由来）。連続とは限らない。 */
 	readonly seq: number;
@@ -131,6 +152,12 @@ export interface MemoryChange {
 	readonly status: MemoryChangeStatus;
 	/** status が forgotten のときの `forgetId`、それ以外は null。 */
 	readonly forgetId: string | null;
+	/** この変更を起こした run の ID（書き込み時に `sourceRunId` を渡した変更だけ。省略は不明）。 */
+	readonly sourceRunId?: string;
+	/** 変更の種類（上の語彙。付かない変更もある）。 */
+	readonly changeKind?: MemoryChangeKind;
+	/** 置き換えた新しい版の itemId（`correction` / `consolidation` の旧版の行だけ）。 */
+	readonly successorId?: string;
 }
 
 /** 書き込み側（`appendMemoryChange`）が受ける変更。seq は appendMemoryChange が発行する。 */
@@ -148,6 +175,34 @@ export interface LatestMemoryChangeSeqInput {
 /** `seq` = 指定 scope で可視な変更の最大 seq（変更がなければ 0）。`listMemoryChanges` の `afterSeq` にそのまま渡せる。 */
 export type LatestMemoryChangeSeqResult =
 	| { readonly status: "ok"; readonly seq: number }
+	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
+
+/**
+ * 「`sourceRunId` の run 自身の変更を除いて、`afterSeq` より新しい変更があったか」の照会入力。
+ * 返事を作っている run が自分の書き込みで自分の返事を失効させないために使う。`sourceRunId` を持たない変更
+ * （他の run、本体が行った復旧の再適用、`sourceRunId` を渡さなかった書き込み）は、すべて「他の変更」として数える。
+ */
+export interface HasMemoryChangesExcludingRunInput {
+	readonly contractVersion: ContractVersion;
+	readonly access: AccessContext;
+	/** `access.scopeKeys` の部分集合でなければ `blocked`。 */
+	readonly scopeKeys: readonly string[];
+	readonly afterSeq: number;
+	/** 除く run の ID。 */
+	readonly sourceRunId: string;
+}
+
+/**
+ * `changed`: 他の変更があったか。`firstSeq`: その最初の seq（無ければ null）。
+ * `latestSeq`: 指定 scope で可視な変更の最大 seq（自分の変更を含む。次回の `afterSeq` にそのまま使える）。
+ */
+export type HasMemoryChangesExcludingRunResult =
+	| {
+			readonly status: "ok";
+			readonly changed: boolean;
+			readonly firstSeq: number | null;
+			readonly latestSeq: number;
+	  }
 	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
 
 export interface ListMemoryChangesInput {

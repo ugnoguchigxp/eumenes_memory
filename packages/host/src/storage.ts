@@ -100,6 +100,18 @@ export const hostSchemaUpgrades: readonly string[] = Object.freeze([
 	`ALTER TABLE host_source ADD COLUMN provenance TEXT NOT NULL DEFAULT 'unknown';`,
 	// 4: 外部由来の item の最終利用日（UTC の日番号、決定 11、S6b）。忘却で一緒に消す。
 	`CREATE TABLE IF NOT EXISTS host_item_use(item_id TEXT PRIMARY KEY, last_used_day INTEGER NOT NULL);`,
+	// 5: Agenda, including rows already written by the development schema.
+	`
+CREATE TABLE IF NOT EXISTS host_agenda(
+ id TEXT PRIMARY KEY, scope_key TEXT NOT NULL, source_id TEXT NOT NULL REFERENCES host_source(id),
+ status_source_id TEXT REFERENCES host_source(id), kind TEXT NOT NULL,
+ details TEXT NOT NULL, evidence TEXT NOT NULL, quote TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status IN ('pending','done','cancelled')), updated_at INTEGER NOT NULL,
+ creation_hash TEXT);
+CREATE INDEX IF NOT EXISTS host_agenda_scope ON host_agenda(scope_key,id);
+CREATE INDEX IF NOT EXISTS host_agenda_source ON host_agenda(source_id);
+CREATE INDEX IF NOT EXISTS host_agenda_status_source ON host_agenda(status_source_id);
+`,
 ]);
 export const HOST_SCHEMA_VERSION = hostSchemaUpgrades.length + 1;
 /** 版 1 の表を作り、足りない版上げを適用する。本体より新しい版は `HOST_SCHEMA_MISMATCH`。 */
@@ -114,6 +126,16 @@ export function upgradeHostSchema(db: MemoryDb): number {
 			row.version <= HOST_SCHEMA_VERSION,
 		"HOST_SCHEMA_MISMATCH",
 	);
+	// An earlier agenda build also used version 2. Its agenda tables remain in place.
+	if (
+		row.version === 2 &&
+		db
+			.query(
+				"SELECT 1 FROM sqlite_schema WHERE type='table' AND name='host_agenda'",
+			)
+			.get()
+	)
+		db.exec(hostSchemaUpgrades[0]!);
 	// A version number alone cannot identify a database created by another host build.
 	if (row.version >= 2)
 		demand(

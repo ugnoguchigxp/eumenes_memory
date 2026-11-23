@@ -145,6 +145,8 @@ describe("migration 0009", () => {
 			)
 			.run("state:d", "place", "京都の工房");
 		s.writer.exec(migrations[8] as string);
+		// 版 9 の次の migration（0010）も適用して、最新の版の検査を通す。
+		s.writer.exec(migrations[9] as string);
 		assertMemorySchema(s.writer);
 		const report = verify(s);
 		expect(report).toMatchObject({

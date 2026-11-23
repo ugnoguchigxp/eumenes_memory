@@ -89,8 +89,15 @@ describe("family contracts", () => {
 			"host_source",
 			"state_item",
 			"scope",
+			"candidate",
 		]);
 		expect(api.JOURNAL_FORMAT).toBe(1);
+		expect(api.JOURNAL_FORMAT_EXCLUSION).toBe(3);
+		expect([...api.EXCLUSION_OPS]).toEqual(["exclude", "release"]);
+		expect([...api.EXCLUSION_TARGET_TYPES]).toEqual([
+			"state_item",
+			"candidate",
+		]);
 		expect<string>(api.GENESIS_JOURNAL_HASH).toBe("0".repeat(64));
 		expect([...api.MEMORY_CHANGE_TARGET_TYPES]).toEqual([
 			"record",
@@ -102,8 +109,16 @@ describe("family contracts", () => {
 			"state_item",
 		]);
 		// 外部派生物は閉包の dependent 側にだけ現れる
-		expect([...api.DEPENDENT_NODE_TYPES]).toEqual(["state_item", "external"]);
-		expect([...api.DEPENDENCY_NODE_TYPES]).toEqual(["source", "state_item"]);
+		expect([...api.DEPENDENT_NODE_TYPES]).toEqual([
+			"state_item",
+			"candidate",
+			"external",
+		]);
+		expect([...api.DEPENDENCY_NODE_TYPES]).toEqual([
+			"source",
+			"state_item",
+			"candidate",
+		]);
 	});
 
 	test("Records vocabulary", () => {

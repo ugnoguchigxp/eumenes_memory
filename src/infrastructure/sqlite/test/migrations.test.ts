@@ -4,7 +4,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { sha256Hex } from "../../../canonical/sha256.ts";
 import {
-	DEPENDENCY_NODE_TYPES,
 	DEPENDENCY_ROLES,
 	DEPENDENT_NODE_TYPES,
 	EXTERNAL_DELETION_STATES,
@@ -172,7 +171,7 @@ describe("0001 foundation", () => {
 			expect(checkLists(foundation, "dependent_type")[0]).toContain(type);
 		}
 		expect(checkLists(foundation, "dependency_type")).toEqual([
-			[...DEPENDENCY_NODE_TYPES, "candidate", "extraction_run"],
+			["source", "state_item", "candidate", "extraction_run"],
 		]);
 		expect(checkLists(foundation, "role")).toEqual([
 			["primary", "support", "input", "derived_from"],

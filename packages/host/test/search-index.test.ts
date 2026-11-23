@@ -21,6 +21,30 @@ import {
 
 afterEach(disposeFixtures);
 
+/**
+ * 版 9 の DB を作る。ホストは常に最新の `migrations` を適用するので、開いた後で migration 0010 を取り消す
+ * （0010 の表・列・版の記録を除く）。rollback-0009 は版 9 の DB だけを扱う。
+ */
+function downgradeToVersion9(dir: string): void {
+	const db = new Database(join(dir, "memory.db"));
+	try {
+		db.exec(`
+			DROP TABLE memory_inferred_candidate_evidence;
+			DROP TABLE memory_inferred_candidate;
+			DROP TABLE memory_suppression;
+			DROP TABLE memory_exclusion;
+			ALTER TABLE memory_state_item DROP COLUMN strength;
+			ALTER TABLE memory_change DROP COLUMN successor_id;
+			ALTER TABLE memory_change DROP COLUMN change_kind;
+			ALTER TABLE memory_change DROP COLUMN source_run_id;
+			DELETE FROM memory_schema_info WHERE key = 'migration_10_sha256';
+			UPDATE memory_schema_info SET value = '9' WHERE key = 'db_schema_version';
+		`);
+	} finally {
+		db.close();
+	}
+}
+
 const SECRET = "ZQXWVU秘密の合言葉です";
 
 function inspect(dir: string, sql: string): unknown[] {
@@ -54,6 +78,7 @@ test("T-MIG-2 the rollback script restores v8, an old binary accepts it, and the
 	await remember(h, "抹茶ラテが好きです");
 	await h.close();
 	expect(searchObjects(h.dir).length).toBeGreaterThan(0);
+	downgradeToVersion9(h.dir);
 	expect(rollback0009(h.dir)).toEqual({ status: "completed" });
 	expect(searchObjects(h.dir)).toEqual([]);
 	expect(

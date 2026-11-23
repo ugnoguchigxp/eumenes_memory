@@ -1,8 +1,11 @@
 import {
+	MEMORY_CHANGE_KINDS,
 	MEMORY_CHANGE_STATUSES,
 	MEMORY_CHANGE_TARGET_TYPES,
 } from "../../contracts/external.ts";
 import type {
+	HasMemoryChangesExcludingRunInput,
+	HasMemoryChangesExcludingRunResult,
 	LatestMemoryChangeSeqInput,
 	LatestMemoryChangeSeqResult,
 	ListMemoryChangesInput,
@@ -11,6 +14,7 @@ import type {
 	MemoryChangeDraft,
 } from "../../contracts/external.ts";
 import {
+	parseHasMemoryChangesExcludingRunInput,
 	parseLatestMemoryChangeSeqInput,
 	parseListMemoryChangesInput,
 } from "../../contracts/parse-store.ts";
@@ -18,6 +22,7 @@ import {
 	guarded,
 	issueSeq,
 	readInteger,
+	readNullableInteger,
 	readNullableText,
 	readText,
 } from "./db.ts";
@@ -39,8 +44,9 @@ export function appendMemoryChange(
 		db
 			.query(
 				`INSERT INTO memory_change
-					(seq, principal, scope_key, target_type, target_id, revision, status, forget_id, at_ms)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					(seq, principal, scope_key, target_type, target_id, revision, status, forget_id, at_ms,
+					 source_run_id, change_kind, successor_id)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.run(
 				seq,
@@ -52,6 +58,9 @@ export function appendMemoryChange(
 				draft.status,
 				draft.forgetId,
 				draft.atMs,
+				draft.sourceRunId ?? null,
+				draft.changeKind ?? null,
+				draft.successorId ?? null,
 			),
 	);
 	return seq;
@@ -66,6 +75,16 @@ function rowToChange(row: unknown): MemoryChange {
 	) {
 		throw new MemoryStoreError("CORRUPT_ROW");
 	}
+	const sourceRunId = readNullableText(row, "source_run_id");
+	const changeKindText = readNullableText(row, "change_kind");
+	const successorId = readNullableText(row, "successor_id");
+	const changeKind =
+		changeKindText === null
+			? undefined
+			: MEMORY_CHANGE_KINDS.find((kind) => kind === changeKindText);
+	if (changeKindText !== null && changeKind === undefined) {
+		throw new MemoryStoreError("CORRUPT_ROW");
+	}
 	return {
 		seq: readInteger(row, "seq"),
 		atMs: readInteger(row, "at_ms"),
@@ -75,6 +94,9 @@ function rowToChange(row: unknown): MemoryChange {
 		revision: readNullableText(row, "revision"),
 		status: status as MemoryChange["status"],
 		forgetId: readNullableText(row, "forget_id"),
+		...(sourceRunId === null ? {} : { sourceRunId }),
+		...(changeKind === undefined ? {} : { changeKind }),
+		...(successorId === null ? {} : { successorId }),
 	};
 }
 
@@ -102,7 +124,8 @@ export function listMemoryChanges(
 	];
 	const rows = db
 		.query(
-			`SELECT seq, scope_key, target_type, target_id, revision, status, forget_id, at_ms
+			`SELECT seq, scope_key, target_type, target_id, revision, status, forget_id, at_ms,
+				source_run_id, change_kind, successor_id
 			FROM memory_change
 			WHERE principal = ? AND scope_key IN (${placeholders}) AND seq > ?
 			ORDER BY seq ASC
@@ -145,4 +168,44 @@ export function latestMemoryChangeSeq(
 			.get(parsed.access.principal, ...parsed.scopeKeys),
 	);
 	return { status: "ok", seq: readInteger(row, "seq") };
+}
+
+/**
+ * 「`sourceRunId` の run 自身の変更を除いて、`afterSeq` より新しい変更があったか」。`sourceRunId` が NULL の変更
+ * （run を渡さなかった書き込み、復旧の再適用）は他の変更として数える。読み取り専用接続で呼べる。
+ */
+export function hasMemoryChangesExcludingRun(
+	db: MemoryDb,
+	input: HasMemoryChangesExcludingRunInput,
+): HasMemoryChangesExcludingRunResult {
+	const parsed = parseHasMemoryChangesExcludingRunInput(input);
+	enterRead(db);
+	const permitted = new Set(parsed.access.scopeKeys);
+	if (!parsed.scopeKeys.every((scopeKey) => permitted.has(scopeKey))) {
+		return { status: "blocked", reasonCode: "SCOPE_NOT_PERMITTED" };
+	}
+	const placeholders = parsed.scopeKeys.map(() => "?").join(", ");
+	const row = guarded(() =>
+		db
+			.query(
+				`SELECT
+					MIN(CASE WHEN seq > ? AND (source_run_id IS NULL OR source_run_id <> ?) THEN seq END) AS first_seq,
+					COALESCE(MAX(seq), 0) AS latest_seq
+				FROM memory_change
+				WHERE principal = ? AND scope_key IN (${placeholders})`,
+			)
+			.get(
+				parsed.afterSeq,
+				parsed.sourceRunId,
+				parsed.access.principal,
+				...parsed.scopeKeys,
+			),
+	);
+	const firstSeq = readNullableInteger(row, "first_seq");
+	return {
+		status: "ok",
+		changed: firstSeq !== null,
+		firstSeq,
+		latestSeq: readInteger(row, "latest_seq"),
+	};
 }

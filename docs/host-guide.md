@@ -14,7 +14,7 @@
 4. `assertMemorySchema(db)`を呼ぶ。SCHEMA_MISSING／OUTDATED／TOO_NEW／MISMATCHなら読み書きを開始しない。新しいDBへの旧バイナリの差戻しは安全なrollbackではない。
 5. DBと別に保管する最新の忘却journalを確認する。既存DBのjournalが無い場合は勝手に空ファイルを作らない。
 6. Worker起動前に、write transaction内で`reconcileForgetJournal(db,{contractVersion:2,entries,clock:{atMs}})`を呼ぶ。`inconsistent`ならMemory全利用を停止し、正しいjournal・DBの組を回復する。`feedResyncRequired`なら外部購読カーソルを捨て全再同期する。`hostIntentsToReapply`があれば、同じtransactionの中で各`hostIntent`に対するホスト自身の消去を冪等に再実行する。
-7. 全文検索の索引（migration 0009）はSQLite 3.44以上とFTS5が要る。`pragma_compile_options`の`ENABLE_FTS5`と`sqlite_version()`を確かめ、満たさなければ起動しない。版8のDBへ0009を適用すると、既存のactiveなitemを同じtransactionで索引に入れる。起動時にwrite transactionの中で`verifyStateSearchIndex(db)`を呼び、`consistent: false`なら`rebuildStateSearchIndex(db)`で作り直す。索引は削除をtriggerで、追加を本体の書き込み関数で行う派生物で、本文の正本ではない。
+7. 全文検索の索引（migration 0009）はSQLite 3.44以上とFTS5が要る（migration 0010 は追加の機能を要らない）。`pragma_compile_options`の`ENABLE_FTS5`と`sqlite_version()`を確かめ、満たさなければ起動しない。版8のDBへ0009を適用すると、既存のactiveなitemを同じtransactionで索引に入れる。起動時にwrite transactionの中で`verifyStateSearchIndex(db)`を呼び、`consistent: false`なら`rebuildStateSearchIndex(db)`で作り直す。索引は削除をtriggerで、追加を本体の書き込み関数で行う派生物で、本文の正本ではない。
 8. 以後はwriteをtransaction内の同期関数として呼ぶ。async関数をtransactionへ渡さない。読み出しの複数SQL・ページ列挙の一貫性はホストのread transactionで守る。
 
 Bunで新規の使い捨てDBを準備する最小例。実運用では上記migration管理とjournal存在確認を先に実装する。
@@ -48,7 +48,7 @@ Stateは`assertUserState`へsubject、kind、semanticKey、値、出典の本文
 
 `planForget`は読取のみ。plan・journalへの追記・`applyForget`は、単一Writerの同じwrite transactionの中で行う。entryの`seq`/`prevHash`はplan時点のDBのheadの次なので、planとapplyの間に別の忘却が入ると、適用できないentryがjournalに残り、次のreconcileが`JOURNAL_CHAIN_BROKEN`になる。追記では完全な書込み・fsyncを確認してから`applyForget`を呼ぶ。journalへの初回作成・置換ではdirectoryのfsyncも必要。fsyncの間はWriterを保持する。journalの書込みはDBのrollbackでは戻らない。journal後・DB適用前の失敗では利用を止め、起動時reconcileで回復する。
 
-`contractVersion:2`の`planForget`は、同じscopeの複数target（`targets`、最大64件）と、ホスト自身の派生物を忘れる意図`hostIntent`（キー→不透明なIDの配列。本文を入れない）を1つのentry（format 2）にまとめる。`hostIntent`だけで`targets`が無いentryも作れる。`hostIntent`はhashの鎖に入るので、行の偶発的な破損・切り詰め・食い違いをreconcileが検出する。ホストは`applyForget`と同じtransactionで自分の消去を行い、起動時は`hostIntentsToReapply`で返った分だけを再実行する。format 2のentryを一度書いたjournalは、format 2を読めない旧版の本体では開けない（reconcileが入力検査で失敗し、Memoryは止まる）。
+`contractVersion:2`の`planForget`は、同じscopeの複数target（`targets`、最大64件）と、ホスト自身の派生物を忘れる意図`hostIntent`（キー→不透明なIDの配列。本文を入れない）を1つのentry（format 2）にまとめる。`hostIntent`だけで`targets`が無いentryも作れる。`hostIntent`はhashの鎖に入るので、行の偶発的な破損・切り詰め・食い違いをreconcileが検出する。ホストは`applyForget`と同じtransactionで自分の消去を行い、起動時は`hostIntentsToReapply`で返った分だけを再実行する。format 2のentryを一度書いたjournalは、format 2を読めない旧版の本体では開けない（reconcileが入力検査で失敗し、Memoryは止まる）。即時の除外・解除のentry（format 3、[即時の除外の手順](#recall-controls)）も同じ鎖に載り、同じ制約がある。
 
 古いDBを復元しても最新journalは巻き戻さない。reconcile後、対象の非表示・値の消去・派生物のpendingを確認する。外部派生物がバックアップ後に登録された場合は、外部所有者が依存を再登録してからreconcileする。外部削除を実行し確認するまでreceiptはcompletedにならない。外部確認状態は古いDB復元でpendingへ戻りうる。
 
@@ -94,13 +94,59 @@ State の全文検索の設計（リポジトリの `spec/state-search-design.md
 
 `retainRecord`は明示した資料だけを保持する。読取で期限を延長せず、回答等へ採用したrevisionを`useRetainedRecord`で記録して未使用期限を延長する。State・外部依存・送付記録のある資料は更新やevictを拒否するため、所有者が先に依存を解決する。`retainRecord`したoriginを`captureRecord`しても、そのrecordはretentionの対象のまま（送付記録が無ければevictで消える）。永続化するときは、先に`recordId`を指定してevictしてから`captureRecord`する。通常Recordsはevictしない。忘却済み資料の再captureを墓標で拒否する。
 
+<a id="recall-controls"></a>
+## 記憶の作り直しの部品（版 0.0.5、DB スキーマ版 10）
+
+Eumenes の記憶系の作り直しのための部品。設計と決めたことはリポジトリの `spec/recall-controls-design.md`。すべて追加の操作で、既存の呼出しの結果は変わらない（既存の書き込みに新しい引数を渡さなければ、変更フィードの行に省略可の項目が足されるだけ）。migration 0010 を、ホストの追記専用配列の末尾へ他と同じ手順で追記する（SQLite の追加機能は要らない）。0010 を適用した DB は版 9 の本体では開けない（`SCHEMA_TOO_NEW`）。
+
+| 部品 | 操作 | 要点 |
+|---|---|---|
+| 即時の除外 | `planExclusion` → journal へ追記・fsync → `applyExclusion`、`listExclusions` | 忘却の依頼の直後に、対象（State item、記憶の候補）を `listState`・`searchState`・`listStateByTime`・候補の照会から外す。journal format 3 の entry で、忘却と同じ鎖。復旧は `reconcileForgetJournal` が除外・解除を順に再現する |
+| `sourceRunId` | 書き込みの入力の `sourceRunId`、`hasMemoryChangesExcludingRun` | 変更フィードの行に run を残し、「自分の run の変更を除いて変更があったか」を答える |
+| 時間軸 | `listStateByTime` | `current`（今有効）、`recordedAt`（その時点で記録済みで未失効）、`validAt`（その時点で真だった）。結果に `recordedAtMs` / `supersededAtMs` |
+| 抑制 | `suppressState` / `releaseStateSuppression` / `listSuppressions` | 記録は残す。`listState` の `suppressed: "omit"` で外し、`searchState` は `suppressed: true` を付けて返す |
+| 記憶の候補（L1） | `recordCandidate` / `listCandidates` / `readCandidate` / `dismissCandidate` | `agent_inferred` だけ。根拠必須、観測の回数と会話の一覧。忘却の閉包の対象 |
+| 根拠必須の検査 | `checkGroundedClaim`（`eumenes-memory`、純粋） | 引用つきの根拠か昇格の記録が無い主張、`requireRunId` なのに run が無い主張を拒否する |
+| 昇格 | `promoteCandidate`、`assertUserState` の `change` | 候補の根拠を引き継いで State へ。変更フィードに `correction` / `consolidation` / `promoted` |
+| 強度 | `decayStateStrength` / `reinforceStateStrength`、`minStrength` | 検索の順位の重み。本人由来は下がっても外れない |
+
+### 即時の除外の手順
+
+`planForget` / `applyForget` と同じ順序規則（単一 Writer の同じ write transaction の中で plan → journal へ追記して fsync → apply）。
+
+1. `planExclusion(db, { contractVersion: 2, access, op: "exclude", targets, clock })`。`targets` は 1〜64 件で、同じ scope の `state_item`（`itemId`）か `candidate`（`candidateId`）。事実への除外は無い: 全版は `readStateFact` で集めて渡す（semanticKey は消せない journal に入れない）。
+2. 返った `plan.entry`（format 3）を journal へ追記して fsync する。
+3. 同じ transaction で `applyExclusion(db, { contractVersion: 2, entry, clock, sourceRunId? })`。適用済みの entry の再送は何もしない。
+4. 閉包削除（`planForget` → `applyForget`）が対象を墓標にした transaction で、対象の除外は自動で消える。取り消したいときは `op: "release"` の entry。解除も journal に載る。
+
+注意:
+
+- 除外された item は、既定の照会に出ない。忘却の処理（対象の全版・根拠の収集）だけは `listState` の `includeExcluded: true` で読む（各 item に `excluded: true`）。`readStateFact` は除外を見ない。
+- 除外は変更フィードに `changeKind: "excluded"` / `"exclusion_released"` の行を出す（item の status は変わらない）。候補は変更フィードに出ない。
+- format 3 を書いた journal は、format 3 を読めない旧版の本体では開けない。
+
+### 変更フィードの拡張
+
+`MemoryChange` に省略可の項目: `sourceRunId`、`changeKind`（`correction` / `consolidation` / `excluded` / `exclusion_released` / `suppressed` / `suppression_released` / `promoted`）、`successorId`（置き換えた新版）。`replaces` で置き換えた旧版の行は、`change` を渡さなければ `correction`、`change: "consolidation"` なら `consolidation`。意味の変わらない更新（統合）は新版へ参照を付け替え、訂正は旧版を根拠にしたものを見直す、という区別に使う。`hasMemoryChangesExcludingRun(db, { contractVersion: 1, access, scopeKeys, afterSeq, sourceRunId })` は `{ changed, firstSeq, latestSeq }` を返す。run を渡さなかった変更と、復旧の再適用は「他の変更」として数える（返事を失効させる側に倒す）。
+
+### 候補（L1）と昇格
+
+- `recordCandidate`: 同じ (subject, kind, semanticKey, polarity, text) の open の候補へ観測を足す（無ければ作る）。根拠は `assertUserState` と同じ検査（`evidence` と本文つきの `sources`）。同じ出典の同じ範囲は数えない。`conversationId` で観測した会話を残す。外部のメモを根拠にするときは、そのメモの出典（別の namespace・kind）を同じ形で渡す。外部由来を昇格させない判断は呼び出し側。
+- `promoteCandidate`: `sourceRunId` 必須。独立した会話の数が `minConversations`（既定 2）に足りなければ `NOT_ENOUGH_CONVERSATIONS`。昇格した item は `agent_inferred` で、候補の根拠の一覧をすべて持つ。同じ事実に本人由来の item があり本文が違うと `ACTIVE_EXISTS`（`replaces` を渡しても `USER_TEXT_PROTECTED`）。同じ値の active があれば item は変えず根拠だけを足す（`unchanged`）。
+- 傾向（L4）の表は本体に無い。ホストの傾向の書き込みは `checkGroundedClaim` で同じ検査を掛けられる。
+
+### 強度と抑制の使い方
+
+- 強度は順位の重みだけを変える（値・revision・変更フィードは変えない）。`minStrength` を渡した呼出しだけ、推定由来（`agent_inferred`）で強度が閾値未満の item を外す。本人由来は外さない。既定では適用しない（閾値の目安は `DEFAULT_WEAK_STRENGTH`）。語を指定した直接の検索は閾値を渡さなければ引ける。同梱ホストの `use`（外部由来の期限の延長）とは別の仕組み。
+- 抑制は忘却ではないので journal に載せない。`listState` は既定で抑制された item に `suppressed: true` を付けて返す。話題に出す文脈を作るときは `suppressed: "omit"` を渡す。忘却の処理は既定のまま使う。
+
 ## domains
 
 Recordsは本文と版、Stateは台帳と根拠、Temporalは期間判断、Lifecycleは忘却閉包と外部削除を担当する。時間・モデル・外部ツールの判断をSQL層へ追加しない。純粋APIは`eumenes-memory`、永続APIは`eumenes-memory/sqlite`をimportする。
 
 ## verification
 
-配布物は型検査・fixture・実SQLiteのWAL／復元・権限境界・独立consumerで検証する。実ホスト結合、合成の固定判断、実モデル評価は別の証拠であり、一つの成功で他の精度を保証しない。具体的な実行環境・到達段階は各リリースの検証記録で確認する。
+配布物は型検査・fixture・実SQLiteのWAL／復元・権限境界・独立consumerで検証する。記憶の作り直しの部品（版0.0.5）の到達段階は contract・実装・fixture・実SQLiteまでで、Eumenes本体への結合（host-integrated）は未着手。実ホスト結合、合成の固定判断、実モデル評価は別の証拠であり、一つの成功で他の精度を保証しない。具体的な実行環境・到達段階は各リリースの検証記録で確認する。
 
 ## development-examples
 

@@ -42,6 +42,15 @@
  *   scope の forget は、他の scope も引用している出典には墓標を付けない。
  * - deactivate は forget ではない（墓標・ジャーナル・ForgetReceipt を作らない）。API 名・reason・文言で
  *   「忘却」「削除」と呼ばない。
+ * - 即時の除外（journal format 3）: 忘却の依頼を受けた直後、閉包削除が終わるまで、対象（State item・記憶の候補）を検索・
+ *   一覧のすべての照会から外す印。忘却と同じ鎖の entry（`exclusionOp` が `exclude` / `release`、targets は
+ *   `state_item` / `candidate`）で、`planExclusion` → ホストが journal へ追記して fsync → `applyExclusion` の 2 相。
+ *   墓標・外部削除の確認は作らない（`memory_forget` に記録し、receipt は `completed`）。復旧（DB の復元と journal の
+ *   再適用）は `reconcileForgetJournal` が entry の順に除外・解除を再現する。適用済み（seq <= head）の再適用は何もしない
+ *   （後の解除を打ち消さない）。閉包削除が対象を墓標にしたとき、同じ transaction で対象の除外は消える。
+ *   format 3 の hash: `sha256Hex(canonicalJson({ journalFormat, seq, prevHash, forgetId, principal, targets, exclusionOp }))`。
+ *   `forgetId = "forget:" + sha256Hex(canonicalJson({ principal, seq, targets, exclusionOp }))`（`exclusionOp` を含める）。
+ *   format 3 を一度書いた journal は、format 3 を読めない旧版の本体では開けない。
  */
 import type { AccessContext } from "../../../contracts/types.ts";
 import type {
@@ -81,7 +90,8 @@ export const JOURNAL_FORMAT = 1 as const;
 export const JOURNAL_FORMAT_HOST_INTENT = 2 as const;
 export type JournalFormat =
 	| typeof JOURNAL_FORMAT
-	| typeof JOURNAL_FORMAT_HOST_INTENT;
+	| typeof JOURNAL_FORMAT_HOST_INTENT
+	| typeof JOURNAL_FORMAT_EXCLUSION;
 
 /**
  * ホストが自分の派生物を忘れる意図。キー → 不透明な ID の集合。本体は意味を解釈しない。本文を入れない。
@@ -92,13 +102,28 @@ export type HostForgetIntent = Readonly<Record<string, readonly string[]>>;
 export const GENESIS_JOURNAL_HASH =
 	"0000000000000000000000000000000000000000000000000000000000000000" as const;
 
+/** format 3: 即時の除外・解除の entry。`exclusionOp` も hash に含める。 */
+export const JOURNAL_FORMAT_EXCLUSION = 3 as const;
+
 export const FORGET_TARGET_TYPES = Object.freeze([
 	"record",
 	"host_source",
 	"state_item",
 	"scope",
+	"candidate",
 ] as const);
 export type ForgetTargetType = (typeof FORGET_TARGET_TYPES)[number];
+
+/** 即時の除外の操作。 */
+export const EXCLUSION_OPS = Object.freeze(["exclude", "release"] as const);
+export type ExclusionOp = (typeof EXCLUSION_OPS)[number];
+
+/** 除外できる対象。State item（その版だけ。全版は `readStateFact` で集めて渡す）と記憶の候補（L1）。 */
+export const EXCLUSION_TARGET_TYPES = Object.freeze([
+	"state_item",
+	"candidate",
+] as const);
+export type ExclusionTargetType = (typeof EXCLUSION_TARGET_TYPES)[number];
 
 import {
 	DEPENDENCY_ROLES,
@@ -168,11 +193,22 @@ export type ForgetTarget =
 			readonly itemId: string;
 			readonly scopeKey: string;
 	  }
+	| {
+			readonly type: "candidate";
+			readonly candidateId: string;
+			readonly scopeKey: string;
+	  }
 	| { readonly type: "scope"; readonly scopeKey: string };
+
+/** 即時の除外の対象（`ForgetTarget` の `state_item` / `candidate` と同じ形）。 */
+export type ExclusionTarget = Extract<
+	ForgetTarget,
+	{ readonly type: ExclusionTargetType }
+>;
 
 export interface ForgetJournalTarget {
 	readonly type: ForgetTargetType;
-	/** record: recordId、host_source: SourceKey、state_item: itemId、scope: scopeKey。 */
+	/** record: recordId、host_source: SourceKey、state_item: itemId、candidate: candidateId、scope: scopeKey。 */
 	readonly id: string;
 	readonly scopeKey: string;
 }
@@ -186,6 +222,8 @@ export interface ForgetJournalEntry {
 	readonly targets: readonly ForgetJournalTarget[];
 	/** format 2 だけ。正規化済み（整列・重複除去・空配列なし）。 */
 	readonly hostIntent?: HostForgetIntent;
+	/** format 3 だけ（必須）。除外の付与か解除。 */
+	readonly exclusionOp?: ExclusionOp;
 	readonly hash: string;
 }
 
@@ -241,6 +279,8 @@ export interface ApplyForgetInput {
 	readonly contractVersion: LifecycleContractVersion;
 	readonly entry: ForgetJournalEntry;
 	readonly clock: HostClock;
+	/** この変更を起こした run の ID。変更フィードの行（forgotten）に残る。journal の entry には含まれない。 */
+	readonly sourceRunId?: string;
 }
 
 export interface ReconcileForgetJournalInput {
@@ -334,3 +374,43 @@ export interface ClosureNodeRef {
 	readonly type: DependencyNodeType | DependentNodeType;
 	readonly id: string;
 }
+
+// ---- 即時の除外 ----
+
+/** `planExclusion` の入力。`targets` は 1〜`maxJournalTargets` 件で、全要素が同じ `scopeKey`。 */
+export interface PlanExclusionInput {
+	readonly contractVersion: 2;
+	readonly access: AccessContext;
+	readonly op: ExclusionOp;
+	readonly targets: readonly ExclusionTarget[];
+	readonly clock: HostClock;
+}
+
+export interface ExclusionPlan {
+	readonly entry: ForgetJournalEntry;
+	/** 適用で状態が変わる対象の数（付与は今まだ除外されていないもの、解除は今除外されているもの）。 */
+	readonly affected: number;
+}
+
+export type PlanExclusionResult =
+	| { readonly status: "planned"; readonly plan: ExclusionPlan }
+	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
+
+export interface ApplyExclusionInput {
+	readonly contractVersion: 2;
+	/** `planExclusion` が返し、ホストが journal へ追記して fsync した entry（format 3）。 */
+	readonly entry: ForgetJournalEntry;
+	readonly clock: HostClock;
+	/** この変更を起こした run の ID（変更フィードの行に残る）。 */
+	readonly sourceRunId?: string;
+}
+
+export interface ListExclusionsInput {
+	readonly contractVersion: LifecycleContractVersion;
+	readonly access: AccessContext;
+	readonly scopeKey: string;
+}
+
+export type ListExclusionsResult =
+	| { readonly status: "ok"; readonly targets: readonly ExclusionTarget[] }
+	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };

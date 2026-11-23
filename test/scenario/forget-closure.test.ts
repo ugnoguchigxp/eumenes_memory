@@ -7,14 +7,26 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import type { HostSourceState } from "eumenes-memory";
 import {
+	applyExclusion,
 	applyForget,
 	assertUserState,
 	getForgetReceipt,
+	listCandidates,
+	listExclusions,
 	listState,
+	planExclusion,
+	promoteCandidate,
+	recordCandidate,
 	recordExternalDeletion,
 	registerExternalDependents,
+	suppressState,
 } from "eumenes-memory/sqlite";
-import type { ForgetJournalEntry, ForgetReceipt } from "eumenes-memory/sqlite";
+import type {
+	ExclusionOp,
+	ExclusionTarget,
+	ForgetJournalEntry,
+	ForgetReceipt,
+} from "eumenes-memory/sqlite";
 import {
 	accessFor,
 	capture,
@@ -698,5 +710,314 @@ describe("a damaged journal stops Memory and writes nothing", () => {
 		stores.push(stale);
 		expect(reconcile(stale, [])).toEqual({ status: "ok", reapplied: 0 });
 		expect(activeItems(stale)).toContain("コーヒー");
+	});
+});
+
+// ---- 除外・候補・抑制を加えた閉包と復旧 ----
+
+function wholeSpan(message: Message) {
+	const source = sourceOf(message);
+	return {
+		source: {
+			namespace: source.namespace,
+			kind: source.kind,
+			id: source.id,
+			representation: "text",
+			revision: source.revision,
+			digest: source.digest,
+			range: {
+				startByte: 0,
+				endByte: Buffer.byteLength(message.content, "utf8"),
+			},
+		},
+		quote: message.content,
+	};
+}
+
+/** message を根拠に、推定の候補（L1）へ観測を足す。 */
+function observeCandidate(
+	store: TestStore,
+	message: Message,
+	conversationId: string,
+	text = "夜に散歩する",
+) {
+	const result = store.write((db) =>
+		recordCandidate(db, {
+			contractVersion: 1,
+			access: ACCESS,
+			scopeKey: SCOPE,
+			clock: { atMs: 20 },
+			kind: "habit",
+			subject: "self",
+			semanticKey: "evening.walk",
+			value: { text, polarity: "affirmed" },
+			evidence: [wholeSpan(message)],
+			sources: [sourceOf(message)],
+			conversationId,
+		}),
+	);
+	if (result.status !== "recorded") throw new Error(JSON.stringify(result));
+	return result.candidate;
+}
+
+function promoted(store: TestStore, candidateId: string): string {
+	const result = store.write((db) =>
+		promoteCandidate(db, {
+			contractVersion: 1,
+			access: ACCESS,
+			scopeKey: SCOPE,
+			clock: { atMs: 30 },
+			candidateId,
+			sourceRunId: "deep-1",
+		}),
+	);
+	if (result.status !== "promoted") throw new Error(JSON.stringify(result));
+	return result.item.itemId;
+}
+
+/** plan → （ジャーナルへ追記した体で）apply。entry を返す。 */
+function excludeTargets(
+	store: TestStore,
+	op: ExclusionOp,
+	targets: readonly ExclusionTarget[],
+): ForgetJournalEntry {
+	const planned = store.read((db) =>
+		planExclusion(db, {
+			contractVersion: 2,
+			access: ACCESS,
+			op,
+			targets,
+			clock: { atMs: 40 },
+		}),
+	);
+	if (planned.status !== "planned") throw new Error("plan");
+	store.write((db) =>
+		applyExclusion(db, {
+			contractVersion: 2,
+			entry: planned.plan.entry,
+			clock: { atMs: 40 },
+		}),
+	);
+	return planned.plan.entry;
+}
+
+const stateTarget = (itemId: string): ExclusionTarget => ({
+	type: "state_item",
+	itemId,
+	scopeKey: SCOPE,
+});
+
+function exclusions(store: TestStore): string[] {
+	const result = store.read((db) =>
+		listExclusions(db, { contractVersion: 2, access: ACCESS, scopeKey: SCOPE }),
+	);
+	if (result.status !== "ok") throw new Error("blocked");
+	return result.targets.map((target) =>
+		target.type === "candidate" ? target.candidateId : target.itemId,
+	);
+}
+
+function visibleWords(store: TestStore): string[] {
+	const result = store.read((db) =>
+		listState(db, {
+			contractVersion: 1,
+			access: ACCESS,
+			scopeKey: SCOPE,
+			includeInactive: true,
+		}),
+	);
+	if (result.status !== "ok") throw new Error("listState");
+	return result.items.map((item) => item.value.text);
+}
+
+describe("exclusion, candidates and suppression through the closure and recovery", () => {
+	test("an exclusion survives restoring an older database: the journal replays it, and a later release replays too", () => {
+		const { store, itemId, before } = scene();
+		const coffee = idOf(itemId, "コーヒー");
+		const e1 = excludeTargets(store, "exclude", [stateTarget(coffee)]);
+		expect(visibleWords(store)).not.toContain("コーヒー");
+		const e2 = forgetRecord(store, {
+			type: "host_source",
+			sourceKey: messageKey("m3"),
+			scopeKey: SCOPE,
+		}).entry;
+		expect(e2.seq).toBe(2);
+
+		const restored = openTestStore({ fromFile: before });
+		stores.push(restored);
+		expect(visibleWords(restored)).toContain("コーヒー");
+		expect(reconcile(restored, [e1, e2])).toEqual({
+			status: "ok",
+			reapplied: 2,
+			feedResyncRequired: true,
+		});
+		expect(visibleWords(restored)).toEqual(["紅茶"]);
+		expect(exclusions(restored)).toEqual([coffee]);
+		// 再び reconcile しても何も変わらない（冪等）。
+		expect(reconcile(restored, [e1, e2])).toEqual({
+			status: "ok",
+			reapplied: 0,
+		});
+
+		// 解除も journal に載り、復旧で再現される。適用済みの除外の再送は解除を打ち消さない。
+		const e3 = excludeTargets(store, "release", [stateTarget(coffee)]);
+		expect(visibleWords(store)).toContain("コーヒー");
+		const second = openTestStore({ fromFile: before });
+		stores.push(second);
+		expect(reconcile(second, [e1, e2, e3])).toMatchObject({
+			status: "ok",
+			reapplied: 3,
+		});
+		expect(visibleWords(second).sort()).toEqual(["コーヒー", "紅茶"].sort());
+		expect(exclusions(second)).toEqual([]);
+		second.write((db) =>
+			applyExclusion(db, {
+				contractVersion: 2,
+				entry: e1,
+				clock: { atMs: 50 },
+			}),
+		);
+		expect(exclusions(second)).toEqual([]);
+		// 除外の entry を落とした journal は、DB が journal より進んでいると検出される。
+		expect(reconcile(store, [e1, e2])).toEqual({
+			status: "inconsistent",
+			reasonCode: "JOURNAL_TRUNCATED",
+		});
+	});
+
+	test("forgetting a source takes the candidates it supports and what was promoted from them", () => {
+		const { store } = scene();
+		const first = observeCandidate(store, M1, "c1");
+		const second = observeCandidate(store, M2, "c2");
+		expect(second.candidateId).toBe(first.candidateId);
+		const promotedItem = promoted(store, first.candidateId);
+		expect(tablesContain(store, "夜に散歩する")).toBe(true);
+		const { plan } = forgetRecord(store, {
+			type: "host_source",
+			sourceKey: messageKey("m1"),
+			scopeKey: SCOPE,
+		});
+		expect(plan.closure.counts).toMatchObject({ candidate: 1 });
+		expect(closureViolations(store)).toEqual([]);
+		expect(tablesContain(store, "夜に散歩する")).toBe(false);
+		const tombstones = store.writer
+			.query("SELECT target_type, target_id FROM memory_tombstone")
+			.all() as { target_type: string; target_id: string }[];
+		expect(tombstones).toContainEqual({
+			target_type: "candidate",
+			target_id: first.candidateId,
+		});
+		expect(tombstones).toContainEqual({
+			target_type: "state_item",
+			target_id: promotedItem,
+		});
+		expect(
+			store.read((db) =>
+				listCandidates(db, {
+					contractVersion: 1,
+					access: ACCESS,
+					scopeKey: SCOPE,
+					status: "promoted",
+				}),
+			),
+		).toMatchObject({ status: "ok", candidates: [] });
+		// 無関係な m2 のコーヒー・紅茶の item は残る。
+		expect(visibleWords(store).sort()).toEqual(["水", "紅茶"].sort());
+	});
+
+	test("forgetting only a candidate removes it, its promoted item and its exclusion, nothing else", () => {
+		const { store, itemId } = scene();
+		const candidate = observeCandidate(store, M1, "c1");
+		observeCandidate(store, M2, "c2");
+		const promotedItem = promoted(store, candidate.candidateId);
+		excludeTargets(store, "exclude", [
+			{
+				type: "candidate",
+				candidateId: candidate.candidateId,
+				scopeKey: SCOPE,
+			},
+			stateTarget(promotedItem),
+		]);
+		expect(exclusions(store).sort()).toEqual(
+			[candidate.candidateId, promotedItem].sort(),
+		);
+		forgetRecord(store, {
+			type: "candidate",
+			candidateId: candidate.candidateId,
+			scopeKey: SCOPE,
+		});
+		expect(exclusions(store)).toEqual([]);
+		expect(closureViolations(store)).toEqual([]);
+		expect(tablesContain(store, "夜に散歩する")).toBe(false);
+		expect(visibleWords(store).sort()).toEqual(
+			["コーヒー", "水", "紅茶"].sort(),
+		);
+		expect(idOf(itemId, "水")).toBeDefined();
+	});
+
+	test("forgetting a scope removes its candidates and every mark", () => {
+		const { store, itemId } = scene();
+		const candidate = observeCandidate(store, M3, "c1");
+		excludeTargets(store, "exclude", [
+			{
+				type: "candidate",
+				candidateId: candidate.candidateId,
+				scopeKey: SCOPE,
+			},
+			stateTarget(idOf(itemId, "水")),
+		]);
+		store.write((db) =>
+			suppressState(db, {
+				contractVersion: 1,
+				access: ACCESS,
+				scopeKey: SCOPE,
+				clock: { atMs: 41 },
+				target: {
+					type: "state_fact",
+					subject: "self",
+					kind: "preference",
+					semanticKey: "topic.コーヒー",
+				},
+			}),
+		);
+		forgetRecord(store, { type: "scope", scopeKey: SCOPE });
+		expect(
+			store.writer
+				.query(
+					"SELECT COUNT(*) AS n FROM memory_inferred_candidate WHERE status <> 'forgotten'",
+				)
+				.get(),
+		).toEqual({ n: 0 });
+		expect(exclusions(store)).toEqual([]);
+		expect(
+			store.writer.query("SELECT COUNT(*) AS n FROM memory_suppression").get(),
+		).toEqual({ n: 0 });
+		expect(
+			store.writer
+				.query("SELECT COUNT(*) AS n FROM memory_inferred_candidate_evidence")
+				.get(),
+		).toEqual({ n: 0 });
+		expect(tablesContain(store, "topic.コーヒー")).toBe(false);
+		expect(tablesContain(store, "夜に散歩する")).toBe(false);
+	});
+
+	test("a replayed forget of a database that never saw the candidate still blocks it from being recreated", () => {
+		const { store, before } = scene();
+		const candidate = observeCandidate(store, M1, "c1");
+		const entry = forgetRecord(store, {
+			type: "candidate",
+			candidateId: candidate.candidateId,
+			scopeKey: SCOPE,
+		}).entry;
+		const restored = openTestStore({ fromFile: before });
+		stores.push(restored);
+		expect(reconcile(restored, [entry])).toMatchObject({
+			status: "ok",
+			reapplied: 1,
+		});
+		const tomb = restored.writer
+			.query("SELECT target_type FROM memory_tombstone WHERE target_id = ?")
+			.all(candidate.candidateId);
+		expect(tomb).toEqual([{ target_type: "candidate" }]);
 	});
 });

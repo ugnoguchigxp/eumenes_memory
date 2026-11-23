@@ -7,6 +7,7 @@ import type {
 } from "eumenes-memory";
 import { listState, type MemoryDb } from "eumenes-memory/sqlite";
 import { demand, HOST_LIMITS, type Grant } from "./contracts.ts";
+import type { AgendaItem } from "./agenda-contract.ts";
 import type { HostItem, EvidenceStatus } from "./meaning/model-input.ts";
 
 export const digest = (value: unknown): string =>
@@ -117,13 +118,18 @@ export function stateFingerprint(
 export function grantKey(grant: Grant): string {
 	return digest(grant);
 }
+export type SnapshotItem = HostItem | AgendaItem;
+export type StoredItem = StateItem | AgendaItem;
+export function isAgendaItem(item: StoredItem): item is AgendaItem {
+	return "sourceRole" in item;
+}
 export interface Snapshot {
 	id: string;
 	epoch: string;
 	grantKey: string;
 	policy: string;
 	scopes: string[];
-	items: readonly HostItem[];
+	items: readonly SnapshotItem[];
 	fingerprint: string;
 	itemFingerprints: ReadonlyMap<string, string>;
 	complete: boolean;
@@ -138,11 +144,17 @@ export class SnapshotStore {
 		private readonly clock: () => number,
 	) {}
 	create(
-		items: (StateItem & { evidenceStatus?: EvidenceStatus })[],
+		items: ((StateItem & { evidenceStatus?: EvidenceStatus }) | AgendaItem)[],
 		scopes: string[],
 		grant: Grant,
 		policy: string,
-		fingerprint: (items: readonly StateItem[]) => string = stateFingerprint,
+		fingerprint: (items: readonly StoredItem[]) => string = (items) => {
+			const agenda = items.filter(isAgendaItem);
+			const facts = stateFingerprint(
+				items.filter((item) => !isAgendaItem(item)),
+			);
+			return agenda.length ? digest([facts, agenda]) : facts;
+		},
 		pool?: "search",
 	): Snapshot {
 		for (const [id, snapshot] of this.snapshots)
@@ -160,17 +172,18 @@ export class SnapshotStore {
 		let complete =
 			pool !== "search" && items.length <= HOST_LIMITS.snapshotItems;
 		let size = 0;
-		const shown: HostItem[] = [];
+		const shown: SnapshotItem[] = [];
 		for (const item of items.slice(0, HOST_LIMITS.snapshotItems)) {
 			size += Buffer.byteLength(JSON.stringify(item));
 			if (size > HOST_LIMITS.snapshotBytes) {
 				complete = false;
 				break;
 			}
-			shown.push({
-				...item,
-				evidenceStatus: item.evidenceStatus ?? "unverified",
-			});
+			shown.push(
+				isAgendaItem(item)
+					? item
+					: { ...item, evidenceStatus: item.evidenceStatus ?? "unverified" },
+			);
 		}
 		const snapshot: Snapshot = {
 			id: opaqueId(),

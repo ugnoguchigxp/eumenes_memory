@@ -5,7 +5,7 @@ Bun 1.4.4以降、SQLite 3.44以上（FTS5有効）、macOS/Linux向け。同じ
 ## 配布物から開始
 
 ```sh
-bun add /absolute/path/eumenes-memory-host-0.1.0.tgz
+bun add /absolute/path/eumenes-memory-host-0.2.1.tgz
 bunx --no-install eumenes-memory init /tmp/my-memory
 bunx --no-install eumenes-memory serve /tmp/my-memory
 # 別の端末
@@ -28,6 +28,65 @@ serveは専用の前景プロセスです。MCP接続が終わっても所有者
 訂正はsupersedes関係とreplacesItemIdで対象を示します。曖昧な変更はneeds_clarificationとして保留します。忘却もplan/apply（別名`forget plan`/`forget apply`）です。Stateだけなら原文を残し、sourceHandlesを指定すると原文全体の消去も計画します。保持すべき事実と同じ原文を部分消去しようとすると要確認になります。忘却previewは履歴と依存先の範囲を示します。限定scopeの接続は忘却できません。確認済みの項目があるストアの忘却にはconfirmedWrites権限も必要です。
 
 終了コードは正常0、要確認2、一部適用/pending3、拒否4、失敗/結果不明1。plan成功は適用完了ではありません。外部削除が未確認ならpendingのままです。状態を全成功へ読み替えないでください。
+
+## 予定・意図・約束（0.2.0）
+
+`context`の`items`は既存のStateです。同じページの`agendaItems`に、予定（`plan`）、いま気にしていること（`concern`）、条件つきの依頼（`conditional_request`）、期限つきの指示（`temporary_instruction`）、エージェントの約束（`commitment`）が入ります。範囲と件数上限は両配列を合わせたものです。`nextCursor`がある間は両方を集めてください。`read`にはどちらの`itemId`も渡せます。通常の`recall`はStateを使います。
+
+各agenda項目には次が入ります。
+
+| 項目 | 内容 |
+| --- | --- |
+| `itemId`, `scopeKey`, `kind` | 永続ID、権限範囲、種類 |
+| `text`, `quote`, `evidence`, `sourceRole` | 内容、原文の連続引用、版・digest・UTF-8 byte範囲を含む出典、話者（`user` / `agent`） |
+| `certainty` | `confirmed`（決定・指示・約束）または `tentative`（考え中）。本人確認の権限を示すStateの`origin`とは別 |
+| `time` | 時間情報がなければ`null`。あれば`{original,scheduledFor,deadline,validUntil}`。元の時の表現を`original`に残し、未確定の各値は`null`。予定日・期限・失効時刻は`YYYY-MM`・`YYYY-MM-DD`・オフセット付きISO 8601日時のうち判明している精度で保存 |
+| `trigger` | `null`、`{type:"time",at}`（`time`と同じ日付・日時形式）、または`{type:"event",condition}`（出来事や話題を説明する文） |
+| `status`, `updatedAtMs` | `pending`、`done`、`cancelled`と、状態が最後に変わった時刻（Unix epochミリ秒）。登録時は`pending` |
+
+完了済み・取りやめも履歴として返します。先回りの対象は`pending`から選び、期限・失効や話題の照合は呼び出し元で判断します。
+
+### 利用者の発言から計画する
+
+`source`に利用者の原文を`kind:"text"`で登録し、`context`に`agenda:true`を指定すると拡張した計画スキーマと指示が返ります。TypeScriptから組み立てる場合は`eumenes-memory-host/meaning/planning`の`hostAgendaPlanningInstructions`、`modelAgendaItems(agendaItems)`、`planningSchema(ids,{quoteMode:"range",agenda:true})`、`parsePlan(raw,items,"",agendaItems)`を使います。`ids`は両配列のID、`items`と`agendaItems`はそれぞれモデル向けの投影です。自然文CLIの`plan`はこの形を使います。
+
+モデルへの`message`の先頭に、アプリ側が作ったローカル時刻を`今: 2026-11-10T09:00:00+09:00`の形式で入れてください。`source`には時刻の前置きを足さず、利用者の原文だけを入れます。相対日時の解釈は、同じ計画のモデル呼び出しで行います。ホストは保存する日時の形式と引用範囲を検査します。
+
+- `remember_agenda`は`{type,kind,text,certainty,time,trigger,quote,replacesItemId}`です。新規は`replacesItemId:null`、訂正は`supersedes`と対象IDを指定します。同じ種類の未完了項目を`cancelled`にし、新しいIDの項目を同じトランザクションで保存します。
+- 会話だけで既存項目を終えるときは`{type:"set_agenda_status",itemId,status,quote}`と、`supersedes`、`relatedItemIds:[itemId]`を指定します。状態は`done`または`cancelled`です。
+- 実行対象の`remember`、`remember_agenda`、`set_agenda_status`にそれぞれ`evidence`を付けます。TypeScriptでは`requiresQuote(action)`で判定できます。`forget`は項目を消去する操作で、状態更新と別のグループにします。
+
+### 約束の登録と状態更新
+
+実際に利用者へ返した全文を`source`の`kind:"agent_reply"`で登録し、返った`sourceHandle`を使います。ホストは登録された返事と引用が同じUTF-8範囲に一致することを検査します。実際に送った返事を登録する責任は認証済みの呼び出し元にあります。`agent_reply`は利用者の事実や会話からのagenda書き込みの根拠に使えません。
+
+```json
+{
+  "agenda": {
+    "type": "record_commitment",
+    "scopeKey": "personal",
+    "sourceHandle": "<登録時のハンドル>",
+    "startByte": 0,
+    "endByte": 48,
+    "quote": "京都の朝の天気を調べておきますね",
+    "text": "京都の朝の天気を調べておきますね",
+    "time": null,
+    "trigger": null
+  }
+}
+```
+
+このJSONを`apply`へ渡すと、モデルなしで`{status:"completed",itemId}`が返ります。1つの返事の同じ範囲は同じ約束を指し、同じ登録の再送ではIDと現在の状態を保持します。再起動などでハンドルが失効したら、同じ`submissionId`、scope、種類、全文で再登録して取得します。
+
+報告済みなどの状態更新は`apply`へ`{"agenda":{"type":"set_agenda_status","scopeKey":"personal","itemId":"<ID>","status":"done"}}`を渡します。`cancelled`も指定できます。同じ状態への再送は成功し、反対の終端状態への変更は拒否されます。この2操作にはscopeのread/write権限が必要です。
+
+### 忘却と移行
+
+出典の消去は、その出典を使ったagenda項目にも連鎖します。会話で行った状態更新の出典も依存関係に含まれます。agenda項目だけを消すときは、同じ`plan`と`apply`で`forget`の対象にagendaのIDを選びます。出典ごと消すときは、該当の`sourceHandle`を`plan.sourceHandles`に指定します。既存のStateが同じ出典を利用する場合は、その保持と消去の衝突を従来どおり検査します。
+
+旧ホストを停止し、DBと最新の忘却journalを揃えてバックアップしてください。0.2.0は起動時に、ホストのスキーマを1から2へ所有者のトランザクション内で移行します。既存のStateと出典を引き継ぎます。本体は同梱の`eumenes-memory@0.0.4`、本体DBスキーマは8、wire版は1です。移行後のDBは旧ホストでは開けません。journalは最新のものを保持してください。agencyの`profile.md`や`agenda-state.json`は別途移行が必要です。
+
+0.2.1は同梱の本体を`eumenes-memory@0.0.5`（本体DBスキーマ10）に更新しました。起動時にmigration 0010（除外・抑制・記憶の候補・強度・変更フィードの列）を適用します。0010を適用したDBは0.2.0以前のホストでは開けません。ホストの操作と挙動は0.2.0のままです（0010の部品はホストからは公開していません）。
 
 ## 自然文CLI
 

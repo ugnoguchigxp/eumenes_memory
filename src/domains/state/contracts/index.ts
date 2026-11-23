@@ -137,6 +137,8 @@ export const STATE_REASON_CODES = Object.freeze([
 	"EVIDENCE_NOT_IN_INPUT",
 	"SOURCE_STALE",
 	"SOURCE_TOMBSTONED",
+	/** `change: "consolidation"` で、本人由来（`user_confirmed` / `user_edited`）の item の本文を書き換えようとした。 */
+	"USER_TEXT_PROTECTED",
 ] as const);
 export type StateReasonCode = (typeof STATE_REASON_CODES)[number];
 
@@ -177,6 +179,12 @@ export interface StateItem {
 	readonly validity?: ValidityPeriod;
 	readonly createdSeq: number;
 	readonly updatedSeq: number;
+	/** 検索の順位の重み（0〜1）。1 のときは省略する。 */
+	readonly strength?: number;
+	/** 抑制（話題に出さない）されているとき `true`。されていなければ省略する。 */
+	readonly suppressed?: true;
+	/** 除外されているとき `true`。`includeExcluded` で読んだ場合だけ現れる（既定の照会は除外された item を返さない）。 */
+	readonly excluded?: true;
 }
 
 export interface StateCause {
@@ -255,12 +263,32 @@ export interface AssertUserStateInput extends ScopedWrite {
 	readonly validity?: ValidityPeriod;
 	/** 既存 active を置き換える場合は必須。無いのに active が存在すれば `ACTIVE_EXISTS`。 */
 	readonly replaces?: { readonly itemId: string; readonly revision: number };
+	/**
+	 * この変更を起こした run の ID。変更フィードの行に残り、`hasMemoryChangesExcludingRun` が「自分の run の変更を除いて
+	 * 変更があったか」を答える。省略した変更は run 不明（他の run の変更として数える）。挙動は省略時と変わらない。
+	 */
+	readonly sourceRunId?: string;
+	/**
+	 * `replaces` で置き換えるときの種類。`correction`（既定）は値の訂正、`consolidation` は意味の変わらない版の更新
+	 * （統合など）。変更フィードの旧版の行の `changeKind` に出る。`consolidation` は `replaces` が要り、置き換え対象が
+	 * 本人由来（`user_confirmed` / `user_edited`）で値が変わるなら `USER_TEXT_PROTECTED` で拒否する。
+	 */
+	readonly change?: StateChangeKind;
 }
+
+/** `replaces` による置き換えの種類（変更フィードの `changeKind` と対応）。 */
+export const STATE_CHANGE_KINDS = Object.freeze([
+	"correction",
+	"consolidation",
+] as const);
+export type StateChangeKind = (typeof STATE_CHANGE_KINDS)[number];
 
 /** deactivate / reactivate / retract 共通。 */
 export interface StateTargetInput extends ScopedWrite {
 	readonly itemId: string;
 	readonly expectedRevision: number;
+	/** 変更を起こした run の ID（`AssertUserStateInput.sourceRunId` と同じ）。 */
+	readonly sourceRunId?: string;
 }
 
 /** `unchanged` = 冪等（すでに同じ状態／同じ値）。item の revision は変わらない。 */
@@ -280,6 +308,21 @@ export interface ListStateInput extends ScopedRead {
 	readonly after?: { readonly updatedSeq: number; readonly itemId: string };
 	/** 指定した item だけに絞る（1〜1000 件、重複なし）。scope と状態の条件はそのまま効き、無い ID は黙って除く。 */
 	readonly itemIds?: readonly string[];
+	/**
+	 * 除外（忘却の依頼の直後の即時の印）された item も返す（各 item に `excluded: true`）。既定は返さない。
+	 * 忘却の処理（対象の全版・根拠の収集）にだけ使う。回答・文脈の材料には使わない。
+	 */
+	readonly includeExcluded?: boolean;
+	/**
+	 * 抑制された item の扱い。`mark`（既定）は返して `suppressed: true` を付ける。`omit` は返さない
+	 * （`## Memory` など、話題に出す文脈の材料を作るとき）。忘却の処理は `mark` のまま使う。
+	 */
+	readonly suppressed?: "mark" | "omit";
+	/**
+	 * 推定由来（`agent_inferred` と既存 DB の `admitted_extraction`）の item のうち、強度がこの値未満のものを返さない。
+	 * 本人由来（`user_confirmed` / `user_edited`）は強度に関わらず返す。省略は絞らない。
+	 */
+	readonly minStrength?: number;
 }
 
 export type ListStateResult =
@@ -340,6 +383,12 @@ export interface SearchStateInput {
 	readonly limit: number;
 	/** 走査の経路の対象の上限（既定 20000）。 */
 	readonly scanMax?: number;
+	/**
+	 * 推定由来の item のうち、強度がこの値未満のものを返さない（本人由来は常に返す）。省略は絞らない
+	 * （利用者が語を指定した直接の検索は、強度の低い推定も引ける）。順位は強度で重み付けされる。
+	 * 除外された item は常に返さない。抑制された item は返し、`suppressed: true` を付ける。
+	 */
+	readonly minStrength?: number;
 }
 
 export type SearchStateReasonCode =
@@ -354,3 +403,317 @@ export type SearchStateResult =
 			readonly mode: "fts" | "scan";
 	  }
 	| { readonly status: "blocked"; readonly reasonCode: SearchStateReasonCode };
+
+// ---- 二重の時間軸の照会（`listStateByTime`）----
+
+/**
+ * 記録の二重の時間軸。真だった期間（`validFromMs` / `validUntilMs`）に加え、記録した時点（`recordedAtMs`）と失効させた時点
+ * （`supersededAtMs`）を、既存の版の履歴（`memory_state_event` の `at_ms` ＝ 書き込み時にホストが渡した時計）から導く。
+ * - `recordedAtMs`: その版（item）を作った書き込みの時計。
+ * - `supersededAtMs`: 置き換え（`supersede`）・撤回（`retract`）・無効化（`invalidate`）で失効させた書き込みの時計。
+ *   今も有効な版、停止中（inactive）・紛争中（disputed）の版は null。
+ */
+export interface TimedStateItem extends StateItem {
+	readonly recordedAtMs: number;
+	readonly supersededAtMs: number | null;
+}
+
+/**
+ * 時間軸での照会。条件はすべて AND。何も指定しなければ、忘却されていない全版（履歴）を古い順に返す。
+ * 除外された item は返さない。抑制された item は `suppressed: true` を付けて返す。
+ * - `current`: 今有効な記録だけ（status が `active`）。
+ * - `recordedAt`: その時点で記録済みで、まだ失効していなかった版（`recordedAtMs <= T` かつ `supersededAtMs` が無いか `> T`）。
+ * - `validAt`: その時点で真だった版（`validFromMs <= V` かつ `V < validUntilMs`。境界が無い側は無限）。
+ */
+export interface ListStateByTimeInput extends ScopedRead {
+	readonly kinds?: readonly StateKind[];
+	readonly current?: boolean;
+	readonly recordedAt?: number;
+	readonly validAt?: number;
+	readonly limit?: number;
+	/** 古い順（createdSeq 昇順、同じなら itemId 昇順）の続き。 */
+	readonly after?: { readonly createdSeq: number; readonly itemId: string };
+}
+
+export type ListStateByTimeResult =
+	| {
+			readonly status: "ok";
+			readonly items: readonly TimedStateItem[];
+			readonly nextCursor?: {
+				readonly createdSeq: number;
+				readonly itemId: string;
+			};
+	  }
+	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
+
+// ---- 抑制（話題に出さない）----
+
+/**
+ * 印の対象。`state_item` はその版だけ、`state_fact` は同じ事実（subject・kind・semanticKey）の全版と、以後の新しい版。
+ */
+export type StateMarkTarget =
+	| { readonly type: "state_item"; readonly itemId: string }
+	| {
+			readonly type: "state_fact";
+			readonly subject: StateSubject;
+			readonly kind: StateKind;
+			readonly semanticKey: string;
+	  };
+
+/**
+ * 抑制の付与・解除。記録は残る。`listState` は `suppressed: "omit"` で外し、`searchState` は印を付けて返す。
+ * journal には載らない（忘却ではない。DB を復元で失えば付け直す）。対象の事実・item が忘却されると印も消える。
+ * 同じ状態への操作は `unchanged`。`state_item` が無ければ `missing`、忘却済みなら `forgotten`。
+ */
+export interface SuppressStateInput extends ScopedWrite {
+	readonly target: StateMarkTarget;
+	readonly sourceRunId?: string;
+}
+
+export type SuppressStateResult =
+	| { readonly status: "applied" | "unchanged" }
+	| { readonly status: MissingStatus }
+	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
+
+export type ListSuppressionsInput = ScopedRead;
+
+export type ListSuppressionsResult =
+	| { readonly status: "ok"; readonly targets: readonly StateMarkTarget[] }
+	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
+
+// ---- 順位の重み（強度）----
+
+/** 推定由来の記録を既定の検索・文脈から外す強度の目安（`minStrength` に渡す。本体は自動では適用しない）。 */
+export const DEFAULT_WEAK_STRENGTH = 0.2;
+/** `decayStateStrength` の下限の既定（これ以下には下げない）。 */
+export const DEFAULT_STRENGTH_FLOOR = 0.05;
+
+/**
+ * 減衰: scope の active な item の強度に `factor`（0 より大きく 1 未満）を掛ける（`floor` を下回らない）。順位の重みだけを
+ * 変える。item の値・status・revision・変更フィードは変えない。本人由来の記録も重みは下がるが、検索・一覧から外れない。
+ */
+export interface DecayStateStrengthInput extends ScopedWrite {
+	readonly factor: number;
+	readonly floor?: number;
+}
+
+/**
+ * 強化: 回答・行動に使われた item の強度を `amount`（0 より大きく 1 以下）だけ上げる（上限 1）。
+ * 存在しない・他 scope・忘却済みの ID は黙って数えない。
+ */
+export interface ReinforceStateStrengthInput extends ScopedWrite {
+	readonly itemIds: readonly string[];
+	readonly amount: number;
+}
+
+export type StateStrengthResult =
+	| { readonly status: "ok"; readonly updated: number }
+	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
+
+// ---- 根拠必須の検査（純粋）----
+
+export const GROUNDED_REASON_CODES = Object.freeze([
+	/** 引用つきの根拠も、候補からの昇格の記録も無い。 */
+	"NO_GROUNDING",
+	"QUOTE_MISMATCH",
+	"EVIDENCE_NOT_IN_INPUT",
+	"SOURCE_STALE",
+	/** `requireRunId` なのに `sourceRunId` が無い。 */
+	"RUN_ID_REQUIRED",
+	/** 昇格の記録の、独立した会話の数が `minConversations` に足りない。 */
+	"NOT_ENOUGH_CONVERSATIONS",
+] as const);
+export type GroundedReasonCode = (typeof GROUNDED_REASON_CODES)[number];
+
+/** 長期記憶（State）・傾向の主張の根拠。引用つきの根拠（発言 ID と引用）か、候補からの昇格の記録のどちらか。 */
+export interface GroundedClaim {
+	readonly evidence?: readonly EvidenceSpan[];
+	/** `evidence` の引用を照合する本文つきの出典。 */
+	readonly sources?: readonly HostSourceState[];
+	/** 候補（L1）からの昇格の記録。根拠の件数と、観測した会話の ID（重複は数えない）。 */
+	readonly promotion?: {
+		readonly candidateId: string;
+		readonly evidenceCount: number;
+		readonly conversationIds: readonly string[];
+	};
+	readonly sourceRunId?: string;
+}
+
+export interface GroundedPolicy {
+	/** true なら `sourceRunId`（整理の run の ID）を必須にする。 */
+	readonly requireRunId?: boolean;
+	/** 昇格の記録の、独立した会話の数の下限（既定 1）。 */
+	readonly minConversations?: number;
+}
+
+export type GroundedCheckResult =
+	| { readonly ok: true; readonly basis: "quote" | "promotion" }
+	| { readonly ok: false; readonly reasonCode: GroundedReasonCode };
+
+// ---- 記憶の候補（L1）----
+
+/**
+ * 推定・観測の候補（設計 §4.5）。`origin` は `agent_inferred` だけ。根拠（出典の範囲。発言、または外部のメモの参照）は
+ * 1 件以上必須で、観測の回数は distinct な根拠の件数、観測した会話は根拠に付いた会話 ID の distinct な一覧。
+ * 候補は `context`・`searchState`・`listState` に現れない（睡眠の層の入力）。忘却の閉包の対象で、根拠の出典を忘れると消える。
+ */
+export const CANDIDATE_STATUSES = Object.freeze([
+	"open",
+	"dismissed",
+	"promoted",
+	"forgotten",
+] as const);
+export type CandidateStatus = (typeof CANDIDATE_STATUSES)[number];
+
+export const LIMITS_CANDIDATE = Object.freeze({
+	/** 1 つの候補が持てる根拠の件数。 */
+	maxEvidencePerCandidate: 256,
+	maxConversationIdBytes: 256,
+	maxListCandidates: 200,
+});
+
+export interface InferredCandidate {
+	readonly candidateId: string;
+	readonly scopeKey: string;
+	readonly status: Exclude<CandidateStatus, "forgotten">;
+	readonly kind: StateKind;
+	readonly subject: StateSubject;
+	readonly semanticKey: string;
+	readonly value: StateValue;
+	readonly origin: "agent_inferred";
+	/** 根拠の件数（distinct な出典の範囲）。 */
+	readonly observationCount: number;
+	/** 観測した会話の ID（distinct、初出の順）。会話 ID を渡さなかった観測（外部のメモなど）は含まない。 */
+	readonly conversationIds: readonly string[];
+	readonly evidence: readonly SourceRef[];
+	readonly firstObservedMs: number;
+	readonly lastObservedMs: number;
+	/** 昇格済みのとき、昇格先の itemId。 */
+	readonly promotedItemId?: string;
+	readonly createdSeq: number;
+	readonly updatedSeq: number;
+}
+
+export const CANDIDATE_REASON_CODES = Object.freeze([
+	"SUBJECT_KIND_MISMATCH",
+	"QUOTE_MISMATCH",
+	"EVIDENCE_NOT_IN_INPUT",
+	"SOURCE_STALE",
+	"SOURCE_TOMBSTONED",
+	"EVIDENCE_LIMIT_EXCEEDED",
+	/** 候補が open でない（昇格済み・却下済み）。 */
+	"CANDIDATE_NOT_OPEN",
+] as const);
+export type CandidateReasonCode = (typeof CANDIDATE_REASON_CODES)[number];
+
+/**
+ * 候補の記録（観測の追加）。同じ (subject, kind, semanticKey, polarity, text) の open な候補があればそこへ観測を足し、
+ * 無ければ作る。同じ出典の同じ範囲を再び渡しても数えない（冪等。再試行で観測の回数が増えない）。
+ * 根拠は State と同じ検査（引用・出典の現在状態・墓標）に通る。外部のメモを根拠にするときは、そのメモの出典
+ * （別の namespace・kind でよい）を同じ形で渡す。`value.attributes` は持てない。
+ */
+export interface RecordCandidateInput extends ScopedWrite {
+	readonly kind: StateKind;
+	readonly subject: StateSubject;
+	readonly semanticKey: string;
+	readonly value: StateValue;
+	readonly evidence: readonly EvidenceSpan[];
+	readonly sources: readonly HostSourceState[];
+	/** 観測した会話の ID（観測の回数と「複数の会話」の判定に使う）。 */
+	readonly conversationId?: string;
+	readonly sourceRunId?: string;
+}
+
+export type RecordCandidateResult =
+	| {
+			readonly status: "recorded";
+			readonly created: boolean;
+			/** 今回新しく数えた観測（根拠）の件数。0 なら冪等の再送。 */
+			readonly newObservations: number;
+			readonly candidate: InferredCandidate;
+	  }
+	| { readonly status: "rejected"; readonly reasonCode: CandidateReasonCode }
+	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
+
+export interface ListCandidatesInput extends ScopedRead {
+	/** 既定は `open`。 */
+	readonly status?: Exclude<CandidateStatus, "forgotten">;
+	readonly kinds?: readonly StateKind[];
+	/** 観測の回数の下限。 */
+	readonly minObservations?: number;
+	readonly limit?: number;
+	/** updatedSeq の降順、同じなら candidateId の昇順の続き。 */
+	readonly after?: {
+		readonly updatedSeq: number;
+		readonly candidateId: string;
+	};
+}
+
+export type ListCandidatesResult =
+	| {
+			readonly status: "ok";
+			readonly candidates: readonly InferredCandidate[];
+			readonly nextCursor?: {
+				readonly updatedSeq: number;
+				readonly candidateId: string;
+			};
+	  }
+	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode };
+
+export interface ReadCandidateInput extends ScopedRead {
+	readonly candidateId: string;
+}
+
+export type ReadCandidateResult =
+	| { readonly status: "ok"; readonly candidate: InferredCandidate }
+	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode }
+	| { readonly status: MissingStatus };
+
+export interface DismissCandidateInput extends ScopedWrite {
+	readonly candidateId: string;
+	readonly sourceRunId?: string;
+}
+
+/** open → dismissed（重複の統合・不採用）。dismissed への再操作は `unchanged`、昇格済みは `CANDIDATE_NOT_OPEN`。 */
+export type DismissCandidateResult =
+	| {
+			readonly status: "applied" | "unchanged";
+			readonly candidate: InferredCandidate;
+	  }
+	| { readonly status: "rejected"; readonly reasonCode: CandidateReasonCode }
+	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode }
+	| { readonly status: MissingStatus };
+
+// ---- 昇格（候補 → 長期記憶）----
+
+/**
+ * 候補（L1）から長期記憶（State、L2）への昇格。昇格した item は `agent_inferred`（本人の確認ではない）で、根拠は
+ * 候補の根拠の一覧（複数の会話）をそのまま引き継ぐ。item は候補に `derived_from` で依存する（候補を忘れると item も消える）。
+ * - 根拠の検査: `GroundedClaim` の昇格の記録として検査する（`sourceRunId` 必須、独立した会話の数が `minConversations`
+ *   〔既定 2〕以上、根拠の出典が墓標でない）。通らなければ `rejected`。
+ * - 同じ事実に active があり、値が同じ: item は変えず（revision も増えない）、候補を昇格済みにして根拠を足す（`unchanged`）。
+ * - 値が違う: `replaces`（CAS）が要る。置き換え対象が本人由来なら `USER_TEXT_PROTECTED` で拒否する
+ *   （本人の記録の本文は整理で書き換えない）。置き換えた旧版の変更フィードの行に `changeKind`（`change`、既定 `correction`）が付く。
+ */
+export interface PromoteCandidateInput extends ScopedWrite {
+	readonly candidateId: string;
+	readonly sourceRunId: string;
+	readonly minConversations?: number;
+	readonly replaces?: { readonly itemId: string; readonly revision: number };
+	readonly change?: StateChangeKind;
+}
+
+export type PromoteReasonCode =
+	| GroundedReasonCode
+	| CandidateReasonCode
+	| StateReasonCode;
+
+export type PromoteCandidateResult =
+	| {
+			readonly status: "promoted" | "unchanged";
+			readonly item: StateItem;
+			readonly candidate: InferredCandidate;
+	  }
+	| { readonly status: "rejected"; readonly reasonCode: PromoteReasonCode }
+	| { readonly status: "blocked"; readonly reasonCode: StoreAccessReasonCode }
+	| { readonly status: MissingStatus };

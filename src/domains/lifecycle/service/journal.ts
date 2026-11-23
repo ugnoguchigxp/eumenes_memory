@@ -14,13 +14,17 @@ import { sha256Hex } from "../../../canonical/sha256.ts";
 import { isWellFormedUtf16, utf8ByteLength } from "../../../canonical/utf8.ts";
 import { hasControlChars } from "../../../contracts/reader.ts";
 import {
+	EXCLUSION_OPS,
+	EXCLUSION_TARGET_TYPES,
 	FORGET_TARGET_TYPES,
 	GENESIS_JOURNAL_HASH,
 	JOURNAL_FORMAT,
+	JOURNAL_FORMAT_EXCLUSION,
 	JOURNAL_FORMAT_HOST_INTENT,
 	LIMITS_LIFECYCLE,
 } from "../contracts/index.ts";
 import type {
+	ExclusionOp,
 	ForgetJournalEntry,
 	ForgetJournalTarget,
 	HostForgetIntent,
@@ -75,8 +79,13 @@ export function computeForgetId(
 	principal: string,
 	seq: number,
 	targets: readonly ForgetJournalTarget[],
+	exclusionOp?: ExclusionOp,
 ): string {
-	return `forget:${sha256Hex(canonicalJson({ principal, seq, targets }))}`;
+	const body =
+		exclusionOp === undefined
+			? { principal, seq, targets }
+			: { principal, seq, targets, exclusionOp };
+	return `forget:${sha256Hex(canonicalJson(body))}`;
 }
 
 export function computeEntryHash(
@@ -96,6 +105,12 @@ export function computeEntryHash(
 	) {
 		body["hostIntent"] = entry.hostIntent;
 	}
+	if (
+		entry.journalFormat === JOURNAL_FORMAT_EXCLUSION &&
+		entry.exclusionOp !== undefined
+	) {
+		body["exclusionOp"] = entry.exclusionOp;
+	}
 	return sha256Hex(canonicalJson(body));
 }
 
@@ -111,6 +126,8 @@ export function buildJournalEntry(args: {
 	readonly principal: string;
 	readonly targets: readonly ForgetJournalTarget[];
 	readonly hostIntent?: HostForgetIntent | null;
+	/** format 3 のときだけ（必須）。 */
+	readonly exclusionOp?: ExclusionOp;
 }): ForgetJournalEntry {
 	const targets = canonicalizeTargets(args.targets);
 	const hostIntent =
@@ -118,17 +135,31 @@ export function buildJournalEntry(args: {
 			? null
 			: canonicalizeHostIntent(args.hostIntent);
 	const journalFormat = args.journalFormat ?? JOURNAL_FORMAT;
-	if (journalFormat === JOURNAL_FORMAT && hostIntent !== null) {
+	if (journalFormat !== JOURNAL_FORMAT_HOST_INTENT && hostIntent !== null) {
 		throw new TypeError("buildJournalEntry: hostIntent needs format 2");
+	}
+	if (
+		(journalFormat === JOURNAL_FORMAT_EXCLUSION) !==
+		(args.exclusionOp !== undefined)
+	) {
+		throw new TypeError("buildJournalEntry: exclusionOp needs format 3");
 	}
 	const body = {
 		journalFormat,
 		seq: args.seq,
 		prevHash: args.prevHash,
-		forgetId: computeForgetId(args.principal, args.seq, targets),
+		forgetId: computeForgetId(
+			args.principal,
+			args.seq,
+			targets,
+			args.exclusionOp,
+		),
 		principal: args.principal,
 		targets,
 		...(hostIntent !== null ? { hostIntent } : {}),
+		...(args.exclusionOp !== undefined
+			? { exclusionOp: args.exclusionOp }
+			: {}),
 	};
 	return { ...body, hash: computeEntryHash(body) };
 }
@@ -166,6 +197,7 @@ const FORMAT_1_KEYS = Object.freeze([
 	"hash",
 ]);
 const FORMAT_2_KEYS = Object.freeze([...FORMAT_1_KEYS, "hostIntent"]);
+const FORMAT_3_KEYS = Object.freeze([...FORMAT_1_KEYS, "exclusionOp"]);
 
 /**
  * 正規化済みの hostIntent か（plain object、キー 1〜上限、各配列は非空で狭義の昇順、ID の総数が上限以下）。
@@ -220,12 +252,17 @@ export function isSelfConsistent(entry: unknown): entry is ForgetJournalEntry {
 	const journalFormat = e["journalFormat"];
 	if (
 		journalFormat !== JOURNAL_FORMAT &&
-		journalFormat !== JOURNAL_FORMAT_HOST_INTENT
+		journalFormat !== JOURNAL_FORMAT_HOST_INTENT &&
+		journalFormat !== JOURNAL_FORMAT_EXCLUSION
 	) {
 		return false;
 	}
 	const allowed =
-		journalFormat === JOURNAL_FORMAT ? FORMAT_1_KEYS : FORMAT_2_KEYS;
+		journalFormat === JOURNAL_FORMAT
+			? FORMAT_1_KEYS
+			: journalFormat === JOURNAL_FORMAT_HOST_INTENT
+				? FORMAT_2_KEYS
+				: FORMAT_3_KEYS;
 	if (Object.keys(e).some((key) => !allowed.includes(key))) return false;
 	const seq = e["seq"];
 	if (typeof seq !== "number" || !Number.isSafeInteger(seq) || seq < 1) {
@@ -240,11 +277,17 @@ export function isSelfConsistent(entry: unknown): entry is ForgetJournalEntry {
 		hostIntent = readCanonicalHostIntent(e["hostIntent"]);
 		if (hostIntent === null) return false;
 	}
+	let exclusionOp: ExclusionOp | undefined;
+	if (journalFormat === JOURNAL_FORMAT_EXCLUSION) {
+		exclusionOp = EXCLUSION_OPS.find((op) => op === e["exclusionOp"]);
+		if (exclusionOp === undefined) return false;
+	}
 	const targets = e["targets"];
 	if (
 		!Array.isArray(targets) ||
 		targets.length > LIMITS_LIFECYCLE.maxJournalTargets ||
-		(targets.length === 0 && hostIntent === null)
+		(targets.length === 0 &&
+			(hostIntent === null || journalFormat === JOURNAL_FORMAT_EXCLUSION))
 	) {
 		return false;
 	}
@@ -252,9 +295,13 @@ export function isSelfConsistent(entry: unknown): entry is ForgetJournalEntry {
 	for (const target of targets as unknown[]) {
 		if (typeof target !== "object" || target === null) return false;
 		const t = target as Record<string, unknown>;
+		const allowedTypes: readonly string[] =
+			journalFormat === JOURNAL_FORMAT_EXCLUSION
+				? EXCLUSION_TARGET_TYPES
+				: FORGET_TARGET_TYPES;
 		if (
 			typeof t["type"] !== "string" ||
-			!(FORGET_TARGET_TYPES as readonly string[]).includes(t["type"]) ||
+			!allowedTypes.includes(t["type"]) ||
 			!isNonEmptyString(t["id"]) ||
 			!isNonEmptyString(t["scopeKey"])
 		) {
@@ -277,9 +324,11 @@ export function isSelfConsistent(entry: unknown): entry is ForgetJournalEntry {
 		principal: e["principal"],
 		targets: typed,
 		...(hostIntent !== null ? { hostIntent } : {}),
+		...(exclusionOp !== undefined ? { exclusionOp } : {}),
 	} as const;
 	return (
-		e["forgetId"] === computeForgetId(body.principal, seq, typed) &&
+		e["forgetId"] ===
+			computeForgetId(body.principal, seq, typed, exclusionOp) &&
 		e["hash"] === computeEntryHash(body)
 	);
 }
